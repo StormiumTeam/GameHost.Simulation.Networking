@@ -42,7 +42,7 @@ namespace package.stormiumteam.networking
 
     public interface INetOnNewMessage : IAppEvent
     {
-        void Callback(NetPeerInstance caller, MessageReader reader);
+        void Callback(NetworkInstance caller, NetPeerInstance peerInstance, MessageReader reader);
     }
 
     public interface INetOnUserStatusChange : IAppEvent

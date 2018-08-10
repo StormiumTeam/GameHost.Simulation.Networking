@@ -5,13 +5,20 @@ namespace package.stormiumteam.networking.game
 {
     public class NetworkPrefabIdent : MonoBehaviour
     {
-        private static Dictionary<string, GameObject> s_AllRegistredPrefabs;
-        
+        private static Dictionary<string, GameObject> s_AllRegistredPrefabs = new Dictionary<string, GameObject>();
+
+        public bool RegisterIfSpawned = false;
         public GameObject Original;
         public string PrefabId;
 
         private void Awake()
         {
+            if (!RegisterIfSpawned)
+            {
+                return;
+            }
+                
+            
             if (string.IsNullOrEmpty(PrefabId) || Original == null)
             {
                 var extMsg = "'PrefabId' and 'Original' are";
@@ -46,6 +53,11 @@ namespace package.stormiumteam.networking.game
         public static void ForceRegister(GameObject prefab, string id)
         {
             s_AllRegistredPrefabs[id] = prefab;
+        }
+
+        public static GameObject Get(string id)
+        {
+            return s_AllRegistredPrefabs[id];
         }
     }
 }

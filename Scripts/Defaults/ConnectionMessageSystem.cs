@@ -1,5 +1,7 @@
+using System;
 using LiteNetLib.Utils;
 using Unity.Entities;
+using UnityEngine;
 
 namespace package.stormiumteam.networking
 {
@@ -37,7 +39,6 @@ namespace package.stormiumteam.networking
             m_NetDataWriter.Reset(initialSize);
             m_NetDataWriter.Put((byte) MessageType.Pattern);
             m_PatternManager.PutPattern(m_NetDataWriter, pattern);
-
             return m_NetDataWriter;
         }
     }

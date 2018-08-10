@@ -23,7 +23,7 @@ namespace package.stormiumteam.networking
             
         }
 
-        void INetOnNewMessage.Callback(NetPeerInstance netPeerInstance, MessageReader reader)
+        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             reader.ResetReadPosition();
 

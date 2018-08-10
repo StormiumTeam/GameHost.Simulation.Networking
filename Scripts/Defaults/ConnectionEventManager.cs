@@ -160,7 +160,7 @@ namespace package.stormiumteam.networking
             };
 
             MainWorld.GetOrCreateManager<NetworkMessageSystem>()
-                     .TriggerOnNewMessage(peer.Tag as NetPeerInstance, msgReader);
+                     .TriggerOnNewMessage(NetInstance, peer.Tag as NetPeerInstance, msgReader);
         }
 
         private void ListenerOnNetworkLatencyUpdateEvent(NetPeer peer, int latency)

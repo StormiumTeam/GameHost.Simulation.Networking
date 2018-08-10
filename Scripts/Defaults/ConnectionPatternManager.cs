@@ -54,7 +54,7 @@ namespace package.stormiumteam.networking
         // -------------------------------------------------------------------- //
         // Events
         // -------------------------------------------------------------------- //
-        void INetOnNewMessage.Callback(NetPeerInstance netPeerInstance, MessageReader reader)
+        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             reader.ResetReadPosition();
 
@@ -188,7 +188,6 @@ namespace package.stormiumteam.networking
         public void PutPattern(NetDataWriter dataWriter, MessageIdent pattern)
         {
             var linkId = m_Register.GetLinkFromIdent(pattern.Id);
-            
             dataWriter.Put(linkId);
             dataWriter.Put(pattern.Version);
         }

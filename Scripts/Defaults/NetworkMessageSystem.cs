@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using DefaultNamespace;
 using JetBrains.Annotations;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -11,11 +12,11 @@ namespace package.stormiumteam.networking
 {
     public class NetworkMessageSystem : ComponentSystem
     {
-        public static event Action<NetPeerInstance, MessageReader> OnNewMessage; 
+        public static event Action<NetworkInstance, NetPeerInstance, MessageReader> OnNewMessage; 
         
-        public void TriggerOnNewMessage(NetPeerInstance peerInstance, MessageReader reader)
+        public void TriggerOnNewMessage(NetworkInstance caller, NetPeerInstance peerInstance, MessageReader reader)
         {
-            OnNewMessage?.Invoke(peerInstance, reader);
+            OnNewMessage?.Invoke(caller, peerInstance, reader);
         }
 
         public void InstantSendTo(NetPeer peer, [CanBeNull] NetworkChannel channel, NetDataWriter writer, DeliveryMethod deliveryMethod)
@@ -41,6 +42,13 @@ namespace package.stormiumteam.networking
                     return;
                 }
             }
+        }
+        
+        public void InstantSendToAllDefault(NetworkInstance from, NetDataWriter writer, DeliveryMethod deliveryMethod)
+        {
+            var defaultChannel = from.GetChannelManager().DefaultChannel;
+            
+            defaultChannel.Manager.SendToAll(writer, deliveryMethod);
         }
 
         public void InstantSendToAll(NetworkChannel channel, NetDataWriter writer, DeliveryMethod deliveryMethod)

@@ -73,6 +73,32 @@ namespace package.stormiumteam.networking.ecs
         {
             return m_MappedEntities[netEntity];
         }
+        
+        public Entity GetEntity(Entity netEntity)
+        {
+            var component = new NetworkEntity(NetInstance.Id, netEntity);
+            return m_MappedEntities[component];
+        }
+
+        public void LinkNetworkEntity(Entity entityToLink, Entity               networkLink,
+                                      World  world = null, EntityCommandBuffer? buffer = null)
+        {
+            InternalGetEntityManagerAndWorld(ref world, out var em);
+
+            var componentToUpdate = new NetworkEntity(NetInstance.Id, networkLink);
+            if (!buffer.HasValue)
+            {
+                entityToLink.SetOrCreateComponentData(componentToUpdate);
+            }
+            else
+            {
+                var b = buffer.Value;
+                if (!em.HasComponent<NetworkEntity>(entityToLink)) b.AddComponent(entityToLink, componentToUpdate);
+                else b.SetComponent(entityToLink, componentToUpdate);
+            }
+
+            m_MappedEntities[componentToUpdate] = entityToLink;
+        }
 
         public NetworkEntity Networkify(Entity entity, World world = null, EntityCommandBuffer? buffer = null)
         {
@@ -215,7 +241,7 @@ namespace package.stormiumteam.networking.ecs
 
     public partial class ConnectionEntityManager
     {
-        void INetOnNewMessage.Callback(NetPeerInstance netPeerInstance, MessageReader reader)
+        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             if (reader.Type != MessageType.Pattern)
                 return;

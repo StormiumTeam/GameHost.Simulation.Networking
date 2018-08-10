@@ -21,7 +21,7 @@ namespace package.stormiumteam.networking
             NetworkMessageSystem.OnNewMessage += OnNewMessage;
         }
 
-        private void OnNewMessage(NetPeerInstance netPeerInstance, MessageReader reader)
+        private void OnNewMessage(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             reader.ResetReadPosition();
 

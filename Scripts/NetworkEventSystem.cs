@@ -31,14 +31,14 @@ namespace package.stormiumteam.networking
             }
         }
 
-        private void EventOnNewMessage(NetPeerInstance netPeerInstance, MessageReader reader)
+        private void EventOnNewMessage(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             m_AppEventSystem.CheckLoopValidity();
             
             foreach (var manager in AppEvent<INetOnNewMessage>.eventList)
             {
                 reader.ResetReadPosition();
-                manager.Callback(netPeerInstance, reader);
+                manager.Callback(caller, netPeerInstance, reader);
             }
             reader.ResetReadPosition();
         }

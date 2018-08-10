@@ -154,7 +154,7 @@ namespace package.stormiumteam.networking
             m_MessageSystem.InstantSendTo(peer, null, writer, DeliveryMethod.ReliableOrdered);
         }
 
-        private void OnNewMessage(NetPeerInstance peerInstance, MessageReader messageReader)
+        private void OnNewMessage(NetworkInstance caller, NetPeerInstance peerInstance, MessageReader messageReader)
         {
             messageReader.ResetReadPosition();
             
