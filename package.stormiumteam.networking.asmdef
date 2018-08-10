@@ -1,0 +1,15 @@
+{
+    "name": "package.stormiumteam.networking",
+    "references": [
+        "package.guerro.shared",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Mathematics",
+        "Unity.Collections",
+        "Unity.Jobs"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false
+}
