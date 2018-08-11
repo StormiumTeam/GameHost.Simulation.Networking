@@ -97,7 +97,7 @@ namespace package.stormiumteam.networking
             peer.Tag = newPeerInstance;
             otherNetworkInstance.SetPeerInstance(newPeerInstance);
 
-            var allocatedUser = NetInstance.GetUserManager().Allocate();
+            var allocatedUser = NetInstance.GetUserManager().Allocate(newPeerInstance);
             otherNetworkInstance.SetUser(allocatedUser);
 
             foreach (var manager in AppEvent<INetPeerConnectedEvent>.eventList)

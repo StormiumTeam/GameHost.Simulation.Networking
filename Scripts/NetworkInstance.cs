@@ -130,7 +130,7 @@ namespace package.stormiumteam.networking
 		{
 			if (user.Index == ulong.MaxValue)
 			{
-				m_NetUser = this.GetUserManager().Allocate();
+				m_NetUser = this.GetUserManager().Allocate(null);
 			}
 
 			m_NetUser = user;

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using UnityEngine;
@@ -11,13 +12,17 @@ namespace package.stormiumteam.networking
         private static NetDataWriter s_ServerAllBroadcastedDataSent;
         private static NetDataWriter s_ClientAllBroadcastedDataReceived;
 
+        private static int                   s_IncrementId               = 0;
+        private static List<NetPeerInstance> s_AllCreationValidInstances = new List<NetPeerInstance>();
+
+        public int             Id          { get; private set; }
         public NetworkInstance Global      { get; private set; }
         public NetworkChannel  Channel     { get; private set; }
         public NetPeer         Peer        { get; private set; }
         public bool            ServerReady { get; private set; }
         public bool            ClientReady { get; private set; }
 
-        public NetUser NetUser => Global.NetUser;
+        public NetUser        NetUser        => Global.NetUser;
         public ConnectionType ConnectionType => Global.ConnectionInfo.ConnectionType;
 
         static NetPeerInstance()
@@ -33,12 +38,17 @@ namespace package.stormiumteam.networking
 
         public NetPeerInstance(NetworkInstance networkInstance, NetworkChannel channel, NetPeer peer)
         {
+            Id = s_IncrementId;
+
             Global  = networkInstance;
             Channel = channel;
             Peer    = peer;
 
             ServerReady = false;
             ClientReady = false;
+
+            s_IncrementId++;
+            s_AllCreationValidInstances.Add(this);
         }
 
         public void Dispose()
@@ -63,15 +73,33 @@ namespace package.stormiumteam.networking
         internal void AllBroadcastedDataSent()
         {
             Assert.IsTrue(ServerReady, "NetPeerInstance.ServerReady");
-            
+
             Peer.Send(s_ServerAllBroadcastedDataSent, DeliveryMethod.ReliableOrdered);
         }
 
         internal void AllBroadcastedDataReceived()
         {
             Assert.IsTrue(ClientReady, "NetPeerInstance.ClientReady");
-            
+
             Peer.Send(s_ClientAllBroadcastedDataReceived, DeliveryMethod.ReliableOrdered);
+        }
+
+        public static explicit operator NetworkInstance(NetPeerInstance peerInstance)
+        {
+            return peerInstance.Global;
+        }
+
+        public static explicit operator NetPeer(NetPeerInstance peerInstance)
+        {
+            return peerInstance.Peer;
+        }
+
+        public static NetPeerInstance FromId(int id)
+        {
+            if (s_AllCreationValidInstances.Count <= id)
+                return null;
+
+            return s_AllCreationValidInstances[id];
         }
     }
 }

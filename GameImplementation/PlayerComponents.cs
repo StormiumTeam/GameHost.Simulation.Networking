@@ -13,14 +13,14 @@ namespace package.stormiumteam.networking.game
             Target = target;
         }
 
-        public PlayerUserLink(int instanceId, ulong id)
+        public PlayerUserLink(int peerId, int instanceId, ulong id)
         {
-            Target = new NetUser(instanceId, id);
+            Target = new NetUser(peerId, instanceId, id);
         }
         
-        public PlayerUserLink(NetworkInstance instance, ulong id)
+        public PlayerUserLink(NetPeerInstance peerInstance, NetworkInstance instance, ulong id)
         {
-            Target = new NetUser(instance, id);
+            Target = new NetUser(peerInstance, instance, id);
         }
     }
 

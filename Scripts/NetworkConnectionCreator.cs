@@ -76,7 +76,7 @@ namespace package.stormiumteam.networking
 
             var userManager = self.GetUserManager();
             
-            self.SetUser(userManager.Allocate());
+            self.SetUser(userManager.Allocate(null));
             manager.AddInstance(self, ConnectionType.Self);
         }
     }

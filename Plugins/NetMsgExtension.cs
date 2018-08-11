@@ -32,7 +32,7 @@ namespace package.stormiumteam.networking
 
         public static NetUser GetUserId(this NetDataReader dataReader, NetworkInstance netInstance)
         {
-            var ident = new NetUser(netInstance, dataReader.GetULong());
+            var ident = new NetUser(netInstance.PeerInstance, netInstance, dataReader.GetULong());
             return ident;
         }
 

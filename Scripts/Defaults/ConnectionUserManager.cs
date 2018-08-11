@@ -63,11 +63,12 @@ namespace package.stormiumteam.networking
             return m_UserEntityManager.Exists(GetEntity(user));
         }
 
-        public NetUser Allocate()
+        public NetUser Allocate(NetPeerInstance peerInstance)
         {
+            peerInstance = peerInstance ?? NetInstance.PeerInstance;
+            
             var entity = m_UserEntityManager.CreateEntity();
-
-            var user = new NetUser(NetInstance, StMath.DoubleIntToULong(entity.Index, entity.Version));
+            var user = new NetUser(peerInstance, NetInstance, StMath.DoubleIntToULong(entity.Index, entity.Version));
 
             m_AllUsers.Add(user);
 
@@ -159,7 +160,7 @@ namespace package.stormiumteam.networking
 
         public NetUser GetUserId(NetDataReader dataReader)
         {
-            var ident = new NetUser(NetInstance, dataReader.GetULong());
+            var ident = new NetUser(NetInstance.PeerInstance, NetInstance, dataReader.GetULong());
             return ident;
         }
 
