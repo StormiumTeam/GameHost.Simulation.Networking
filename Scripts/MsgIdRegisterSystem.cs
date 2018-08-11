@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Unity.Entities;
+using UnityEngine;
 
 namespace package.stormiumteam.networking
 {
@@ -62,6 +63,8 @@ namespace package.stormiumteam.networking
                     return link.Key;
             }
 
+            Debug.LogWarning($"[{nameof(MsgIdRegisterSystem)}] No link found for: {ident}");
+            
             return 0;
         }
 
