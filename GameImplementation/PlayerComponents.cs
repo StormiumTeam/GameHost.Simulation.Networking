@@ -1,4 +1,5 @@
-﻿using package.stormiumteam.networking;
+﻿using LiteNetLib;
+using package.stormiumteam.networking;
 using Unity.Entities;
 
 namespace package.stormiumteam.networking.game
@@ -25,11 +26,23 @@ namespace package.stormiumteam.networking.game
 
     public struct PlayerPeerLink : ISharedComponentData
     {
-        public NetPeerInstance Target;
+        public NetPeerInstance Owner;
+        public NetPeer Target;
 
-        public PlayerPeerLink(NetPeerInstance target)
+        public PlayerPeerLink(NetPeerInstance owner, NetPeer target)
         {
+            Owner = owner;
             Target = target;
+        }
+    }
+
+    public struct ClientPlayerServerPlayerLink : IComponentData
+    {
+        public int NetTarget;
+
+        public ClientPlayerServerPlayerLink(int target)
+        {
+            NetTarget = target;
         }
     }
 }
