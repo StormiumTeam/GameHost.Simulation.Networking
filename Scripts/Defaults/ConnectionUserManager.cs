@@ -21,7 +21,7 @@ namespace package.stormiumteam.networking
         private World                                m_UserWorld;
         private EntityManager                        m_UserEntityManager;
         private List<NetUser>                        m_AllUsers       = new List<NetUser>();
-        private List<NetDataWriter>                  m_AllUserWriters = new List<NetDataWriter>();
+        private Dictionary<ulong, NetDataWriter>     m_AllUserWriters = new Dictionary<ulong, NetDataWriter>();
         private Dictionary<ulong, NetUserProperties> m_UserProperties = new Dictionary<ulong, NetUserProperties>();
 
         [Inject] private NetworkMessageSystem m_MessageSystem;
@@ -76,7 +76,7 @@ namespace package.stormiumteam.networking
             writer.Put((int) InternalMessageType.AddUser);
             PutUserId(writer, user);
 
-            m_AllUserWriters.Add(writer);
+            m_AllUserWriters[user.Index] = writer;
 
             var properties = GetProperties(user);
             if (!properties.WasAdded)
@@ -102,7 +102,7 @@ namespace package.stormiumteam.networking
                     return;
 
                 m_AllUsers.RemoveAt(index);
-                m_AllUserWriters.RemoveAt(index);
+                if (m_AllUserWriters.ContainsKey(user.Index)) m_AllUserWriters.Remove(user.Index);
             }
 
             // Tell that  to other peers
@@ -174,7 +174,7 @@ namespace package.stormiumteam.networking
                 return;
 
             var peer = peerInstance.Peer;
-            foreach (var dataWriter in m_AllUserWriters)
+            foreach (var dataWriter in m_AllUserWriters.Values)
             {
                 m_MessageSystem.InstantSendTo(peer, null, dataWriter, DeliveryMethod.ReliableOrdered);
             }

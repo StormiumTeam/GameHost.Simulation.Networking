@@ -88,7 +88,7 @@ namespace package.stormiumteam.networking.ecs
             var componentToUpdate = new NetworkEntity(NetInstance.Id, networkLink);
             if (!buffer.HasValue)
             {
-                entityToLink.SetOrCreateComponentData(componentToUpdate);
+                entityToLink.SetOrAddComponentData(componentToUpdate);
             }
             else
             {
@@ -107,7 +107,7 @@ namespace package.stormiumteam.networking.ecs
             var id = NetInstance.Id;
             if (!buffer.HasValue)
             {
-                entity.SetOrCreateComponentData(new NetworkEntity(id, entity), world);
+                entity.SetOrAddComponentData(new NetworkEntity(id, entity), world);
             }
             else
             {
