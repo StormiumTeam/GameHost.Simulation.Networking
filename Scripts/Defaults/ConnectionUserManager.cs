@@ -12,18 +12,25 @@ namespace package.stormiumteam.networking
 {
     public class ConnectionUserManager : NetworkConnectionSystem
     {
-        private World               m_UserWorld;
-        private EntityManager       m_UserEntityManager;
-        private List<NetUser>       m_AllUsers       = new List<NetUser>();
-        private List<NetDataWriter> m_AllUserWriters = new List<NetDataWriter>();
+        struct NetUserProperties
+        {
+            public bool WasAdded;
+            public bool WasMainUser;
+        }
+
+        private World                                m_UserWorld;
+        private EntityManager                        m_UserEntityManager;
+        private List<NetUser>                        m_AllUsers       = new List<NetUser>();
+        private List<NetDataWriter>                  m_AllUserWriters = new List<NetDataWriter>();
+        private Dictionary<ulong, NetUserProperties> m_UserProperties = new Dictionary<ulong, NetUserProperties>();
 
         [Inject] private NetworkMessageSystem m_MessageSystem;
 
         protected override void OnCreateManager(int capacity)
         {
-            m_UserWorld = new World("__netuser__" + NetWorld.Name);
+            m_UserWorld         = new World("__netuser__" + NetWorld.Name);
             m_UserEntityManager = m_UserWorld.GetOrCreateManager<EntityManager>();
-            
+
             NetInstance.AllInUsers = new ReadOnlyCollection<NetUser>(m_AllUsers);
 
             NetworkMessageSystem.OnNewMessage += OnNewMessage;
@@ -36,6 +43,19 @@ namespace package.stormiumteam.networking
         protected override void OnDestroyManager()
         {
             m_UserWorld.Dispose();
+        }
+
+        private NetUserProperties GetProperties(NetUser user)
+        {
+            NetUserProperties properties;
+            if (!m_UserProperties.TryGetValue(user.Index, out properties))
+                properties = m_UserProperties[user.Index] = new NetUserProperties();
+            return properties;
+        }
+
+        private void SetProperties(NetUser user, NetUserProperties properties)
+        {
+            m_UserProperties[user.Index] = properties;
         }
 
         public bool Contains(NetUser user)
@@ -57,9 +77,16 @@ namespace package.stormiumteam.networking
             PutUserId(writer, user);
 
             m_AllUserWriters.Add(writer);
-            
-            MainWorld.GetExistingManager<NetworkUserSystem>()
-                     .TriggerOnUserEvent(NetInstance.PeerInstance, user, StatusChange.Added);
+
+            var properties = GetProperties(user);
+            if (!properties.WasAdded)
+            {
+                MainWorld.GetExistingManager<NetworkUserSystem>()
+                         .TriggerOnUserEvent(NetInstance.PeerInstance, user, StatusChange.Added);
+
+                properties.WasAdded = true;
+                SetProperties(user, properties);
+            }
 
             return user;
         }
@@ -77,18 +104,25 @@ namespace package.stormiumteam.networking
                 m_AllUsers.RemoveAt(index);
                 m_AllUserWriters.RemoveAt(index);
             }
-            
+
             // Tell that  to other peers
             var mainChannel = NetInstance.GetChannelManager().DefaultChannel;
-            var writer = new NetDataWriter();
+            var writer      = new NetDataWriter();
             writer.Put((byte) MessageType.Internal);
             writer.Put((int) InternalMessageType.RemUser);
             PutUserId(writer, user);
-            
+
             m_MessageSystem.InstantSendToAll(mainChannel, writer, DeliveryMethod.ReliableOrdered);
-            
-            MainWorld.GetExistingManager<NetworkUserSystem>()
-                     .TriggerOnUserEvent(NetInstance.PeerInstance, user, StatusChange.Removed);
+
+            var properties = GetProperties(user);
+            if (properties.WasAdded)
+            {
+                MainWorld.GetExistingManager<NetworkUserSystem>()
+                         .TriggerOnUserEvent(NetInstance.PeerInstance, user, StatusChange.Removed);
+
+                properties.WasAdded = false;
+                SetProperties(user, properties);
+            }
         }
 
         public ConnectionType GetUserConnectionType(NetUser user)
@@ -107,7 +141,7 @@ namespace package.stormiumteam.networking
         internal Entity GetEntity(NetUser user)
         {
             var intTuple = StMath.ULongToDoubleUInt(user.Index);
-            var eIndex = StMath.UIntToInt(intTuple.Item1);
+            var eIndex   = StMath.UIntToInt(intTuple.Item1);
             var eVersion = StMath.UIntToInt(intTuple.Item2);
 
             return new Entity
@@ -144,20 +178,21 @@ namespace package.stormiumteam.networking
             {
                 m_MessageSystem.InstantSendTo(peer, null, dataWriter, DeliveryMethod.ReliableOrdered);
             }
-            
-            // Ser user
+
             var writer = new NetDataWriter();
             writer.Put((byte) MessageType.Internal);
             writer.Put((int) InternalMessageType.SetUser);
             PutUserId(writer, peerInstance.NetUser);
-            
+
             m_MessageSystem.InstantSendTo(peer, null, writer, DeliveryMethod.ReliableOrdered);
         }
 
         private void OnNewMessage(NetworkInstance caller, NetPeerInstance peerInstance, MessageReader messageReader)
         {
+            if (caller != NetInstance) return;
+
             messageReader.ResetReadPosition();
-            
+
             var peekMsgType = (InternalMessageType) messageReader.Data.PeekInt();
             if (messageReader.Type != MessageType.Internal
                 && peekMsgType != InternalMessageType.AddUser
@@ -172,21 +207,35 @@ namespace package.stormiumteam.networking
                 var user = GetUserId(messageReader);
                 m_AllUsers.Add(user);
 
-                MainWorld.GetExistingManager<NetworkUserSystem>()
-                         .TriggerOnUserEvent(peerInstance, user, StatusChange.Added);
+                var properties = GetProperties(user);
+                if (!properties.WasAdded)
+                {
+                    MainWorld.GetExistingManager<NetworkUserSystem>()
+                             .TriggerOnUserEvent(peerInstance, user, StatusChange.Added);
+
+                    properties.WasAdded = true;
+                    SetProperties(user, properties);
+                }
             }
 
             if (peekMsgType == InternalMessageType.RemUser)
             {
-                var user = GetUserId(messageReader);
+                var user  = GetUserId(messageReader);
                 var index = m_AllUsers.IndexOf(user);
                 if (index != -1)
                 {
                     m_AllUsers.RemoveAt(index);
                 }
-                
-                MainWorld.GetExistingManager<NetworkUserSystem>()
-                         .TriggerOnUserEvent(peerInstance, user, StatusChange.Removed);
+
+                var properties = GetProperties(user);
+                if (properties.WasAdded)
+                {
+                    MainWorld.GetExistingManager<NetworkUserSystem>()
+                             .TriggerOnUserEvent(peerInstance, user, StatusChange.Removed);
+
+                    properties.WasAdded = false;
+                    SetProperties(user, properties);
+                }
             }
 
             if (peekMsgType == InternalMessageType.SetUser
@@ -196,19 +245,42 @@ namespace package.stormiumteam.networking
                 if (!m_AllUsers.Contains(user))
                 {
                     m_AllUsers.Add(user);
-                    
+                }
+
+                var properties = GetProperties(user);
+                if (!properties.WasAdded && !properties.WasMainUser)
+                {
                     MainWorld.GetExistingManager<NetworkUserSystem>()
                              .TriggerOnUserEvent(peerInstance, user, StatusChange.NewUserAsMain);
+
+                    properties.WasAdded    = true;
+                    properties.WasMainUser = true;
+                    SetProperties(user, properties);
                 }
-                else
+                else if (!properties.WasAdded)
+                {
+                    MainWorld.GetExistingManager<NetworkUserSystem>()
+                             .TriggerOnUserEvent(peerInstance, user, StatusChange.Added);
+
+                    properties.WasAdded = true;
+                    SetProperties(user, properties);
+                }
+                else if (!properties.WasMainUser)
                 {
                     MainWorld.GetExistingManager<NetworkUserSystem>()
                              .TriggerOnUserEvent(peerInstance, user, StatusChange.MainUser);
+
+                    properties.WasMainUser = true;
+                    SetProperties(user, properties);
+                }
+                else
+                {
+                    Debug.Log("empty event");
                 }
 
                 NetInstance.SetUser(user);
-                
-                Debug.Log($"We got our own user ({user.Index})");
+
+                Debug.Log($"We got our own user ({user.Index}) from {peerInstance.Global.World.Name}");
             }
         }
     }

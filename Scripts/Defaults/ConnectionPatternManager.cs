@@ -109,6 +109,11 @@ namespace package.stormiumteam.networking
             m_MessagesWriteAddPattern[pattern.Id] = dataWriter;
         }
 
+        public void RegisterPattern(MessageIdent pattern)
+        {
+            m_Register.Register(pattern);
+        }
+
         /// <summary>
         /// Peek the pattern from the reader
         /// </summary>

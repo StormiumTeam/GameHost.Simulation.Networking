@@ -7,15 +7,20 @@ namespace package.stormiumteam.networking
     [Serializable]
     public struct NetUser
     {
-        public NetworkInstance Owner;
+        public int OwnerId;
         
         public readonly ulong Index;
 
         public NetUser(NetworkInstance owner, ulong index)
         {
-            Owner = owner;
-
+            OwnerId = owner.Id;
             Index = index;
+        }
+        
+        public NetUser(int ownerId, ulong index)
+        {
+            OwnerId = ownerId;
+            Index   = index;
         }
 
         public static bool operator ==(NetUser l, NetUser r) => l.Index == r.Index;
