@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace DefaultNamespace
+namespace package.stormiumteam.networking
 {
     public static class GameLaunch
     {
