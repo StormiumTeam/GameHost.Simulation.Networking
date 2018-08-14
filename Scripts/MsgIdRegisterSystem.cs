@@ -1,10 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using OdinSerializer.Utilities;
 using Unity.Entities;
 using UnityEngine;
 
 namespace package.stormiumteam.networking
 {
+    public sealed class PatternNvAttribute : Attribute
+    {
+        public string Name;
+        public byte Version;
+
+        public PatternNvAttribute(string name, byte version)
+        {
+            Name = name;
+            Version = version;
+        }
+    }
+    
+    public sealed class PatternNameAttribute : Attribute
+    {
+        public string Value;
+
+        public PatternNameAttribute(string value)
+        {
+            Value = value;
+        }
+    }
+
+    public sealed class PatternVersionAttribute : Attribute
+    {
+        public byte Value;
+
+        public PatternVersionAttribute(byte value)
+        {
+            Value = value;
+        }
+    }
+    
     public class MsgIdRegisterSystem : ComponentSystem
     {
         public event Action<int, MessageIdent> OnNewPattern;
@@ -13,6 +47,42 @@ namespace package.stormiumteam.networking
             = new FastDictionary<string, MessageIdent>();
 
         public FastDictionary<int, MessageIdent> PatternsLink = new FastDictionary<int, MessageIdent>();
+
+        public void Register(object holder)
+        {
+            var htype = holder.GetType();
+            var fields = htype.GetFields
+            (
+                BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.Static
+                | BindingFlags.Instance
+            );
+            foreach (var field in fields)
+            {
+                if (field.FieldType != typeof(MessageIdent)) continue;
+
+                var nv = field.GetAttribute<PatternNvAttribute>();
+                var nameAttribute = field.GetAttribute<PatternNameAttribute>();
+                var versionAttribute = field.GetAttribute<PatternVersionAttribute>();
+
+                var msgId = (MessageIdent)field.GetValue(holder);
+                msgId.Id = nv?.Name ?? nameAttribute?.Value;
+                
+                if (string.IsNullOrEmpty(msgId.Id))
+                {
+                    msgId.Id = $"{htype.Namespace}:{htype.Name}.{field.Name}";
+                }
+
+                if (nv != null) msgId.Version = nv.Version;
+                else if (versionAttribute != null) msgId.Version = versionAttribute.Value;
+                
+                field.SetValue(holder, msgId);
+
+                Debug.Log($"Register msg$({msgId.Id}, v.{msgId.Version})");
+                Register(msgId);
+            }
+        }
 
         public MessageIdent Register(MessageIdent ident)
         {

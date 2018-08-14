@@ -38,9 +38,9 @@ namespace package.stormiumteam.networking.game
 
     public struct ClientPlayerServerPlayerLink : IComponentData
     {
-        public int NetTarget;
+        public long NetTarget;
 
-        public ClientPlayerServerPlayerLink(int target)
+        public ClientPlayerServerPlayerLink(long target)
         {
             NetTarget = target;
         }

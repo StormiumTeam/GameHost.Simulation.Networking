@@ -15,5 +15,15 @@ namespace package.stormiumteam.networking
             IsServer = Application.isBatchMode || commandLineOptions.Contains("-batchmode");
             HasGraphics = !(SystemInfo.graphicsDeviceID == 0 || commandLineOptions.Contains("-nographics"));
         }
+
+        public static void Force()
+        {
+            IsServer = true;
+        }
+
+        public static void Unforce()
+        {
+            IsServer = false;
+        }
     }
 }

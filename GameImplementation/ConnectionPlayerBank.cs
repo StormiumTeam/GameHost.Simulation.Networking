@@ -9,7 +9,7 @@ namespace GameImplementation
 {
     public class ConnectionPlayerBank : NetworkConnectionSystem
     {
-        private Dictionary<int, GamePlayer> m_AllPlayers = new Dictionary<int, GamePlayer>();
+        private Dictionary<long, GamePlayer> m_AllPlayers = new Dictionary<long, GamePlayer>();
         
         protected override void OnUpdate()
         {
@@ -27,7 +27,7 @@ namespace GameImplementation
         /// </summary>
         /// <param name="index">The server target</param>
         /// <param name="player">The player</param>
-        public void RegisterPlayer(int index, GamePlayer player)
+        public void RegisterPlayer(long index, GamePlayer player)
         {
             m_AllPlayers[index] = player;
 
@@ -38,7 +38,7 @@ namespace GameImplementation
         /// Unregister a player
         /// </summary>
         /// <param name="index">The server target</param>
-        public void UnregisterPlayer(int index)
+        public void UnregisterPlayer(long index)
         {
             if (m_AllPlayers.ContainsKey(index))
             {
@@ -54,7 +54,7 @@ namespace GameImplementation
         /// </summary>
         /// <param name="index">The server target</param>
         /// <returns>Return a player</returns>
-        public GamePlayer Get(int index)
+        public GamePlayer Get(long index)
         {
             return m_AllPlayers.ContainsKey(index) ? m_AllPlayers[index] : new GamePlayer();
         }

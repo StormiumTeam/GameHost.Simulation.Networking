@@ -17,6 +17,11 @@ namespace package.stormiumteam.networking
 
         public bool Equals(MessageIdent other) => Id == other.Id;
 
+        public override string ToString()
+        {
+            return $"msg$({Id}, v.{Version})";
+        }
+
         /// <summary>
         /// Compare two instances of the message identifier
         /// </summary>
@@ -81,6 +86,16 @@ namespace package.stormiumteam.networking
         public static bool operator <=(MessageIdent obj1, MessageIdent obj2)
         {
             return obj1.Version <= obj2.Version;
+        }
+
+        public static implicit operator MessageIdent(string ident)
+        {
+            if (ident.Length < 5)
+                throw new Exception();
+            var version = byte.Parse(ident.Substring(0, 3));
+            var id = ident.Substring(3, ident.Length - 3);
+            
+            return new MessageIdent(id, version);
         }
     }
 }

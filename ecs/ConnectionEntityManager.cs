@@ -8,6 +8,7 @@ using LiteNetLib.Utils;
 using package.stormiumteam.shared;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine;
 using UnityEngine.Assertions;
 
 namespace package.stormiumteam.networking.ecs
@@ -100,29 +101,28 @@ namespace package.stormiumteam.networking.ecs
             m_MappedEntities[componentToUpdate] = entityToLink;
         }
 
-        public NetworkEntity Networkify(Entity entity, World world = null, EntityCommandBuffer? buffer = null)
+        public NetworkEntity Networkify(Entity entity, World world = null, CmdBuffer buffer = default(CmdBuffer))
         {
             InternalGetEntityManagerAndWorld(ref world, out var em);
 
             var id = NetInstance.Id;
-            if (!buffer.HasValue)
+            
+            buffer.SetOrAddComponentData(entity, new NetworkEntity(id, entity));
+
+            if (em.HasComponent<Transform>(entity))
             {
-                entity.SetOrAddComponentData(new NetworkEntity(id, entity), world);
-            }
-            else
-            {
-                var b = buffer.Value;
-                if (!em.HasComponent<NetworkEntity>(entity))
-                {
-                    b.AddComponent(entity, new NetworkEntity(id, entity));
-                }
-                else b.SetComponent(entity, new NetworkEntity(id, entity));
+                var gameObject = em.GetComponentObject<Transform>(entity).gameObject;
+                var referencable = ReferencableGameObject.GetComponent<ReferencableGameObject>(gameObject);
+                var networkEntityComponent = referencable.GetOrAddComponent<NetworkEntityComponent>();
+                networkEntityComponent.NetId = entity.Index;
+                networkEntityComponent.NetVersion = entity.Version;
+                networkEntityComponent.OwnerAddress = NetInstance.World.Name;
             }
 
             return new NetworkEntity(id, entity);
         }
 
-        public void NetworkifyAndPush(Entity entity, PushEntityOption option, World world = null)
+        public void NetworkifyAndPush(Entity entity, PushEntityOption option, CmdBuffer buffer = default(CmdBuffer), World world = null)
         {
             Networkify(entity, world);
             PushEntity(entity, option, world);
