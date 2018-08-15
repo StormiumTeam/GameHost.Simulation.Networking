@@ -233,8 +233,8 @@ namespace package.stormiumteam.networking
 
 			OnInstanceBroadcastingData?.Invoke(this, peerInstance, ConnectionInfo.ConnectionType);
 
-			peerInstance.SetInitialized();
 			peerInstance.AllBroadcastedDataSent();
+			peerInstance.SetInitialized();
 		}
 
 		public void SetAsConnected()

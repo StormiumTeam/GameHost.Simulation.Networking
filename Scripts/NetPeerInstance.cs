@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using package.stormiumteam.shared;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -64,11 +65,25 @@ namespace package.stormiumteam.networking
         public void SetInitialized()
         {
             ServerReady = true;
+
+            var managers = AppEvent<EventPeerInstanceServerReady.IEv>.GetObjEvents();
+            foreach (var manager in managers)
+            {
+                AppEvent<EventPeerInstanceServerReady.IEv>.Caller = this;
+                manager.Callback(new EventPeerInstanceServerReady.Arguments(this));
+            }
         }
 
         public void SetClientReady()
         {
             ClientReady = true;
+            
+            var managers = AppEvent<EventPeerInstanceClientReady.IEv>.GetObjEvents();
+            foreach (var manager in managers)
+            {
+                AppEvent<EventPeerInstanceClientReady.IEv>.Caller = this;
+                manager.Callback(new EventPeerInstanceClientReady.Arguments(this));
+            }
         }
         
         public TSystem Get<TSystem>() where TSystem : ComponentSystem
@@ -108,4 +123,6 @@ namespace package.stormiumteam.networking
             return s_AllCreationValidInstances[id];
         }
     }
+    
+    
 }
