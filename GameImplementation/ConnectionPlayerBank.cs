@@ -58,5 +58,11 @@ namespace GameImplementation
         {
             return m_AllPlayers.ContainsKey(index) ? m_AllPlayers[index] : new GamePlayer();
         }
+        
+        public GamePlayer Get(Entity netEntity)
+        {
+            var index = StMath.DoubleIntToLong(netEntity.Index, netEntity.Version);
+            return m_AllPlayers.ContainsKey(index) ? m_AllPlayers[index] : new GamePlayer();
+        }
     }
 }

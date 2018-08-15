@@ -26,7 +26,7 @@ namespace package.stormiumteam.networking.ecs
     }
 
     public partial class ConnectionEntityManager : NetworkConnectionSystem,
-                                                   INetOnNewMessage
+                                                   EventReceiveData.IEv
     {
         private EntityManager       m_MainEntityManager;
         private MsgIdRegisterSystem m_MainPatternManager;
@@ -74,28 +74,30 @@ namespace package.stormiumteam.networking.ecs
         {
             return m_MappedEntities[netEntity];
         }
-        
+
         public Entity GetEntity(Entity netEntity)
         {
             var component = new NetworkEntity(NetInstance.Id, netEntity);
             return m_MappedEntities[component];
         }
 
-        public void LinkNetworkEntity(Entity entityToLink, Entity               networkLink,
-                                      World  world = null, EntityCommandBuffer? buffer = null)
+        public void LinkNetworkEntity(Entity entityToLink, Entity    networkLink,
+                                      World  world = null, CmdBuffer buffer = default(CmdBuffer))
         {
             InternalGetEntityManagerAndWorld(ref world, out var em);
 
             var componentToUpdate = new NetworkEntity(NetInstance.Id, networkLink);
-            if (!buffer.HasValue)
+
+            buffer.SetOrAddComponentData(entityToLink, componentToUpdate);
+
+            if (em.HasComponent<Transform>(entityToLink))
             {
-                entityToLink.SetOrAddComponentData(componentToUpdate);
-            }
-            else
-            {
-                var b = buffer.Value;
-                if (!em.HasComponent<NetworkEntity>(entityToLink)) b.AddComponent(entityToLink, componentToUpdate);
-                else b.SetComponent(entityToLink, componentToUpdate);
+                var gameObject             = em.GetComponentObject<Transform>(entityToLink).gameObject;
+                var referencable           = ReferencableGameObject.GetComponent<ReferencableGameObject>(gameObject);
+                var networkEntityComponent = referencable.GetOrAddComponent<NetworkEntityComponent>();
+                networkEntityComponent.NetId        = entityToLink.Index;
+                networkEntityComponent.NetVersion   = entityToLink.Version;
+                networkEntityComponent.OwnerAddress = NetInstance.World.Name;
             }
 
             m_MappedEntities[componentToUpdate] = entityToLink;
@@ -106,16 +108,16 @@ namespace package.stormiumteam.networking.ecs
             InternalGetEntityManagerAndWorld(ref world, out var em);
 
             var id = NetInstance.Id;
-            
+
             buffer.SetOrAddComponentData(entity, new NetworkEntity(id, entity));
 
             if (em.HasComponent<Transform>(entity))
             {
-                var gameObject = em.GetComponentObject<Transform>(entity).gameObject;
-                var referencable = ReferencableGameObject.GetComponent<ReferencableGameObject>(gameObject);
+                var gameObject             = em.GetComponentObject<Transform>(entity).gameObject;
+                var referencable           = ReferencableGameObject.GetComponent<ReferencableGameObject>(gameObject);
                 var networkEntityComponent = referencable.GetOrAddComponent<NetworkEntityComponent>();
-                networkEntityComponent.NetId = entity.Index;
-                networkEntityComponent.NetVersion = entity.Version;
+                networkEntityComponent.NetId        = entity.Index;
+                networkEntityComponent.NetVersion   = entity.Version;
                 networkEntityComponent.OwnerAddress = NetInstance.World.Name;
             }
 
@@ -241,12 +243,15 @@ namespace package.stormiumteam.networking.ecs
 
     public partial class ConnectionEntityManager
     {
-        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
+        void EventReceiveData.IEv.Callback(EventReceiveData.Arguments args)
         {
+            var reader       = args.Reader;
+            var peerInstance = args.PeerInstance;
+
             if (reader.Type != MessageType.Pattern)
                 return;
 
-            var peerPatternManager = netPeerInstance.GetPatternManager();
+            var peerPatternManager = peerInstance.GetPatternManager();
 
             var receivedPattern = peerPatternManager.GetPattern(reader);
             if (receivedPattern == MsgOperationEntity)
@@ -261,7 +266,7 @@ namespace package.stormiumteam.networking.ecs
 
                 var netComponent = new NetworkEntity()
                 {
-                    InstanceId = netPeerInstance.Global.Id,
+                    InstanceId = peerInstance.Global.Id,
                     NetId      = netIndex,
                     NetVersion = netVersion,
                 };

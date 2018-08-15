@@ -25,9 +25,9 @@ namespace package.stormiumteam.networking
         {
             m_AppEventSystem.CheckLoopValidity();
 
-            foreach (var manager in AppEvent<INetOnInstanceReady>.eventList)
+            foreach (var manager in AppEvent<EventInstanceReady.IEv>.eventList)
             {
-                manager.Callback(networkInstance, connectionType);
+                manager.Callback(new EventInstanceReady.Arguments(networkInstance, connectionType));
             }
         }
 
@@ -35,10 +35,10 @@ namespace package.stormiumteam.networking
         {
             m_AppEventSystem.CheckLoopValidity();
             
-            foreach (var manager in AppEvent<INetOnNewMessage>.eventList)
+            foreach (var manager in AppEvent<EventReceiveData.IEv>.eventList)
             {
                 reader.ResetReadPosition();
-                manager.Callback(caller, netPeerInstance, reader);
+                manager.Callback(new EventReceiveData.Arguments(caller, netPeerInstance, reader));
             }
             reader.ResetReadPosition();
         }
@@ -47,9 +47,9 @@ namespace package.stormiumteam.networking
         {
             m_AppEventSystem.CheckLoopValidity();
             
-            foreach (var manager in AppEvent<INetOnUserStatusChange>.eventList)
+            foreach (var manager in AppEvent<EventUserStatusChange.IEv>.eventList)
             {
-                manager.Callback(holder, user, change);
+                manager.Callback(new EventUserStatusChange.Arguments(holder, user, change));
             }
         }
     }

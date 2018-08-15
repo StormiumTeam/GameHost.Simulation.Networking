@@ -46,9 +46,9 @@ namespace package.stormiumteam.networking
         private void ListenerOnConnectionRequestEvent(ConnectionRequest request)
         {
             Debug.Log($"[<b>{nameof(ConnectionEventManager)}</b>] We received a new connection request");
-            
-            foreach (var manager in AppEvent<INetConnectionRequestEvent>.eventList)
-                manager.Callback(NetInstance, request);
+
+            foreach (var manager in AppEvent<EventConnectionRequest.IEv>.eventList)
+                manager.Callback(new EventConnectionRequest.Arguments(NetInstance, request));
         }
 
         private void ListenerOnPeerConnectedEvent(NetPeer peer)
@@ -60,10 +60,10 @@ namespace package.stormiumteam.networking
                     if (otherInstance.ConnectionInfo.ConnectionType == ConnectionType.Out
                         && otherInstance.ConnectionInfo.Creator.GetAddress().Equals(peer.EndPoint))
                         return otherInstance;
-                    
+
                     // Also search in acknowledged instances
                 }
-                
+
                 var connectionCreator = new NetworkInConnectionCreator();
                 connectionCreator.ConnectedPeer  = peer;
                 connectionCreator.IpAddress      = peer.EndPoint.Address.ToString();
@@ -88,67 +88,67 @@ namespace package.stormiumteam.networking
 
                 return networkInstance;
             }
-            
+
             Debug.Log(
                 $"[<b>{nameof(ConnectionEventManager)}</b>] <color='green'>{peer.EndPoint}</color> made a connection to our network.");
 
             var otherNetworkInstance = GetNetworkInstance();
-            var newPeerInstance = new NetPeerInstance(otherNetworkInstance, m_ChannelManager.DefaultChannel, peer);
+            var newPeerInstance      = new NetPeerInstance(otherNetworkInstance, m_ChannelManager.DefaultChannel, peer);
             peer.Tag = newPeerInstance;
             otherNetworkInstance.SetPeerInstance(newPeerInstance);
 
             var allocatedUser = NetInstance.GetUserManager().Allocate(newPeerInstance);
             otherNetworkInstance.SetUser(allocatedUser);
 
-            foreach (var manager in AppEvent<INetPeerConnectedEvent>.eventList)
-                manager.Callback(NetInstance, newPeerInstance);
+            foreach (var manager in AppEvent<EventPeerConnected.IEv>.eventList)
+                manager.Callback(new EventPeerConnected.Arguments(NetInstance, newPeerInstance));
 
             NetInstance.BroadcastData(newPeerInstance);
-            
+
             otherNetworkInstance.SetAsConnected();
 
-            foreach (var manager in AppEvent<INetSentAllBroadcastedEventToPeer>.eventList)
-                manager.Callback(NetInstance, newPeerInstance);
+            foreach (var manager in AppEvent<EventSentAllBroadcastedDataToPeer.IEv>.eventList)
+                manager.Callback(new EventSentAllBroadcastedDataToPeer.Arguments(NetInstance, newPeerInstance));
         }
 
         private void ListenerOnPeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Debug.Log(
                 $"[<b>{nameof(ConnectionEventManager)}</b>] <color='red'>{peer.EndPoint}</color> disconnected ({disconnectInfo.Reason}).");
-            
-            foreach (var manager in AppEvent<INetPeerDisconnectedEvent>.eventList)
-                manager.Callback(NetInstance, peer, disconnectInfo);
+
+            foreach (var manager in AppEvent<EventPeerDisconnected.IEv>.eventList)
+                manager.Callback(new EventPeerDisconnected.Arguments(NetInstance, peer, disconnectInfo));
 
             if (peer.Tag == null)
                 return;
-            
+
             // Destroy peer world
             var peerInstance = peer.Tag as NetPeerInstance;
-            
+
             Assert.IsTrue(peerInstance != null, "peerInstance != null");
-            
+
             NetInstance.GetUserManager().Dispose(peerInstance.NetUser);
             peerInstance.Dispose();
-            
+
             peer.Tag = null;
-            
+
             Debug.Log($"[<b>{nameof(ConnectionEventManager)}</b>] Disposed peer instance (<color='red'>{peer.EndPoint}</color>)");
         }
 
         private void ListenerOnNetworkErrorEvent(IPEndPoint endPoint, int socketErrorCode)
         {
             Debug.Log($"[<b>{nameof(ConnectionEventManager)}</b>] Network Error: {socketErrorCode} from {endPoint}");
-            
-            foreach (var manager in AppEvent<INetErrorEvent>.eventList)
-                manager.Callback(NetInstance, endPoint, socketErrorCode);
+
+            foreach (var manager in AppEvent<EventNetworkError.IEv>.eventList)
+                manager.Callback(new EventNetworkError.Arguments(NetInstance, endPoint, socketErrorCode));
         }
 
         private void ListenerOnNetworkReceiveUnconnectedEvent(IPEndPoint             remoteEndPoint,
                                                               NetDataReader          reader,
                                                               UnconnectedMessageType messageType)
         {
-            foreach (var manager in AppEvent<INetReceiveReceiveUnconnectedEvent>.eventList)
-                manager.Callback(NetInstance, remoteEndPoint, reader, messageType);
+            foreach (var manager in AppEvent<EventReceiveUnconnectedData.IEv>.eventList)
+                manager.Callback(new EventReceiveUnconnectedData.Arguments(NetInstance, remoteEndPoint, reader, messageType));
         }
 
         private void ListenerOnNetworkReceiveEvent(NetPeer peer, NetDataReader reader, DeliveryMethod deliveryMethod)
@@ -187,18 +187,18 @@ namespace package.stormiumteam.networking
             OnBeforeNetStop?.Invoke(manager);
             manager?.Stop();
             OnAfterNetStop?.Invoke(manager);
-            
+
             // Dispose other connections that is linked to this one
             var networkManager = MainWorld.GetOrCreateManager<NetworkManager>();
             foreach (var inter in NetInstance.m_Interconnections)
             {
                 var continueLoop = false;
-                
+
                 foreach (var otherSelf in networkManager.Self)
                 {
                     if (NetInstance == otherSelf)
                         continue;
-                    
+
                     foreach (var otherInter in otherSelf.Interconnections)
                     {
                         if (inter == otherInter)
@@ -207,12 +207,12 @@ namespace package.stormiumteam.networking
                 }
 
                 if (continueLoop) continue;
-                
+
                 inter.Dispose();
             }
-            
+
             Profiler.EndSample();
-            
+
             Debug.Log($"{nameof(ConnectionEventManager)} has stopped the manager connection");
         }
     }

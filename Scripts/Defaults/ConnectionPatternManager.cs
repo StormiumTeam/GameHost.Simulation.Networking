@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using package.stormiumteam.shared;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -14,7 +15,7 @@ namespace package.stormiumteam.networking
     /// </summary>
     [UpdateInGroup(typeof(Initialization))] // It should be one of the first manager to be run in a broadcast
     public class ConnectionPatternManager : NetworkConnectionSystem,
-                                            INetOnNewMessage
+                                            EventReceiveData.IEv
     {
         private MsgIdRegisterSystem m_Register;
 
@@ -36,9 +37,9 @@ namespace package.stormiumteam.networking
                 ? MainWorld.GetOrCreateManager<MsgIdRegisterSystem>() 
                 : NetWorld.GetOrCreateManager<MsgIdRegisterSystem>();
 
-            var ev = MainWorld.GetOrCreateManager<NetworkEventSystem>();
-            //ev.SubscribeToAll(this);
-            NetworkMessageSystem.OnNewMessage += ((INetOnNewMessage)this).Callback;
+            var ev = MainWorld.GetOrCreateManager<AppEventSystem>();
+            ev.SubscribeToAll(this);
+            //NetworkMessageSystem.OnNewMessage += ((EventReceiveData.IEv)this).Callback;
 
             m_Register.OnNewPattern += (link, ident) =>
             {
@@ -54,20 +55,20 @@ namespace package.stormiumteam.networking
         // -------------------------------------------------------------------- //
         // Events
         // -------------------------------------------------------------------- //
-        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
+        void EventReceiveData.IEv.Callback(EventReceiveData.Arguments args)
         {
-            reader.ResetReadPosition();
+            args.Reader.ResetReadPosition();
 
-            if (reader.Type != MessageType.Internal
+            if (args.Reader.Type != MessageType.Internal
                 || m_IsMainWorld)
                 return;
 
-            var intType = (InternalMessageType) reader.Data.GetInt();
+            var intType = (InternalMessageType) args.Reader.Data.GetInt();
             if (intType == InternalMessageType.AddPattern)
             {
-                var patternId = reader.Data.GetString();
-                var version   = reader.Data.GetByte();
-                var linkId    = reader.Data.GetInt();
+                var patternId = args.Reader.Data.GetString();
+                var version   = args.Reader.Data.GetByte();
+                var linkId    = args.Reader.Data.GetInt();
 
                 m_Register.ForceLinkRegister(patternId, version, linkId);
             }

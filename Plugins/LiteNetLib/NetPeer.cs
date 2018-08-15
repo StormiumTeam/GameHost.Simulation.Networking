@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using LiteNetLib.Utils;
+using UnityEngine;
 
 namespace LiteNetLib
 {
@@ -422,6 +423,13 @@ namespace LiteNetLib
 
             //Else just send
             NetPacket packet = _packetPool.GetWithData(property, data, start, length);
+
+            if (channel == null)
+            {
+                throw new NullReferenceException($"{nameof(channel)}");
+                return;
+            }
+            
             channel.AddToQueue(packet);
         }
 

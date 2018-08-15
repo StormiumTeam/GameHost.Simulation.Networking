@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using OdinSerializer.Utilities;
 using Unity.Entities;
 using UnityEngine;
+using package.stormiumteam.shared;
 
 namespace package.stormiumteam.networking
 {

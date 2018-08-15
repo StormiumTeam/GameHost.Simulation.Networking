@@ -9,7 +9,7 @@ using UnityEngine;
 namespace package.stormiumteam.networking
 {
     public class ConnectionValidateBroadcast : NetworkConnectionSystem,
-        INetOnNewMessage
+        EventReceiveData.IEv
     {
         protected override void OnCreateManager(int capacity)
         {
@@ -23,8 +23,11 @@ namespace package.stormiumteam.networking
             
         }
 
-        void INetOnNewMessage.Callback(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
+        void EventReceiveData.IEv.Callback(EventReceiveData.Arguments args)
         {
+            var reader = args.Reader;
+            var peerInstance = args.PeerInstance;
+            
             reader.ResetReadPosition();
 
             if (reader.Type != MessageType.Internal)
@@ -34,13 +37,12 @@ namespace package.stormiumteam.networking
 
             if (intType == InternalMessageType.AllBroadcastedDataSent)
             {
-                netPeerInstance.SetClientReady();
-                
-                netPeerInstance.AllBroadcastedDataReceived();
+                peerInstance.SetClientReady();
+                peerInstance.AllBroadcastedDataReceived();
             }
             else if (intType == InternalMessageType.AllBroadcastedDataReceived)
             {
-                netPeerInstance.SetClientReady();
+                peerInstance.SetClientReady();
             }
         }
     }

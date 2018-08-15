@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -68,6 +69,11 @@ namespace package.stormiumteam.networking
         public void SetClientReady()
         {
             ClientReady = true;
+        }
+        
+        public TSystem Get<TSystem>() where TSystem : ComponentSystem
+        {
+            return Global.World.GetOrCreateManager<TSystem>();
         }
 
         internal void AllBroadcastedDataSent()
