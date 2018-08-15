@@ -170,7 +170,7 @@ namespace package.stormiumteam.networking
         internal abstract void Sealed();
     }
 
-    public abstract class EventSentAllBroadcastedDataToPeer
+    public abstract class EventPeerReceiveBroadcastData
     {
         public struct Arguments : IDelayComponentArguments
         {

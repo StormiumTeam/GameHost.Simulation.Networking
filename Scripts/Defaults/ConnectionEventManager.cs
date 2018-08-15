@@ -107,8 +107,8 @@ namespace package.stormiumteam.networking
 
             otherNetworkInstance.SetAsConnected();
 
-            foreach (var manager in AppEvent<EventSentAllBroadcastedDataToPeer.IEv>.eventList)
-                manager.Callback(new EventSentAllBroadcastedDataToPeer.Arguments(NetInstance, newPeerInstance));
+            foreach (var manager in AppEvent<EventPeerReceiveBroadcastData.IEv>.eventList)
+                manager.Callback(new EventPeerReceiveBroadcastData.Arguments(NetInstance, newPeerInstance));
         }
 
         private void ListenerOnPeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
