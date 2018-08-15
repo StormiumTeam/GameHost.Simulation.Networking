@@ -2,7 +2,7 @@
 using LiteNetLib;
 using LiteNetLib.Utils;
 using package.stormiumteam.shared;
-using Scripts.Utilities;
+using package.stormiumteam.shared;
 
 namespace package.stormiumteam.networking
 {

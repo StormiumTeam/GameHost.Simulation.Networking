@@ -1,6 +1,6 @@
 ﻿using LiteNetLib.Utils;
 using package.stormiumteam.networking;
-using Scripts.Utilities;
+using package.stormiumteam.shared;
 using Unity.Entities;
 using UnityEngine;
 
