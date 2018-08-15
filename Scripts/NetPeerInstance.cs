@@ -93,8 +93,6 @@ namespace package.stormiumteam.networking
 
         internal void AllBroadcastedDataSent()
         {
-            Assert.IsTrue(ServerReady, "NetPeerInstance.ServerReady");
-
             Peer.Send(s_ServerAllBroadcastedDataSent, DeliveryMethod.ReliableOrdered);
         }
 
