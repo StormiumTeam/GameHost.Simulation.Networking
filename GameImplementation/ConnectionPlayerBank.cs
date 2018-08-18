@@ -4,6 +4,7 @@ using package.stormiumteam.networking.game;
 using package.stormiumteam.shared;
 using package.stormiumteam.shared.online;
 using Unity.Entities;
+using UnityEngine;
 
 namespace GameImplementation
 {

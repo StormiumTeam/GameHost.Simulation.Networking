@@ -18,8 +18,6 @@ namespace package.stormiumteam.networking
             public bool WasMainUser;
         }
 
-        private World                                m_UserWorld;
-        private EntityManager                        m_UserEntityManager;
         private List<NetUser>                        m_AllUsers       = new List<NetUser>();
         private Dictionary<ulong, NetDataWriter>     m_AllUserWriters = new Dictionary<ulong, NetDataWriter>();
         private Dictionary<ulong, NetUserProperties> m_UserProperties = new Dictionary<ulong, NetUserProperties>();
@@ -28,9 +26,6 @@ namespace package.stormiumteam.networking
 
         protected override void OnCreateManager(int capacity)
         {
-            m_UserWorld         = new World("__netuser__" + NetWorld.Name);
-            m_UserEntityManager = m_UserWorld.GetOrCreateManager<EntityManager>();
-
             NetInstance.AllInUsers = new ReadOnlyCollection<NetUser>(m_AllUsers);
 
             NetworkMessageSystem.OnNewMessage += OnNewMessage;
@@ -38,11 +33,6 @@ namespace package.stormiumteam.networking
 
         protected override void OnUpdate()
         {
-        }
-
-        protected override void OnDestroyManager()
-        {
-            m_UserWorld.Dispose();
         }
 
         private NetUserProperties GetProperties(NetUser user)
@@ -60,14 +50,14 @@ namespace package.stormiumteam.networking
 
         public bool Contains(NetUser user)
         {
-            return m_UserEntityManager.Exists(GetEntity(user));
+            return EntityManager.Exists(GetEntity(user));
         }
 
         public NetUser Allocate(NetPeerInstance peerInstance)
         {
             peerInstance = peerInstance ?? NetInstance.PeerInstance;
             
-            var entity = m_UserEntityManager.CreateEntity();
+            var entity = EntityManager.CreateEntity();
             var user = new NetUser(peerInstance, NetInstance, StMath.DoubleIntToULong(entity.Index, entity.Version));
 
             m_AllUsers.Add(user);
@@ -95,7 +85,7 @@ namespace package.stormiumteam.networking
         public void Dispose(NetUser user)
         {
             var entity = GetEntity(user);
-            if (m_UserEntityManager.Exists(entity)) m_UserEntityManager.DestroyEntity(entity);
+            if (EntityManager.Exists(entity)) EntityManager.DestroyEntity(entity);
             if (m_AllUsers.Contains(user))
             {
                 var index = m_AllUsers.IndexOf(user);
@@ -129,10 +119,10 @@ namespace package.stormiumteam.networking
         public ConnectionType GetUserConnectionType(NetUser user)
         {
             var entity = GetEntity(user);
-            if (m_UserEntityManager.Exists(entity)
-                && m_UserEntityManager.HasComponent<UserRelativeConnectionData>(entity))
+            if (EntityManager.Exists(entity)
+                && EntityManager.HasComponent<UserRelativeConnectionData>(entity))
             {
-                return m_UserEntityManager.GetComponentData<UserRelativeConnectionData>(entity)
+                return EntityManager.GetComponentData<UserRelativeConnectionData>(entity)
                                           .ConnectionType;
             }
 

@@ -111,6 +111,7 @@ namespace package.stormiumteam.networking.ecs
 
             buffer.SetOrAddComponentData(entity, new NetworkEntity(id, entity));
 
+#if UNITY_EDITOR && A != A
             if (em.HasComponent<Transform>(entity))
             {
                 var gameObject             = em.GetComponentObject<Transform>(entity).gameObject;
@@ -120,6 +121,7 @@ namespace package.stormiumteam.networking.ecs
                 networkEntityComponent.NetVersion   = entity.Version;
                 networkEntityComponent.OwnerAddress = NetInstance.World.Name;
             }
+#endif
 
             return new NetworkEntity(id, entity);
         }

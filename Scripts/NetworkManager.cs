@@ -5,6 +5,7 @@ using package.stormiumteam.networking;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.Profiling;
 
 namespace package.stormiumteam.networking
 {
@@ -75,7 +76,7 @@ namespace package.stormiumteam.networking
         {
             Assert.IsFalse(instance == null, "instance == null");
             Assert.IsFalse(instance?.World == null, "instance.World == null");
-            
+
             switch (type)
             {
                 case ConnectionType.In:
@@ -90,6 +91,7 @@ namespace package.stormiumteam.networking
                 default:
                     throw new ArgumentOutOfRangeException(nameof(type), type, null);
             }
+            Profiler.EndSample();
             
             Debug.Log($"Adding a new <b>'{type}'</b> network instance");
 
@@ -97,7 +99,7 @@ namespace package.stormiumteam.networking
             
             if (finalize) instance.FinalizeInstance();
             if (setReady) instance.SetReady();
-            
+
             if (interParent != null) interParent.m_Interconnections.Add(instance);
         }
 

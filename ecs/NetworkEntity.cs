@@ -31,6 +31,11 @@ namespace package.stormiumteam.networking.ecs
         {
             return NetworkInstance.FromId(InstanceId);
         }
+
+        public Entity ToEntity()
+        {
+            return new Entity() {Index = NetId, Version = NetVersion};
+        }
     }
 
     [RequireComponent(typeof(ReferencableGameObject), typeof(GameObjectEntity))]

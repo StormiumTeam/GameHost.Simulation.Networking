@@ -158,7 +158,6 @@ namespace package.stormiumteam.networking
 			NetworkWorld.AllWorlds.Add(World);
 
 			ECSWorldLoop.FlagAsLoopable(World);
-			ECSWorldLoop.Retake();
 
 			return World;
 		}
@@ -333,10 +332,7 @@ namespace package.stormiumteam.networking
 			}
 
 			// Inject update loop
-			var list = new List<World>();
-			list.Add(Unity.Entities.World.Active);
-			list.AddRange(NetworkWorld.AllWorlds);
-			ScriptBehaviourUpdateOrder.UpdatePlayerLoop(list.ToArray());
+			ECSWorldLoop.Retake();
 		}
 	}
 }

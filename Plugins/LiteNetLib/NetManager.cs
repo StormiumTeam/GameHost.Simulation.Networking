@@ -152,7 +152,7 @@ namespace LiteNetLib
         /// </summary>
         public bool ReuseAddress = false;
 
-        private const int DefaultUpdateTime = 40;
+        private const int DefaultUpdateTime = 10;
 
         /// <summary>
         /// Statistics of all connections
