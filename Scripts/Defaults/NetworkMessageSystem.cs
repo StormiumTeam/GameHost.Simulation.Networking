@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using DefaultNamespace;
+using package.stormiumteam.networking.plugins;
 using JetBrains.Annotations;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -25,6 +25,9 @@ namespace package.stormiumteam.networking
             
             Assert.IsTrue(peer != null, "peer != null");
             
+            if (writer.Length == 0)
+                Debug.LogWarning("Zero-sized message?");
+            
             if (channel == null || peerInstance?.Channel == channel) peer.Send(writer, deliveryMethod);
             else
             {
@@ -47,12 +50,18 @@ namespace package.stormiumteam.networking
         public void InstantSendToAllDefault(NetworkInstance from, NetDataWriter writer, DeliveryMethod deliveryMethod)
         {
             var defaultChannel = from.GetChannelManager().DefaultChannel;
+         
+            if (writer.Length == 0)
+                Debug.LogWarning("Zero-sized message?");
             
             defaultChannel.Manager.SendToAll(writer, deliveryMethod);
         }
 
         public void InstantSendToAll(NetworkChannel channel, NetDataWriter writer, DeliveryMethod deliveryMethod)
         {
+            if (writer.Length == 0)
+                Debug.LogWarning("Zero-sized message?");
+            
             channel.Manager.SendToAll(writer, deliveryMethod);
         }
         

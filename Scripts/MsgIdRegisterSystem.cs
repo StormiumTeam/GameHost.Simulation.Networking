@@ -58,6 +58,7 @@ namespace package.stormiumteam.networking
                 | BindingFlags.Static
                 | BindingFlags.Instance
             );
+            Debug.Log("Register type: "  + htype.Name);
             foreach (var field in fields)
             {
                 if (field.FieldType != typeof(MessageIdent)) continue;
@@ -138,7 +139,7 @@ namespace package.stormiumteam.networking
             return 0;
         }
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             PatternsLink[0] = MessageIdent.Zero;
         }

@@ -7,11 +7,24 @@ using UnityEngine;
 
 namespace package.stormiumteam.networking.ecs
 {
+    public struct EntityIsOnNetwork : IComponentData
+    {
+        
+    }
+    
     public struct NetworkEntity : IComponentData
     {
         public int InstanceId;
         public int NetId;
         public int NetVersion;
+        
+        // local variant
+        public NetworkEntity(Entity entity)
+        {
+            InstanceId = -1;
+            NetId      = entity.Index;
+            NetVersion = entity.Version;
+        }
         
         public NetworkEntity(int instanceId, Entity entity)
         {

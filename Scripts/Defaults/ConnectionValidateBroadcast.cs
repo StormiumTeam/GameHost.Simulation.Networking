@@ -1,5 +1,5 @@
 ﻿using System;
-using DefaultNamespace;
+using package.stormiumteam.networking.plugins;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using package.stormiumteam.shared;
@@ -11,9 +11,9 @@ namespace package.stormiumteam.networking
     public class ConnectionValidateBroadcast : NetworkConnectionSystem,
         EventReceiveData.IEv
     {
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
-            base.OnCreateManager(capacity);
+            base.OnCreateManager();
             
             MainWorld.GetOrCreateManager<AppEventSystem>().SubscribeToAll(this);
         }

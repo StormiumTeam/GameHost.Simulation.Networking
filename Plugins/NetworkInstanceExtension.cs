@@ -1,10 +1,16 @@
 ﻿using package.stormiumteam.networking;
+using Unity.Entities;
 using UnityEngine.Assertions;
 
-namespace DefaultNamespace
+namespace package.stormiumteam.networking.plugins
 {
     public static class NetworkInstanceExtension
     {
+        public static TSystem Get<TSystem>(this NetworkInstance t) where TSystem : ComponentSystem
+        {
+            return t.World.GetOrCreateManager<TSystem>();
+        }
+        
         public static ConnectionUserManager GetUserManager(this NetworkInstance t)
         {
             return t.World.GetOrCreateManager<ConnectionUserManager>();

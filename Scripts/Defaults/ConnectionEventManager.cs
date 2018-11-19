@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Net;
-using DefaultNamespace;
+using package.stormiumteam.networking.plugins;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using package.stormiumteam.networking;
@@ -23,7 +23,7 @@ namespace package.stormiumteam.networking
 
         [Inject] private ConnectionChannelManager m_ChannelManager;
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             Assert.IsFalse(NetInstance == null, "NetInstance == null");
             Assert.IsFalse(NetInstance.ConnectionInfo.Creator == null, "NetInstance.ConnectionInfo.Creator == null");
@@ -176,6 +176,12 @@ namespace package.stormiumteam.networking
 
         private void ListenerOnNetworkReceiveEvent(NetPeer peer, NetDataReader reader, DeliveryMethod deliveryMethod)
         {
+            if (reader.Data.Length <= 0)
+            {
+                Debug.LogError("Invalid data from a peer!");
+                // peer.Disconnect();
+            }
+            
             var messageType = reader.GetByte();
             var msgReader = new MessageReader
             {

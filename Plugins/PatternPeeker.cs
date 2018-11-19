@@ -1,6 +1,4 @@
-﻿using package.stormiumteam.networking;
-
-namespace DefaultNamespace
+﻿namespace package.stormiumteam.networking.plugins
 {
     public struct PatternPeeker
     {

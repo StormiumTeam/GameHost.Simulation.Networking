@@ -47,7 +47,7 @@ namespace package.stormiumteam.networking
         private ChannelManagement m_Option;
         public List<int> UsablesPorts = new List<int>();
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             m_AllChannels = new List<NetworkChannel>();
             Channels      = new ReadOnlyCollection<NetworkChannel>(m_AllChannels);

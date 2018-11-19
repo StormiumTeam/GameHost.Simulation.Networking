@@ -1,4 +1,5 @@
-﻿using package.stormiumteam.shared;
+﻿using System;
+using package.stormiumteam.shared;
 using Unity.Entities;
 using UnityEngine;
 
@@ -8,9 +9,9 @@ namespace package.stormiumteam.networking
     {
         [Inject] private AppEventSystem m_AppEventSystem;
         
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
-            base.OnCreateManager(capacity);
+            base.OnCreateManager();
 
             NetworkInstance.OnInstanceReady += EventOnInstanceReady;
             NetworkMessageSystem.OnNewMessage += EventOnNewMessage;
@@ -34,12 +35,24 @@ namespace package.stormiumteam.networking
         private void EventOnNewMessage(NetworkInstance caller, NetPeerInstance netPeerInstance, MessageReader reader)
         {
             m_AppEventSystem.CheckLoopValidity();
-            
+
             foreach (var manager in AppEvent<EventReceiveData.IEv>.eventList)
             {
                 reader.ResetReadPosition();
-                manager.Callback(new EventReceiveData.Arguments(caller, netPeerInstance, reader));
+#if UNITY_EDITOR || DEBUG
+                try
+                {
+#endif
+                    manager.Callback(new EventReceiveData.Arguments(caller, netPeerInstance, reader));
+#if UNITY_EDITOR || DEBUG
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                }
+#endif
             }
+
             reader.ResetReadPosition();
         }
 

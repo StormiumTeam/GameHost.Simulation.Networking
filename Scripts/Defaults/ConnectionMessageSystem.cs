@@ -17,7 +17,7 @@ namespace package.stormiumteam.networking
         private NetworkMessageSystem m_NetworkMessageSystem;
         private NetDataWriter m_NetDataWriter;
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             m_NetworkMessageSystem = MainWorld.GetOrCreateManager<NetworkMessageSystem>();
             m_NetDataWriter = new NetDataWriter(true);
@@ -39,6 +39,13 @@ namespace package.stormiumteam.networking
             m_NetDataWriter.Reset(initialSize);
             m_NetDataWriter.Put((byte) MessageType.Pattern);
             m_PatternManager.PutPattern(m_NetDataWriter, pattern);
+            return m_NetDataWriter;
+        }
+
+        public NetDataWriter Create(MessageIdent pattern, NetDataWriter original)
+        {
+            original.Put((byte) MessageType.Pattern);
+            m_PatternManager.PutPattern(original, pattern);
             return m_NetDataWriter;
         }
     }

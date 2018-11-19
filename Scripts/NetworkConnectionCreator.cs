@@ -1,5 +1,5 @@
 ﻿using System.Net;
-using DefaultNamespace;
+using package.stormiumteam.networking.plugins;
 using LiteNetLib.Utils;
 using package.stormiumteam.networking;
 using UnityEngine;

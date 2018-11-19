@@ -35,7 +35,7 @@ namespace package.stormiumteam.networking
         /// </summary>
         public ReadOnlyCollection<NetworkInstance> Self { get; private set; }
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             m_InInstances   = new List<NetworkInstance>();
             m_OutInstances  = new List<NetworkInstance>();
@@ -107,6 +107,24 @@ namespace package.stormiumteam.networking
         {
             Assert.IsTrue(instance != null, "instance != null");
 
+            foreach (var inInstance in m_InInstances)
+            {
+                if (inInstance.m_Interconnections.Contains(instance))
+                    inInstance.m_Interconnections.Remove(instance);
+            }
+            
+            foreach (var outInstance in m_OutInstances)
+            {
+                if (outInstance.m_Interconnections.Contains(instance))
+                    outInstance.m_Interconnections.Remove(instance);
+            }
+            
+            foreach (var selfInstance in m_SelfInstances)
+            {
+                if (selfInstance.m_Interconnections.Contains(instance))
+                    selfInstance.m_Interconnections.Remove(instance);
+            }
+            
             var type = instance.ConnectionInfo.ConnectionType;
             switch (type)
             {

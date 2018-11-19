@@ -8,6 +8,7 @@ namespace package.stormiumteam.networking
         public byte   Version;
 
         public static readonly MessageIdent Zero = new MessageIdent("zero_id", Byte.MaxValue);
+        public static readonly int HeaderSize = sizeof(int) + sizeof(byte);
 
         public MessageIdent(string id, byte version = 0)
         {

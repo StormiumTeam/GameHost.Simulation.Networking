@@ -1,4 +1,4 @@
-﻿using DefaultNamespace;
+﻿using package.stormiumteam.networking.plugins;
 using LiteNetLib;
 using UnityEngine.Assertions;
 

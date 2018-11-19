@@ -86,7 +86,7 @@ namespace package.stormiumteam.networking
             }
         }
         
-        public TSystem Get<TSystem>() where TSystem : ComponentSystem
+        public TSystem Get<TSystem>() where TSystem : ScriptBehaviourManager
         {
             return Global.World.GetOrCreateManager<TSystem>();
         }

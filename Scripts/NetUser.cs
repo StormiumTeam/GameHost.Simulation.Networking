@@ -39,6 +39,11 @@ namespace package.stormiumteam.networking
 
         }
 
+        public override string ToString()
+        {
+            return $"user#{Index}(peer: {PeerId}, owner: {OwnerId})";
+        }
+
         public bool Equals(NetUser other)
         {
             return Index == other.Index;

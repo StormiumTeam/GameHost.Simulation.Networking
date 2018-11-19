@@ -30,6 +30,8 @@ namespace GameImplementation
         /// <param name="player">The player</param>
         public void RegisterPlayer(long index, GamePlayer player)
         {
+            player.IsCreated = true;
+            
             m_AllPlayers[index] = player;
 
             player.WorldPointer.SetOrAddComponentData(new ClientPlayerServerPlayerLink(index));

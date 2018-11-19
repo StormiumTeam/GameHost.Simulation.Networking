@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define PATTERN_DEBUG
+
+using System;
 using System.Collections.Generic;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -30,7 +32,7 @@ namespace package.stormiumteam.networking
             
         }
 
-        protected override void OnCreateManager(int capacity)
+        protected override void OnCreateManager()
         {
             m_IsMainWorld = NetInstance.ConnectionInfo.ConnectionType == ConnectionType.Self;
             m_Register = m_IsMainWorld
@@ -140,9 +142,21 @@ namespace package.stormiumteam.networking
         /// <returns>The pattern</returns>
         public MessageIdent GetPattern(NetDataReader dataReader)
         {
+            var stringId = string.Empty;
+            
             var id      = dataReader.GetInt();
             var version = dataReader.GetByte();
+            
+            #if PATTERN_DEBUG
+            stringId = dataReader.GetString();
+            #endif
+            
             var pattern = m_Register.GetPatternFromLink(id);
+
+            if (pattern == MessageIdent.Zero)
+            {
+                Debug.LogError("Found a zero pattern! " + stringId);
+            }
             
             return new MessageIdent()
             {
@@ -196,6 +210,15 @@ namespace package.stormiumteam.networking
             var linkId = m_Register.GetLinkFromIdent(pattern.Id);
             dataWriter.Put(linkId);
             dataWriter.Put(pattern.Version);
+
+#if PATTERN_DEBUG
+            dataWriter.Put(pattern.Id);
+#endif
+        }
+
+        public MsgIdRegisterSystem GetRegister()
+        {
+            return m_Register;
         }
     }
 }

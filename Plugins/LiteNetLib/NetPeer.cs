@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using LiteNetLib.Utils;
 using UnityEngine;
 
@@ -308,6 +309,9 @@ namespace LiteNetLib
         /// </exception>
         public void Send(NetDataWriter dataWriter, DeliveryMethod options)
         {
+            if (dataWriter.Length == 0)
+                Debug.LogWarning($"{nameof(dataWriter)} data is zero!");
+
             Send(dataWriter.Data, 0, dataWriter.Length, options);
         }
 

@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using DefaultNamespace;
+using package.stormiumteam.networking.plugins;
 using JetBrains.Annotations;
 using LiteNetLib;
 using package.stormiumteam.shared.modding;
@@ -21,6 +21,8 @@ namespace package.stormiumteam.networking
 	public abstract class NetworkConnectionSystem : ComponentSystem
 	{
 		private World m_MainWorld;
+
+		public EntityManager MainEntityMgr => MainWorld.GetExistingManager<EntityManager>();
 		
 		public NetworkInstance NetInstance => NetWorld?.Instance;
 		public NetworkWorld    NetWorld    => World as NetworkWorld;
@@ -59,6 +61,9 @@ namespace package.stormiumteam.networking
 
 		public static NetworkInstance FromId(int id)
 		{
+			if (id < 0)
+				return null;
+			
 			if (s_AllCreationValidInstances.Count <= id)
 				return null;
 			
