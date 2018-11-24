@@ -12,7 +12,8 @@ The backend is for now based on ENet (with a support for new multiplayer library
 **Used for:**
 <html>
     <p align="center">
-    <img src="https://orig00.deviantart.net/6ebf/f/2018/328/d/d/stormiumnewlogo_by_guerro323-dcsrihn.png" alt="Super Logo!" height="128" />
+    <img
+    src="https://orig00.deviantart.net/6b55/f/2018/328/a/4/stlogo1_by_guerro323-dcsrj1j.png" alt="Super Logo!" height="128" />
     </p>
     <p align="center">
     <img src="https://orig00.deviantart.net/65f8/f/2018/328/f/5/pataponnewlogo_by_guerro323-dcsriny.png" alt="Super Logo!" height="192" />
