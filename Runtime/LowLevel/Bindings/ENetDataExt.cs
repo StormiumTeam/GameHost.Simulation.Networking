@@ -13,6 +13,11 @@ namespace ENet
             NativeHost = host.NativeData;
         }
         
+        public NativeNetHost(IntPtr ptr)
+        {
+            NativeHost = ptr;
+        }
+        
         public void Broadcast(byte channelID, ref Packet packet) {
             CheckCreated();
 

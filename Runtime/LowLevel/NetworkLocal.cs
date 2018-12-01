@@ -13,7 +13,7 @@ namespace package.stormiumteam.networking.Runtime.LowLevel
         {
             return new NetDriverConfiguration
             {
-                PeerLimit         = 16,
+                PeerLimit         = 32,
                 ChannelLimit      = (int) Library.maxChannelCount,
                 IncomingBandwidth = 0,
                 OutgoingBandwidth = 0
@@ -34,10 +34,16 @@ namespace package.stormiumteam.networking.Runtime.LowLevel
         public Host                   Host;
         public NetDriverConfiguration Configuration;
 
+        public IPAddress LastBindedIPAddress;
+        public Address LastBindedAddress;
+
         public NetDriver(NetDriverConfiguration configuration)
         {
             Configuration = configuration;
             Host          = new Host();
+            
+            LastBindedAddress = default(Address);
+            LastBindedIPAddress = default(IPAddress);
         }
 
         public NetDriver(int peerLimit)
@@ -48,6 +54,9 @@ namespace package.stormiumteam.networking.Runtime.LowLevel
             Configuration           = NetDriverConfiguration.@default();
             Configuration.PeerLimit = peerLimit;
             Host                    = new Host();
+            
+            LastBindedAddress   = default(Address);
+            LastBindedIPAddress = default(IPAddress);
         }
 
         public void UpdateConfiguration(NetDriverConfiguration newConfiguration)
@@ -75,6 +84,8 @@ namespace package.stormiumteam.networking.Runtime.LowLevel
         {
             if (Host.IsSet)
                 return NetDriverBindError.HostNull;
+
+            LastBindedAddress = address;
             
             Host.Create(address,
                 Configuration.PeerLimit,
