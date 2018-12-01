@@ -33,13 +33,6 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             
             var validatorMgr = new ValidatorManager(EntityManager, instanceEntity);
             validatorMgr.Add(m_ClientCreatedQueryId);
-            validatorMgr.Add(QueryTypeManager.Create("1"), QueryStatus.Valid);
-            validatorMgr.Add(QueryTypeManager.Create("2"), QueryStatus.ValidWithErrors);
-            validatorMgr.Add(QueryTypeManager.Create("3"), QueryStatus.Waiting);
-            validatorMgr.Add(QueryTypeManager.Create("4"), QueryStatus.Waiting);
-            validatorMgr.Add(QueryTypeManager.Create("5"), QueryStatus.Valid);
-            validatorMgr.Add(QueryTypeManager.Create("6"), QueryStatus.Waiting);
-            validatorMgr.Add(QueryTypeManager.Create("7"), QueryStatus.Valid);
             
             // We only instantly validate the query on local server
             if (instanceData.InstanceType == InstanceType.LocalServer)
