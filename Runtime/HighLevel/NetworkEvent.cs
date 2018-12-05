@@ -1,9 +1,10 @@
 ﻿using System;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     public enum NetworkEventType
     {

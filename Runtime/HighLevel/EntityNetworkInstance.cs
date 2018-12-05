@@ -1,28 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
 using ENet;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using UnityEngine;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     public struct NetworkInstanceData : IComponentData
     {
         public int          Id;
+        public int          ParentId;
         public InstanceType InstanceType;
+        public Entity Parent;
 
-        public NetworkInstanceData(int id, InstanceType instanceType)
+        public NetworkInstanceData(int id, int parentId, Entity parent, InstanceType instanceType)
         {
             Id           = id;
+            ParentId     = parentId;
+            Parent = parent;
             InstanceType = instanceType;
         }
 
         public bool IsLocal()
         {
             return (InstanceType & InstanceType.Local) != 0;
+        }
+
+        public bool HasParent()
+        {
+            return ParentId != 0;
         }
     }
 

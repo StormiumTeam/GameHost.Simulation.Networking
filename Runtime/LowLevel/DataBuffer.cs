@@ -6,7 +6,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace package.stormiumteam.networking.Runtime.LowLevel
+namespace package.stormiumteam.networking.runtime.lowlevel
 {
     public unsafe struct DataBufferMarker
     {

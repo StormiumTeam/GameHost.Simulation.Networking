@@ -3,12 +3,12 @@
 using System;
 using System.Diagnostics;
 using ENet;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Debug = UnityEngine.Debug;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     [Flags]
     public enum Delivery

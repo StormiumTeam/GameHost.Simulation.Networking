@@ -1,7 +1,7 @@
 ﻿using Unity.Entities;
 using UnityEngine.Experimental.PlayerLoop;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     /// <summary>
     /// 
@@ -33,6 +33,11 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         }
         
         [UpdateAfter(typeof(IntNetworkEventManager))]
+        public abstract class IntNetworkCreateIncomingInstance
+        {
+        }
+        
+        [UpdateAfter(typeof(IntNetworkCreateIncomingInstance))]
         public class IntNetworkConnectionManager
         {
         }

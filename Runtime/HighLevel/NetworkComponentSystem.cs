@@ -2,7 +2,7 @@
 using System.Collections.ObjectModel;
 using Unity.Entities;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     public interface INetworkComponentSystem
     {

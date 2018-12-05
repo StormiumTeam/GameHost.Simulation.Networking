@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Net;
 using ENet;
-using package.stormiumteam.networking.Runtime.HighLevel;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.extensions;
+using package.stormiumteam.networking.runtime.highlevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -15,6 +16,8 @@ namespace package.stormiumteam.networking.Tests.HighLevel
         public World ServerWorld;
         public Entity ServerInstance;
         
+        [PatternName("TestPattern")]
+        public PatternResult TestPattern;
 
         public CreateServerCode(World world)
         {
@@ -32,6 +35,13 @@ namespace package.stormiumteam.networking.Tests.HighLevel
             }
 
             ServerInstance = networkMgr.GetNetworkInstanceEntity(serveResult.InstanceId);
+
+            var netPatternSystem = ServerWorld.GetOrCreateManager<NetPatternSystem>();
+            var patternBank      = netPatternSystem.GetLocalBank();
+
+            patternBank.RegisterObject(this);
+            
+            Debug.Log($"Server Pattern: {TestPattern.Id}");
         }
 
         public void Update()

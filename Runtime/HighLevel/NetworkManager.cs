@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
 using ENet;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Profiling;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     [Flags]
     public enum InstanceType
@@ -50,6 +50,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             public bool IsError;
             
             public int InstanceId;
+            public Entity InstanceEntity;
         }
 
         private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
@@ -120,7 +121,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             var instanceId = connection.Id;
 
             var entity = EntityManager.CreateEntity(LocalEntityArchetype);
-            EntityManager.SetComponentData(entity, new NetworkInstanceData(instanceId, InstanceType.LocalServer));
+            EntityManager.SetComponentData(entity, new NetworkInstanceData(connection.Id, 0, default(Entity), InstanceType.LocalServer));
             EntityManager.SetComponentData(entity, new NetworkInstanceHost(new NetworkHost(connection, driver.Host.NativeData)));
             EntityManager.SetSharedComponentData(entity, new NetworkInstanceSharedData(connections));
             m_InstanceToEntity[instanceId] = entity;
@@ -158,24 +159,22 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             // Connect to the server, and get the server peer
             var peer = driver.Connect(peerEndPoint);
             // Get the server peer connection data struct (used for internal stuff).
-            var serverConnection = NetworkConnection.New();
-            var serverInstanceId = serverConnection.Id;
+            var serverCon = NetworkConnection.New();
 
             // Create a new client connection
-            var clientConnection = NetworkConnection.New(serverConnection.Id);
-            var clientInstanceId = clientConnection.Id;
-
-            var clientEntity = EntityManager.CreateEntity(LocalEntityArchetype);
-            EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientInstanceId, InstanceType.LocalClient));
-            EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientConnection, driver.Host.NativeData)));
-            EntityManager.SetSharedComponentData(clientEntity, new NetworkInstanceSharedData(connections));
+            var clientCon = NetworkConnection.New(serverCon.Id);
             
             // The server will only have THIS client connection
-            serverConnections.Add(clientConnection);
+            serverConnections.Add(clientCon);
 
             var serverEntity = EntityManager.CreateEntity(ForeignEntityArchetype);
-            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(clientInstanceId, InstanceType.Server));
+            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server));
             EntityManager.SetSharedComponentData(serverEntity, new NetworkInstanceSharedData(serverConnections));
+            
+            var clientEntity = EntityManager.CreateEntity(LocalEntityArchetype);
+            EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientCon.Id, clientCon.ParentId, serverEntity, InstanceType.LocalClient));
+            EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientCon, driver.Host.NativeData)));
+            EntityManager.SetSharedComponentData(clientEntity, new NetworkInstanceSharedData(connections));
 
             var queryBuffer = EntityManager.GetBuffer<QueryBuffer>(serverEntity);
             queryBuffer.Add(new QueryBuffer(m_InstanceValidQueryId, QueryStatus.Waiting));
@@ -183,7 +182,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             ENetPeerConnection serverPeerConnection;
             if (!ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
             {
-                serverPeerConnection.Connection     = serverConnection;
+                serverPeerConnection.Connection     = serverCon;
                 serverPeerConnection.InstanceEntity = serverEntity;
             }
             else
@@ -191,94 +190,144 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
                 throw new InvalidOperationException();
             }
 
-            m_InstanceToEntity[clientInstanceId] = clientEntity;
-            m_InstanceToEntity[serverInstanceId] = serverEntity;
+            m_InstanceToEntity[clientCon.Id] = clientEntity;
+            m_InstanceToEntity[serverCon.Id] = serverEntity;
+            
+            Debug.Log($"StartClient() -> Result (Cid: {clientCon.Id}, Sid: {serverCon.Id})");
 
-            InternalOnNetworkInstanceAdded(clientInstanceId, clientEntity);
-            InternalOnNetworkInstanceAdded(serverInstanceId, serverEntity);
+            InternalOnNetworkInstanceAdded(clientCon.Id, clientEntity);
+            InternalOnNetworkInstanceAdded(serverCon.Id, serverEntity);
 
             return new StartClientResult
             {
-                ClientInstanceId = clientInstanceId,
-                ServerInstanceId = serverInstanceId,
+                ClientInstanceId = clientCon.Id,
+                ServerInstanceId = serverCon.Id,
 
                 ClientInstanceEntity = clientEntity,
                 ServerInstanceEntity = serverEntity
             };
         }
 
-        public GetIncomingInstanceResult GetIncomingInstance(Entity localOrigin, NetworkConnection foreignConnection)
+        public GetIncomingInstanceResult GetIncomingInstance(Entity origin, NetworkInstanceData originData, NetworkConnection incomingConnection)
         {
-            var result = new GetIncomingInstanceResult
+            if (incomingConnection.ParentId != originData.Id && !originData.HasParent())
             {
-                IsError = true
-            };
-
-            #region Errors Wall
-
-            if (localOrigin == default(Entity))
-            {
-                Debug.LogError("The origin of the foreign entity is null");
-                return result;
+                Debug.LogError($"Invalid parent. {incomingConnection.ParentId} != {originData.Id}");
+                return new GetIncomingInstanceResult
+                {
+                    IsError = true
+                };
             }
 
-            if (foreignConnection.Id == 0)
+            Entity foreignEntity;
+            if (m_InstanceToEntity.ContainsKey(incomingConnection.Id))
             {
-                Debug.LogError("Foreign connection is invalid");
-                return result;
-            }
+                Debug.Log("Adding server...");
+                foreignEntity = GetNetworkInstanceEntity(incomingConnection.Id);
+                var foreignData = EntityManager.GetComponentData<NetworkInstanceData>(foreignEntity);
+                if (foreignData.InstanceType != InstanceType.Server) Debug.LogError("Invalid");
+                
+                var validatorMgr = new NativeValidatorManager(EntityManager.GetBuffer<QueryBuffer>(foreignEntity));
+                if (validatorMgr.Has(m_InstanceValidQueryId))
+                    validatorMgr.Set(m_InstanceValidQueryId, QueryStatus.Valid);
 
-            if (foreignConnection.ParentId == 0)
-            {
-                Debug.LogError("Foreign connection has no parent.");
-                return result;
-            }
-
-            #endregion
-
-            var localInstanceData = EntityManager.GetComponentData<NetworkInstanceData>(localOrigin);
-            if (foreignConnection.ParentId != localInstanceData.Id)
-            {
-                Debug.LogError(
-                    $"Foreign connection parent is not the same as the local origin ({foreignConnection.ParentId} != {localInstanceData.Id})");
-                return result;
+                return new GetIncomingInstanceResult
+                {
+                    IsError        = false,
+                    InstanceId     = incomingConnection.Id,
+                    InstanceEntity = foreignEntity
+                };
             }
 
             var foreignConList = new NativeList<NetworkConnection>(1, Allocator.Persistent);
-            foreignConList.Add(new NetworkConnection(localInstanceData.Id));
-
-            var foreignEntity = EntityManager.CreateEntity(LocalEntityArchetype);
-            EntityManager.SetComponentData(foreignEntity, new NetworkInstanceData(foreignConnection.Id, InstanceType.Client));
+            foreignEntity  = EntityManager.CreateEntity(ForeignEntityArchetype);
+            EntityManager.SetComponentData(foreignEntity, new NetworkInstanceData(incomingConnection.Id, originData.Id, origin, InstanceType.Client));
             EntityManager.SetSharedComponentData(foreignEntity, new NetworkInstanceSharedData(foreignConList));
+            
+            foreignConList.Add(new NetworkConnection(originData.Id, originData.ParentId));
 
-            m_InstanceToEntity[foreignConnection.Id] = foreignEntity;
+            m_InstanceToEntity[incomingConnection.Id] = foreignEntity;
 
-            result.IsError    = false;
-            result.InstanceId = foreignConnection.Id;
-
-            return result;
+            return new GetIncomingInstanceResult
+            {
+                IsError    = false,
+                InstanceId = incomingConnection.Id,
+                InstanceEntity = foreignEntity
+            };
         }
+
+        /* public GetIncomingInstanceResult GetIncomingInstance(Entity localOrigin, NetworkConnection otherConnection)
+         {
+             var result = new GetIncomingInstanceResult
+             {
+                 IsError = true
+             };
+ 
+             #region Errors Wall
+ 
+             if (localOrigin == default(Entity))
+             {
+                 Debug.LogError("The origin of the foreign entity is null");
+                 return result;
+             }
+ 
+             if (otherConnection.Id == 0)
+             {
+                 Debug.LogError("Foreign connection is invalid");
+                 return result;
+             }
+ 
+             if (otherConnection.ParentId == 0)
+             {
+                 Debug.LogError("Foreign connection has no parent.");
+                 return result;
+             }
+ 
+             #endregion
+ 
+             var localInstanceData = EntityManager.GetComponentData<NetworkInstanceData>(localOrigin);
+             if (otherConnection.ParentId != localInstanceData.Id)
+             {
+                 Debug.LogError(
+                     $"Foreign connection parent is not the same as the local origin ({otherConnection.ParentId} != {localInstanceData.Id})");
+                 return result;
+             }
+ 
+             var otherConList = new NativeList<NetworkConnection>(1, Allocator.Persistent);
+             otherConList.Add(new NetworkConnection(localInstanceData.Id));
+ 
+             var otherEntity = EntityManager.CreateEntity(LocalEntityArchetype);
+             EntityManager.SetComponentData(otherEntity, new NetworkInstanceData(otherConnection.Id, otherConnection.ParentId, localOrigin, InstanceType.Client));
+             EntityManager.SetSharedComponentData(otherEntity, new NetworkInstanceSharedData(otherConList));
+ 
+             m_InstanceToEntity[otherConnection.Id] = otherEntity;
+ 
+             result.IsError    = false;
+             result.InstanceId = otherConnection.Id;
+ 
+             return result;
+         }*/
 
         public void Stop(Entity instance)
         {
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instance);
             if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
             {
-                var sharedData  = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
                 var instanceHos = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
                 var host        = instanceHos.Host;
                 host.Flush();
                 host.Dispose();
-
-                sharedData.Connections.Dispose();
-                sharedData.MappedConnections.Clear();
             }
-
+            
+            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
+            sharedData.Connections.Dispose();
+            sharedData.MappedConnections.Clear();
+            
             EntityManager.DestroyEntity(instance);
         }
 
         public Entity GetNetworkInstanceEntity(int instanceId)
-        {
+        {            
             return m_InstanceToEntity[instanceId];
         }
 

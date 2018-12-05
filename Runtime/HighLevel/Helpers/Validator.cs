@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Entities;
 using UnityEngine;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     public static class QueryTypeManager
     {
@@ -132,6 +132,16 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
                 QueryBuffer[i] = new QueryBuffer(type, status);
                 return;
             }
+        }
+
+        public bool Has(int type)
+        {
+            for (var i = 0; i != QueryBuffer.Length; i++)
+            {
+                if (QueryBuffer[i].Type == type) return true;
+            }
+
+            return false;
         }
     }
 }

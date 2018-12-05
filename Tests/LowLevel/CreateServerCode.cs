@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Net;
 using ENet;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;

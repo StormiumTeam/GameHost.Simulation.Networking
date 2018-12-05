@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using package.stormiumteam.networking.Runtime.LowLevel;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -91,10 +91,15 @@ namespace ENet
 
         public static void Free(ENetPeerConnection connection)
         {
-            UnsafeUtility.Free(connection.m_Buffer, Allocator.Persistent);
-            DisposeSentinel.Dispose(ref connection.m_Safety, ref connection.m_DisposeSentinel);
+            InternalFree(connection);
 
             s_Connections.Remove(connection.Connection.Id);
+        }
+        
+        private static void InternalFree(ENetPeerConnection connection)
+        {
+            UnsafeUtility.Free(connection.m_Buffer, Allocator.Persistent);
+            DisposeSentinel.Dispose(ref connection.m_Safety, ref connection.m_DisposeSentinel);
         }
 
         public static bool GetOrCreate(Peer peer, out ENetPeerConnection peerConnection)
@@ -121,7 +126,7 @@ namespace ENet
 
             Application.quitting += () =>
             {
-                foreach (var con in s_Connections) Free(con.Value);
+                foreach (var con in s_Connections) InternalFree(con.Value);
                 s_Connections.Clear();
             };
         }

@@ -1,7 +1,7 @@
 ﻿using ENet;
-using package.stormiumteam.networking.Runtime.HighLevel;
+using package.stormiumteam.networking.runtime.highlevel;
 
-namespace package.stormiumteam.networking.Runtime.LowLevel
+namespace package.stormiumteam.networking.runtime.lowlevel
 {
     public struct NetworkConnection
     {

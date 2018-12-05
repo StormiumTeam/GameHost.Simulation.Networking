@@ -2,7 +2,7 @@
 using ENet;
 using UnityEngine;
 
-namespace package.stormiumteam.networking.Runtime.LowLevel
+namespace package.stormiumteam.networking.runtime.lowlevel
 {
     public struct NetDriverConfiguration
     {

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace package.stormiumteam.networking.Runtime.HighLevel
+namespace package.stormiumteam.networking.runtime.highlevel
 {
     public interface INetworkImplementable
     {
