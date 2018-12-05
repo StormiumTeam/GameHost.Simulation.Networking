@@ -34,8 +34,6 @@ namespace package.stormiumteam.networking.Tests
 
         private void OnDestroy()
         {
-            if (!isActiveAndEnabled) return;
-            
             ServerCode.Destroy();
             ClientCode.Destroy();
             

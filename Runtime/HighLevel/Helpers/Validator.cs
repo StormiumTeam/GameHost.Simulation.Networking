@@ -86,6 +86,8 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         {
             for (var i = 0; i != m_QueryBuffer.Length; i++)
             {
+                Debug.Log($"{m_QueryBuffer[i].Type} == {type}");
+                
                 if (m_QueryBuffer[i].Type == type) return;
             }
 

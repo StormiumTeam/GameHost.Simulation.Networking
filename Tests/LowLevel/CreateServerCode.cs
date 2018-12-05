@@ -22,12 +22,12 @@ namespace package.stormiumteam.networking.Tests
 
         private struct ServerUpdateJob : IJob
         {
-            public NativeENetHost                 Host;
+            public NativeNetHost                 Host;
             public NativeList<NetworkConnection> Connections;
 
             public void Execute()
             {
-                /*Event netEvent;
+                Event netEvent;
                 while (Host.Service(out netEvent) > 0)
                 {
                     switch (netEvent.Type)
@@ -53,7 +53,7 @@ namespace package.stormiumteam.networking.Tests
                             throw new ArgumentOutOfRangeException();
                     }
                 }
-                */
+
             }
         }
 
@@ -65,14 +65,14 @@ namespace package.stormiumteam.networking.Tests
             {
                 for (int index = 0; index != Connections.Length; index++)
                 {
-                    /*var peer     = Connections[index].Peer;
+                    var peer     = Connections[index].Peer;
                     var intState = (int) peer.State;
 
                     // The connection is currently connected, no need to worry
                     if (intState >= 1 && intState <= 5 && peer.NativeData != IntPtr.Zero)
                         return;
 
-                    Connections.RemoveAtSwapBack(index);*/
+                    Connections.RemoveAtSwapBack(index);
                 }
             }
         }
@@ -87,10 +87,10 @@ namespace package.stormiumteam.networking.Tests
 
             public void Execute()
             {
-                /*for (int index = 0; index != Connections.Length; index++)
+                for (int index = 0; index != Connections.Length; index++)
                 {
                     MapPeers.TryAdd(Connections[index].Peer.ID, Connections[index].Peer.NativeData);
-                }*/
+                }
             }
         }
 
@@ -119,7 +119,7 @@ namespace package.stormiumteam.networking.Tests
 
             var updateJob = new ServerUpdateJob
             {
-                Host        = new NativeENetHost(m_Driver.Host),
+                Host        = new NativeNetHost(m_Driver.Host),
                 Connections = m_Connections
             };
 

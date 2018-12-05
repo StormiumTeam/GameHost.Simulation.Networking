@@ -6,19 +6,13 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
 {
     public interface INetworkComponentSystem
     {
-        void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity);
-        void OnNetworkInstanceBroadcastingData(int instanceId, Entity instanceEntity);
-        void OnNetworkInstancePostBroadcastingData(int instanceId, Entity instanceEntity);
-        void OnNetworkInstanceRemoved(int instanceId, Entity instanceEntity);
-        void Implement<TImpl>(TImpl implementable) where TImpl : class, INetworkImplementable;
+        void OnNetworkInstanceAdded(Entity instanceEntity);
+        void OnNetworkInstanceBroadcastingData(Entity instanceEntity);
+        void OnNetworkInstancePostBroadcastingData(Entity instanceEntity);
+        void OnNetworkInstanceRemoved(Entity instanceEntity);
     }
 
-    public interface INetworkComponentSystemInternal
-    {
-        void InternalOnNetworkInstanceAdded(int instanceId, Entity instanceEntity);
-    }
-
-    public abstract class NetworkComponentSystem : ComponentSystem, INetworkComponentSystem, INetworkComponentSystemInternal
+    public abstract class NetworkComponentSystem : ComponentSystem, INetworkComponentSystem
     {
         protected ReadOnlyDictionary<int, NetworkInstanceData> AliveInstances;
 
@@ -26,7 +20,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance got added.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceAdded(Entity instanceEntity)
         {
         }
         
@@ -34,7 +28,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance is broadcasting vital data right after connection.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceBroadcastingData(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceBroadcastingData(Entity instanceEntity)
         {
         }
         
@@ -42,7 +36,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance has finished broadcasting vital data right after connection.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstancePostBroadcastingData(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstancePostBroadcastingData(Entity instanceEntity)
         {
         }
         
@@ -50,27 +44,17 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance is being removed.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceRemoved(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceRemoved(Entity instanceEntity)
         {
-        }
-
-        public void Implement<TImpl>(TImpl implementable) where TImpl : class, INetworkImplementable
-        {
-            
         }
 
         internal void InternalSetAliveInstances(Dictionary<int, NetworkInstanceData> origin)
         {
             AliveInstances = new ReadOnlyDictionary<int, NetworkInstanceData>(origin);
-        }
-
-        void INetworkComponentSystemInternal.InternalOnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
-        {
-            
         }
     }
     
-    public abstract class NetworkJobComponentSystem : JobComponentSystem, INetworkComponentSystem, INetworkComponentSystemInternal
+    public abstract class NetworkJobComponentSystem : JobComponentSystem, INetworkComponentSystem
     {
         protected ReadOnlyDictionary<int, NetworkInstanceData> AliveInstances;
         
@@ -78,7 +62,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance got added.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceAdded(Entity instanceEntity)
         {
         }
         
@@ -86,7 +70,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance is broadcasting vital data right after connection.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceBroadcastingData(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceBroadcastingData(Entity instanceEntity)
         {
         }
         
@@ -94,7 +78,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance has finished broadcasting vital data right after connection.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstancePostBroadcastingData(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstancePostBroadcastingData(Entity instanceEntity)
         {
         }
         
@@ -102,23 +86,13 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         /// Called when an instance is being removed.
         /// </summary>
         /// <param name="instanceEntity"></param>
-        public virtual void OnNetworkInstanceRemoved(int instanceId, Entity instanceEntity)
+        public virtual void OnNetworkInstanceRemoved(Entity instanceEntity)
         {
         }
-
-        public void Implement<TImpl>(TImpl implementable) where TImpl : class, INetworkImplementable
-        {
-            
-        }
-
+        
         internal void InternalSetAliveInstances(Dictionary<int, NetworkInstanceData> origin)
         {
             AliveInstances = new ReadOnlyDictionary<int, NetworkInstanceData>(origin);
-        }
-        
-        void INetworkComponentSystemInternal.InternalOnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
-        {
-            
         }
     }
 }

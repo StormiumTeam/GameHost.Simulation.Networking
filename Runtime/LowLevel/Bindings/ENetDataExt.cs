@@ -3,17 +3,17 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace ENet
 {
-    public struct NativeENetHost : IDisposable
+    public struct NativeNetHost
     {
         [NativeDisableUnsafePtrRestriction]
         public IntPtr NativeHost;
         
-        public NativeENetHost(Host host)
+        public NativeNetHost(Host host)
         {
             NativeHost = host.NativeData;
         }
         
-        public NativeENetHost(IntPtr ptr)
+        public NativeNetHost(IntPtr ptr)
         {
             NativeHost = ptr;
         }
@@ -48,20 +48,6 @@ namespace ENet
         {
             if (NativeHost == IntPtr.Zero)
                 throw new InvalidOperationException("Host not created");
-        }
-        
-        public void Flush() {
-            CheckCreated();
-
-            Native.enet_host_flush(NativeHost);
-        }
-
-        public void Dispose()
-        {
-            if (NativeHost == IntPtr.Zero) return;
-            
-            Native.enet_host_destroy(NativeHost);
-            NativeHost = IntPtr.Zero;
         }
     }
 }

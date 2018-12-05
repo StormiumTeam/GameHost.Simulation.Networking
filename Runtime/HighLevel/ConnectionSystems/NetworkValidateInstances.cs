@@ -1,5 +1,4 @@
-﻿using Unity.Burst;
-using Unity.Collections;
+﻿using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -8,25 +7,23 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
     [UpdateAfter(typeof(UpdateLoop.IntNetworkValidateInstance))]
     public class NetworkValidateInstances : NetworkComponentSystem
     {
-        [Inject] private NetworkInternalEnd            End;
         [Inject] private BufferFromEntity<QueryBuffer> m_QueryBufferFromEntity;
-
+        
         protected override void OnUpdate()
         {
             var validateJob = new ValidateJob
             {
                 QueryBufferFromEntity = m_QueryBufferFromEntity
             };
-
+            
             validateJob.Run(this);
         }
-
-        [BurstCompile]
+        
         [RequireComponentTag(typeof(QueryBuffer))]
         public struct ValidateJob : IJobProcessComponentDataWithEntity<NetworkInstanceData>
         {
-            [ReadOnly] public BufferFromEntity<QueryBuffer> QueryBufferFromEntity;
-
+            public BufferFromEntity<QueryBuffer> QueryBufferFromEntity;
+            
             public void Execute(Entity entity, int index, ref NetworkInstanceData data)
             {
                 var queryBuffer = QueryBufferFromEntity[entity];
