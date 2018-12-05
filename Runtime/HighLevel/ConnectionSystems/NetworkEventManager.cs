@@ -1,10 +1,12 @@
 ﻿using System;
-using ENet;
+using package.stormiumteam.networking.Runtime.LowLevel;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using UnityEngine;
 using Event = ENet.Event;
+using EventType = ENet.EventType;
 
 #pragma warning disable 649
 
@@ -12,9 +14,9 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
 {
     public struct EventBuffer : IBufferElementData
     {
-        public Event Event;
+        public NetworkEvent Event;
 
-        public EventBuffer(Event ev)
+        public EventBuffer(NetworkEvent ev)
         {
             Event = ev;
         }
@@ -22,10 +24,10 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
 
     public struct NewEventNotification
     {
-        public int   InstanceId;
-        public Event Event;
+        public int          InstanceId;
+        public NetworkEvent Event;
 
-        public NewEventNotification(int instanceId, Event ev)
+        public NewEventNotification(int instanceId, NetworkEvent ev)
         {
             InstanceId = instanceId;
             Event      = ev;
@@ -45,7 +47,12 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             m_EventNotifications = new NativeList<NewEventNotification>(8, Allocator.Persistent);
         }
 
-        public override void OnNetworkInstanceAdded(Entity instanceEntity)
+        protected override void OnDestroyManager()
+        {
+            m_EventNotifications.Dispose();
+        }
+
+        public override void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
         {
             if (!EntityManager.HasComponent<EventBuffer>(instanceEntity))
                 EntityManager.AddBuffer<EventBuffer>(instanceEntity);
@@ -54,7 +61,7 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         protected override void OnUpdate()
         {
             m_EventNotifications.Clear();
-            
+
             var manageEventJob = new ManageEventJob
             {
                 EventBufferFromEntity = m_EventBufferFromEntity,
@@ -70,26 +77,28 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
             }
         }
 
+/*#if !UNITY_EDITOR
+        [BurstCompile]
+#endif*/
         [RequireComponentTag(typeof(NetworkInstanceSharedData), typeof(EventBuffer))]
-        private struct ManageEventJob : IJobProcessComponentDataWithEntity<NetworkInstanceData>
+        private unsafe struct ManageEventJob : IJobProcessComponentDataWithEntity<NetworkInstanceData, NetworkInstanceHost>
         {
-            public BufferFromEntity<EventBuffer>    EventBufferFromEntity;
-            public NativeList<NewEventNotification> EventNotifications;
+            [ReadOnly] public BufferFromEntity<EventBuffer>    EventBufferFromEntity;
+            public            NativeList<NewEventNotification> EventNotifications;
 
-            public void Execute(Entity entity, int index, ref NetworkInstanceData data)
+            public void Execute(Entity entity, int index, [ReadOnly] ref NetworkInstanceData data, [ReadOnly] ref NetworkInstanceHost dataHost)
             {
-                Debug.Assert(data.Pointer != IntPtr.Zero, "data.Pointer != 0");
-
                 var eventDynBuffer = EventBufferFromEntity[entity];
-                var nativeHost     = new NativeNetHost(data.Pointer);
+                var host = dataHost.Host;
 
                 eventDynBuffer.Clear();
 
-                Event ev;
-                while (nativeHost.Service(out ev) > 0)
+                var netEvent = default(NetworkEvent);
+                while (host.GetNextEvent(ref netEvent) > 0)
                 {
-                    eventDynBuffer.Add(new EventBuffer(ev));
-                    EventNotifications.Add(new NewEventNotification(data.Id, ev));
+                    Debug.Log(netEvent.Type);
+                    eventDynBuffer.Add(new EventBuffer(netEvent));
+                    EventNotifications.Add(new NewEventNotification(data.Id, netEvent));
                 }
             }
         }

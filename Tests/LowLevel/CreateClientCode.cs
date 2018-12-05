@@ -21,7 +21,7 @@ namespace package.stormiumteam.networking.Tests
 
         struct ClientJobEvent : IJob
         {
-            public NativeNetHost Host;
+            public NativeENetHost Host;
 
             public void Execute()
             {
@@ -68,7 +68,7 @@ namespace package.stormiumteam.networking.Tests
                 Debug.Log("Failed to bind to any port, reason: ");
             else
             {
-                m_Connection[0] = m_Driver.Connect(new IPEndPoint(IPAddress.Loopback, ServerPort));
+                //m_Connection[0] = m_Driver.Connect(new IPEndPoint(IPAddress.Loopback, ServerPort));
             }
         }
 
@@ -78,7 +78,7 @@ namespace package.stormiumteam.networking.Tests
 
             var clientUpdateJob = new ClientJobEvent
             {
-                Host = new NativeNetHost(m_Driver.Host)
+                Host = new NativeENetHost(m_Driver.Host)
             };
 
             m_ClientHandle = clientUpdateJob.Schedule();

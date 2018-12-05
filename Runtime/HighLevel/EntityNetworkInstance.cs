@@ -14,49 +14,30 @@ namespace package.stormiumteam.networking.Runtime.HighLevel
         public int          Id;
         public InstanceType InstanceType;
 
-        [NativeDisableUnsafePtrRestriction]
-        public IntPtr Pointer;
-
-        public NetworkInstanceData(int id, InstanceType instanceType, IntPtr pointer)
+        public NetworkInstanceData(int id, InstanceType instanceType)
         {
             Id           = id;
             InstanceType = instanceType;
-            Pointer      = pointer;
         }
 
-        public Peer GetPeer()
-        {
-            return new Peer(Pointer);
-        }
-
-        public Host GetManagedHost()
-        {
-            return new Host {NativeData = Pointer};
-        }
-
-        public NativeNetHost GetNativeHost()
-        {
-            return new NativeNetHost(Pointer);
-        }
-
-        public bool IsHostType()
+        public bool IsLocal()
         {
             return (InstanceType & InstanceType.Local) != 0;
         }
+    }
 
-        public bool IsSameAs(Peer peer)
+    public struct NetworkInstanceHost : IComponentData
+    {
+        public NetworkHost Host;
+
+        public NetworkInstanceHost(NetworkHost host)
         {
-            return peer.NativeData == Pointer;
+            Host = host;
         }
-        
-        public bool IsSameAs(Host host)
+
+        public void Destroy()
         {
-            return host.NativeData == Pointer;
-        }
-        
-        public bool IsSameAs(NativeNetHost host)
-        {
-            return host.NativeHost == Pointer;
+            Host.Dispose();
         }
     }
 
