@@ -103,16 +103,16 @@ namespace package.stormiumteam.networking.Runtime.LowLevel
             Host.PreventConnections(false);
         }
 
-        public NetworkConnection Connect(IPEndPoint ipEndPoint)
+        public Peer Connect(IPEndPoint ipEndPoint)
         {
             Debug.Log("Connecting to " + ipEndPoint);
             return Connect(IPEndPointToENetAddress(ipEndPoint));
         }
 
-        public NetworkConnection Connect(Address address)
+        public Peer Connect(Address address)
         {
             Host.PreventConnections(false);
-            return new NetworkConnection {Peer = Host.Connect(address)};
+            return Host.Connect(address);
         }
 
         public Address IPEndPointToENetAddress(IPEndPoint ipEndPoint)

@@ -27,6 +27,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using UnityEngine;
 
 namespace ENet {
 	[Flags]
@@ -330,8 +331,10 @@ namespace ENet {
 		}
 
 		~Host() {
-			Dispose(false);
+			if (!LockDispose) Dispose(false);
 		}
+
+		public bool LockDispose = false;
 
 		public bool IsSet {
 			get {

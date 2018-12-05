@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections;
+using System.Linq;
 using ENet;
 using Unity.Entities;
 using UnityEngine;
@@ -9,6 +10,7 @@ namespace package.stormiumteam.networking.Tests.HighLevel
     public class HighLevelNetTest : MonoBehaviour
     {
         private CreateServerCode m_ServerCode;
+        private CreateClientCode m_ClientCode;
         private World m_ServerWorld;
         private World m_ClientWorld;
 
@@ -27,25 +29,46 @@ namespace package.stormiumteam.networking.Tests.HighLevel
             }
             
             m_ServerCode = new CreateServerCode(m_ServerWorld);
+            m_ClientCode = new CreateClientCode(m_ClientWorld);
             
             ScriptBehaviourUpdateOrder.UpdatePlayerLoop(World.AllWorlds.ToArray());
             
             m_ServerCode.Start();
+            m_ClientCode.Start();
         }
 
         private void Update()
         {   
             m_ServerCode.Update();
+            m_ClientCode.Update();
+        }
+
+        private void OnGUI()
+        {
+            GUILayout.BeginVertical();
+            if (m_ServerCode.ServerInstance != Entity.Null)
+            {
+                if (GUILayout.Button("Stop"))
+                    m_ServerCode.Stop();
+            }
+            else
+            {
+                if (GUILayout.Button("Start"))
+                    m_ServerCode.Start();
+            }
+
+            if (GUILayout.Button("DISPOSE ALL"))
+            {
+                m_ServerWorld.Dispose();
+                m_ClientWorld.Dispose();
+            }
+
+            GUILayout.EndVertical();
         }
 
         private void OnDestroy()
-        {
-            m_ServerCode.Destroy();
-            
-            m_ServerWorld.Dispose();
-            m_ClientWorld.Dispose();
-            
+        {            
             Library.Deinitialize();
         }
     }
-}
+} 

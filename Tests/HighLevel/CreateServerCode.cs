@@ -13,12 +13,14 @@ namespace package.stormiumteam.networking.Tests.HighLevel
     public class CreateServerCode
     {
         public World ServerWorld;
+        public Entity ServerInstance;
+        
 
         public CreateServerCode(World world)
         {
             ServerWorld = world;
         }
-        
+
         public void Start()
         {
             var networkMgr  = ServerWorld.GetOrCreateManager<NetworkManager>();
@@ -29,17 +31,30 @@ namespace package.stormiumteam.networking.Tests.HighLevel
                 return;
             }
 
-            var instanceData = networkMgr.GetNetworkInstanceData(serveResult.InstanceId);
+            ServerInstance = networkMgr.GetNetworkInstanceEntity(serveResult.InstanceId);
         }
 
         public void Update()
         {
+            var em = ServerWorld.GetOrCreateManager<EntityManager>();
+            var eventBuffer = em.GetBuffer<EventBuffer>(ServerInstance);
+            if (eventBuffer.Length > 0)
+            {
+                Debug.Log("Events in queue: " + eventBuffer.Length);
+            }
+        }
+
+        public void Stop()
+        {
+            var networkMgr = ServerWorld.GetOrCreateManager<NetworkManager>();
+            networkMgr.Stop(ServerInstance);
             
+            ServerInstance = Entity.Null;
         }
 
         public void Destroy()
         {
-            
+            if (ServerInstance == Entity.Null) return;
         }
     }
-}
+} 
