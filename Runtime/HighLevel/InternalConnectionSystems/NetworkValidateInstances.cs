@@ -1,4 +1,5 @@
-﻿using package.stormiumteam.shared;
+﻿using package.stormiumteam.networking.runtime.lowlevel;
+using package.stormiumteam.shared;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -51,14 +52,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     foreach (var obj in objArray)
                     {
                         obj.Callback(args);
-                    }
-                }
-                else
-                {
-                    for (int j = 0; j != queryBuffer.Length; j++)
-                    {
-                        var query = queryBuffer[j];
-                        Debug.Log($"[{World.Name}] {entity}, Missing: {QueryTypeManager.GetName(query.Type)}");
                     }
                 }
             }

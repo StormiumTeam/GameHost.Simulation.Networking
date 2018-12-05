@@ -105,7 +105,6 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public Peer Connect(IPEndPoint ipEndPoint)
         {
-            Debug.Log("Connecting to " + ipEndPoint);
             return Connect(IPEndPointToENetAddress(ipEndPoint));
         }
 

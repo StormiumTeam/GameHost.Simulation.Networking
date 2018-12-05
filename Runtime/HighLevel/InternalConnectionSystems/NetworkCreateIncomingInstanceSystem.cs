@@ -62,6 +62,16 @@ namespace package.stormiumteam.networking.runtime.highlevel
                         });
                     }
                 }
+                
+                if (EntityManager.HasComponent<NetworkInstanceHost>(entity))
+                {
+                    var host = EntityManager.GetComponentData<NetworkInstanceHost>(entity).Host;
+                    using (var buffer = new DataBufferWriter(Allocator.Temp))
+                    {
+                        buffer.CpyWrite(64);
+                        host.Broadcast(buffer, Delivery.Reliable);
+                    }
+                }
             }
 
             for (int i = 0; i != m_CreateInstanceList.Length; i++)

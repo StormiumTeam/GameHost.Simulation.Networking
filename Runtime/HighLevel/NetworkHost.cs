@@ -83,10 +83,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 }
                 case EventType.Receive:
                 {
+                    var dataArray = new NativeArray<byte>(ev.Packet.Length, Allocator.Temp);
+                    UnsafeUtility.MemCpy(dataArray.GetUnsafePtr(), (void*) ev.Packet.Data, ev.Packet.Length);
+                    
                     networkEvent = new NetworkEvent(NetworkEventType.DataReceived, foreignConnection);
-                    networkEvent.SetData(NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(
-                        (void*) ev.Packet.Data, ev.Packet.Length, Allocator.Temp
-                    ));
+                    networkEvent.SetData(dataArray);
                     break;
                 }
                 case EventType.Timeout:

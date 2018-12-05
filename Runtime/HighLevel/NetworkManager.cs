@@ -183,7 +183,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             if (!ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
             {
                 serverPeerConnection.Connection     = serverCon;
-                serverPeerConnection.InstanceEntity = serverEntity;
             }
             else
             {
@@ -247,6 +246,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             foreignConList.Add(new NetworkConnection(originData.Id, originData.ParentId));
 
             m_InstanceToEntity[incomingConnection.Id] = foreignEntity;
+
+            InternalOnNetworkInstanceAdded(incomingConnection.Id, foreignEntity);
 
             return new GetIncomingInstanceResult
             {
@@ -333,6 +334,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         internal void InternalOnNetworkInstanceAdded(int instanceId, Entity entity)
         {
+            if (NetConnectionEntityLink.TrySetEntity(instanceId, entity) < 0)
+            {
+                Debug.LogError($"Couldn't link entity {entity} for connection ({instanceId}).");
+            }
+            
             for (int i = 0; i != m_WorldBehaviourManagers.Count; i++)
             {
                 var scriptBehaviourMgr     = m_WorldBehaviourManagers[i];

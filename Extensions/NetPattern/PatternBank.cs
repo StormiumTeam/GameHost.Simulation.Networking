@@ -44,8 +44,6 @@ namespace package.stormiumteam.networking.extensions
             }
 
             m_StringLink[patternIdent.Name] = patternIdent;
-            
-            Debug.Log($"Pattern added: {patternIdent.Name}");
 
             return GetPatternResult(patternIdent);
         }

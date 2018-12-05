@@ -70,19 +70,10 @@ namespace package.stormiumteam.networking.runtime.highlevel
             };
 
             manageEventJob.Run(this);
-
-            for (int i = 0; i != m_EventNotifications.Length; i++)
-            {
-                var notification = m_EventNotifications[i];
-                Debug.Log($"{nameof(NetworkEventManager)} > {notification.Event.Type}");
-            }
         }
 
-/*#if !UNITY_EDITOR
-        [BurstCompile]
-#endif*/
         [RequireComponentTag(typeof(NetworkInstanceSharedData), typeof(EventBuffer))]
-        private unsafe struct ManageEventJob : IJobProcessComponentDataWithEntity<NetworkInstanceData, NetworkInstanceHost>
+        private struct ManageEventJob : IJobProcessComponentDataWithEntity<NetworkInstanceData, NetworkInstanceHost>
         {
             [ReadOnly] public BufferFromEntity<EventBuffer>    EventBufferFromEntity;
             public            NativeList<NewEventNotification> EventNotifications;
@@ -96,8 +87,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                 var netEvent = default(NetworkEvent);
                 while (host.GetNextEvent(ref netEvent) > 0)
-                {
-                    Debug.Log(netEvent.Type);
+                {                    
                     eventDynBuffer.Add(new EventBuffer(netEvent));
                     EventNotifications.Add(new NewEventNotification(data.Id, netEvent));
                 }

@@ -55,7 +55,7 @@ namespace package.stormiumteam.networking.Tests.HighLevel
             var eventBuffer = em.GetBuffer<EventBuffer>(ClientInstance);
             if (eventBuffer.Length > 0)
             {
-                Debug.Log("Events in queue: " + eventBuffer.Length);
+                //Debug.Log("Events in queue: " + eventBuffer.Length);
             }
         }
 

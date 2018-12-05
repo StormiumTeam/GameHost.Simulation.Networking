@@ -13,7 +13,6 @@ namespace ENet
         private void* m_Buffer;
 
         private NetworkConnection m_ConnectionBuffer;
-        private Entity            m_InstanceEntityBuffer;
 
         public NetworkConnection Connection
         {
@@ -32,27 +31,6 @@ namespace ENet
                 ENetPeerConnection conBuffer;
                 UnsafeUtility.CopyPtrToStructure(m_Buffer, out conBuffer);
                 conBuffer.m_ConnectionBuffer = value;
-                UnsafeUtility.CopyStructureToPtr(ref conBuffer, m_Buffer);
-            }
-        }
-
-        public Entity InstanceEntity
-        {
-            get
-            {
-                Check();
-
-                ENetPeerConnection conBuffer;
-                UnsafeUtility.CopyPtrToStructure(m_Buffer, out conBuffer);
-                return conBuffer.m_InstanceEntityBuffer;
-            }
-            set
-            {
-                Check();
-
-                ENetPeerConnection conBuffer;
-                UnsafeUtility.CopyPtrToStructure(m_Buffer, out conBuffer);
-                conBuffer.m_InstanceEntityBuffer = value;
                 UnsafeUtility.CopyStructureToPtr(ref conBuffer, m_Buffer);
             }
         }
