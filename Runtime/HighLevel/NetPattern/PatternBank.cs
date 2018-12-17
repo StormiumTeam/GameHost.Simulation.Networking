@@ -1,21 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Reflection;
 using UnityEngine;
 using PATTERN_ID_TYPE = System.Int32;
-using PATTERN_STRING_LINK = System.Collections.Generic.Dictionary<string, package.stormiumteam.networking.extensions.PatternIdent>;
-using PATTERN_RESULT_LINK = System.Collections.Generic.Dictionary<string, package.stormiumteam.networking.extensions.PatternResult>;
+using PATTERN_STRING_LINK = System.Collections.Generic.Dictionary<string, package.stormiumteam.networking.PatternIdent>;
+using PATTERN_RESULT_LINK = System.Collections.Generic.Dictionary<string, package.stormiumteam.networking.PatternResult>;
 using PATTERN_ID_LINK = System.Collections.Generic.Dictionary<int, string>;
 // ReSharper disable BuiltInTypeReferenceStyle
 
-namespace package.stormiumteam.networking.extensions
+namespace package.stormiumteam.networking
 {
     public class PatternBank : IDisposable
-    {
+    {        
         private PATTERN_STRING_LINK m_StringLink;
         private PATTERN_ID_LINK     m_IdLink;
         private PATTERN_RESULT_LINK m_ResultLink;
         private PATTERN_ID_TYPE     m_IdCounter;
+
+        public event Action<PatternResult> PatternRegister;
 
         public readonly int InstanceId;
 
@@ -29,18 +32,25 @@ namespace package.stormiumteam.networking.extensions
             m_IdCounter = 1;
         }
 
+        public int Count => m_IdLink.Count;
+
         public PatternResult Register(PatternIdent patternIdent)
         {
-            PATTERN_ID_TYPE id;
+            if (InstanceId != 0) throw new InvalidOperationException();
+            
             if (!m_IdLink.ContainsValue(patternIdent.Name))
             {
-                id               = m_IdCounter++;
+                var id = m_IdCounter++;
                 m_IdLink[id] = patternIdent.Name;
-                m_ResultLink[patternIdent.Name] = new PatternResult
+
+                var patternResult = new PatternResult
                 {
-                    Id = id,
+                    Id            = id,
                     InternalIdent = patternIdent
                 };
+
+                m_ResultLink[patternIdent.Name] = patternResult;
+                PatternRegister?.Invoke(patternResult);
             }
 
             m_StringLink[patternIdent.Name] = patternIdent;
@@ -63,11 +73,25 @@ namespace package.stormiumteam.networking.extensions
             return m_ResultLink[pattern.Name];
         }
 
+        public ReadOnlyDictionary<string, PatternResult> GetResults()
+        {
+            return new ReadOnlyDictionary<string, PatternResult>(m_ResultLink);
+        }
+        
         public void Dispose()
         {
             m_StringLink.Clear();
             m_IdLink.Clear();
             m_ResultLink.Clear();
+        }
+
+        public void ForeignForceLink(PatternResult patternResult)
+        {
+            if (InstanceId == 0) throw new InvalidOperationException();
+
+            m_IdLink[patternResult.Id] = patternResult.InternalIdent.Name;
+            m_ResultLink[patternResult.InternalIdent.Name] = patternResult;
+            m_StringLink[patternResult.InternalIdent.Name] = patternResult.InternalIdent;
         }
     }
 

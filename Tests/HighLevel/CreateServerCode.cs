@@ -23,7 +23,7 @@ namespace package.stormiumteam.networking.Tests.HighLevel
         {
             ServerWorld = world;
         }
-
+            
         public void Start()
         {
             var networkMgr  = ServerWorld.GetOrCreateManager<NetworkManager>();

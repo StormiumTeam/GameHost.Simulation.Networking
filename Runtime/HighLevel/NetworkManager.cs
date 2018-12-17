@@ -55,29 +55,31 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
         private Dictionary<int, Entity>                    m_InstanceToEntity;
-        
-        private int m_InstanceValidQueryId;
+
+        public int InstanceValidQueryId { get; private set; }
 
         public ComponentType   DataType        { get; private set; }
         public ComponentType   SharedDataType  { get; private set; }
         public ComponentType   DataHostType    { get; private set; }
         public ComponentType   QueryBufferType { get; private set; }
+        public ComponentType ConnectedBufferType { get; private set; }
         public EntityArchetype LocalEntityArchetype { get; private set; }
         public EntityArchetype ForeignEntityArchetype { get; private set; }
 
         protected override void OnCreateManager()
         {
-            DataType        = ComponentType.Create<NetworkInstanceData>();
-            SharedDataType  = ComponentType.Create<NetworkInstanceSharedData>();
-            DataHostType    = ComponentType.Create<NetworkInstanceHost>();
-            QueryBufferType = ComponentType.Create<QueryBuffer>();
-            LocalEntityArchetype = EntityManager.CreateArchetype(DataType, SharedDataType, DataHostType, QueryBufferType);
-            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, SharedDataType, QueryBufferType);
+            DataType               = ComponentType.Create<NetworkInstanceData>();
+            SharedDataType         = ComponentType.Create<NetworkInstanceSharedData>();
+            DataHostType           = ComponentType.Create<NetworkInstanceHost>();
+            QueryBufferType        = ComponentType.Create<QueryBuffer>();
+            ConnectedBufferType    = ComponentType.Create<ConnectedInstance>();
+            LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, SharedDataType, DataHostType, QueryBufferType, ConnectedBufferType);
+            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, SharedDataType, QueryBufferType, ConnectedBufferType);
 
             m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
 
-            m_InstanceValidQueryId = QueryTypeManager.Create("IntNetMgr_InstanceValid");
+            InstanceValidQueryId = QueryTypeManager.Create("IntNetMgr_InstanceValid");
         }
 
         protected override void OnUpdate()
@@ -121,7 +123,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var instanceId = connection.Id;
 
             var entity = EntityManager.CreateEntity(LocalEntityArchetype);
-            EntityManager.SetComponentData(entity, new NetworkInstanceData(connection.Id, 0, default(Entity), InstanceType.LocalServer));
+            var cmds = new NetworkCommands(typeof(NativeENetHost), driver.Host.NativeData);
+            EntityManager.SetComponentData(entity, new NetworkInstanceData(connection.Id, 0, default(Entity), InstanceType.LocalServer, cmds));
             EntityManager.SetComponentData(entity, new NetworkInstanceHost(new NetworkHost(connection, driver.Host.NativeData)));
             EntityManager.SetSharedComponentData(entity, new NetworkInstanceSharedData(connections));
             m_InstanceToEntity[instanceId] = entity;
@@ -168,16 +171,26 @@ namespace package.stormiumteam.networking.runtime.highlevel
             serverConnections.Add(clientCon);
 
             var serverEntity = EntityManager.CreateEntity(ForeignEntityArchetype);
-            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server));
+            var serverCmds = new NetworkCommands(typeof(Peer), peer.NativeData);
+            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server, serverCmds));
             EntityManager.SetSharedComponentData(serverEntity, new NetworkInstanceSharedData(serverConnections));
             
             var clientEntity = EntityManager.CreateEntity(LocalEntityArchetype);
-            EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientCon.Id, clientCon.ParentId, serverEntity, InstanceType.LocalClient));
+            var clientCmds = new NetworkCommands(typeof(NativeENetHost), driver.Host.NativeData);
+            EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientCon.Id, clientCon.ParentId, serverEntity, InstanceType.LocalClient, clientCmds));
             EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientCon, driver.Host.NativeData)));
             EntityManager.SetSharedComponentData(clientEntity, new NetworkInstanceSharedData(connections));
 
             var queryBuffer = EntityManager.GetBuffer<QueryBuffer>(serverEntity);
-            queryBuffer.Add(new QueryBuffer(m_InstanceValidQueryId, QueryStatus.Waiting));
+            queryBuffer.Add(new QueryBuffer(InstanceValidQueryId, QueryStatus.Waiting));
+            
+            // Add ConnectedInstance element to server entity.
+            var serverConnectedBuffer = EntityManager.GetBuffer<ConnectedInstance>(serverEntity);
+            serverConnectedBuffer.Add(new ConnectedInstance(clientEntity, clientCon));
+            
+            // Add ConnectedInstance element to client entity.
+            var clientConnectedBuffer = EntityManager.GetBuffer<ConnectedInstance>(clientEntity);
+            clientConnectedBuffer.Add(new ConnectedInstance(serverEntity, serverCon));
 
             ENetPeerConnection serverPeerConnection;
             if (!ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
@@ -207,7 +220,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             };
         }
 
-        public GetIncomingInstanceResult GetIncomingInstance(Entity origin, NetworkInstanceData originData, NetworkConnection incomingConnection)
+        public GetIncomingInstanceResult GetIncomingInstance(Entity origin, NetworkInstanceData originData, NetworkConnection incomingConnection, 
+                                                             NetworkCommands foreignCmds)
         {
             if (incomingConnection.ParentId != originData.Id && !originData.HasParent())
             {
@@ -227,8 +241,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 if (foreignData.InstanceType != InstanceType.Server) Debug.LogError("Invalid");
                 
                 var validatorMgr = new NativeValidatorManager(EntityManager.GetBuffer<QueryBuffer>(foreignEntity));
-                if (validatorMgr.Has(m_InstanceValidQueryId))
-                    validatorMgr.Set(m_InstanceValidQueryId, QueryStatus.Valid);
+                if (validatorMgr.Has(InstanceValidQueryId))
+                    validatorMgr.Set(InstanceValidQueryId, QueryStatus.Valid);
 
                 return new GetIncomingInstanceResult
                 {
@@ -240,13 +254,21 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
             var foreignConList = new NativeList<NetworkConnection>(1, Allocator.Persistent);
             foreignEntity  = EntityManager.CreateEntity(ForeignEntityArchetype);
-            EntityManager.SetComponentData(foreignEntity, new NetworkInstanceData(incomingConnection.Id, originData.Id, origin, InstanceType.Client));
+            EntityManager.SetComponentData(foreignEntity, new NetworkInstanceData(incomingConnection.Id, originData.Id, origin, InstanceType.Client, foreignCmds));
             EntityManager.SetSharedComponentData(foreignEntity, new NetworkInstanceSharedData(foreignConList));
             
             foreignConList.Add(new NetworkConnection(originData.Id, originData.ParentId));
 
             m_InstanceToEntity[incomingConnection.Id] = foreignEntity;
+            
+            // Add ConnectedInstance element to origin entity.
+            var originConnectedBuffer = EntityManager.GetBuffer<ConnectedInstance>(origin);
+            originConnectedBuffer.Add(new ConnectedInstance(foreignEntity, incomingConnection));
 
+            // Add ConnectedInstance element to foreign entity.
+            var foreignConnectedBuffer = EntityManager.GetBuffer<ConnectedInstance>(foreignEntity);
+            foreignConnectedBuffer.Add(new ConnectedInstance(origin, incomingConnection));
+            
             InternalOnNetworkInstanceAdded(incomingConnection.Id, foreignEntity);
 
             return new GetIncomingInstanceResult
@@ -256,58 +278,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 InstanceEntity = foreignEntity
             };
         }
-
-        /* public GetIncomingInstanceResult GetIncomingInstance(Entity localOrigin, NetworkConnection otherConnection)
-         {
-             var result = new GetIncomingInstanceResult
-             {
-                 IsError = true
-             };
- 
-             #region Errors Wall
- 
-             if (localOrigin == default(Entity))
-             {
-                 Debug.LogError("The origin of the foreign entity is null");
-                 return result;
-             }
- 
-             if (otherConnection.Id == 0)
-             {
-                 Debug.LogError("Foreign connection is invalid");
-                 return result;
-             }
- 
-             if (otherConnection.ParentId == 0)
-             {
-                 Debug.LogError("Foreign connection has no parent.");
-                 return result;
-             }
- 
-             #endregion
- 
-             var localInstanceData = EntityManager.GetComponentData<NetworkInstanceData>(localOrigin);
-             if (otherConnection.ParentId != localInstanceData.Id)
-             {
-                 Debug.LogError(
-                     $"Foreign connection parent is not the same as the local origin ({otherConnection.ParentId} != {localInstanceData.Id})");
-                 return result;
-             }
- 
-             var otherConList = new NativeList<NetworkConnection>(1, Allocator.Persistent);
-             otherConList.Add(new NetworkConnection(localInstanceData.Id));
- 
-             var otherEntity = EntityManager.CreateEntity(LocalEntityArchetype);
-             EntityManager.SetComponentData(otherEntity, new NetworkInstanceData(otherConnection.Id, otherConnection.ParentId, localOrigin, InstanceType.Client));
-             EntityManager.SetSharedComponentData(otherEntity, new NetworkInstanceSharedData(otherConList));
- 
-             m_InstanceToEntity[otherConnection.Id] = otherEntity;
- 
-             result.IsError    = false;
-             result.InstanceId = otherConnection.Id;
- 
-             return result;
-         }*/
 
         public void Stop(Entity instance)
         {

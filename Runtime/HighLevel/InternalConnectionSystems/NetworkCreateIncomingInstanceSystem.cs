@@ -1,4 +1,5 @@
-﻿using package.stormiumteam.networking.runtime.lowlevel;
+﻿using ENet;
+using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -13,16 +14,17 @@ namespace package.stormiumteam.networking.runtime.highlevel
             public Entity              Entity;
             public NetworkInstanceData Data;
             public NetworkConnection   IncomingConnection;
+            public NetworkCommands     IncomingConnectionCmds;
         }
 
         [Inject] private NetworkManager m_NetworkManager;
 
-        private ComponentGroup m_Group;
+        private ComponentGroup             m_Group;
         private NativeList<CreateInstance> m_CreateInstanceList;
 
         protected override void OnCreateManager()
         {
-            m_Group = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceSharedData), typeof(EventBuffer));
+            m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceSharedData), typeof(EventBuffer));
             m_CreateInstanceList = new NativeList<CreateInstance>(Allocator.Persistent);
         }
 
@@ -34,7 +36,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         protected override void OnUpdate()
         {
             m_CreateInstanceList.Clear();
-            
+
             var length           = m_Group.CalculateLength();
             var entityArray      = m_Group.GetEntityArray();
             var instanceArray    = m_Group.GetComponentDataArray<NetworkInstanceData>();
@@ -56,29 +58,26 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     {
                         m_CreateInstanceList.Add(new CreateInstance
                         {
-                            Entity             = entity,
-                            Data               = instanceData,
-                            IncomingConnection = ev.Event.Invoker
+                            Entity                 = entity,
+                            Data                   = instanceData,
+                            IncomingConnection     = ev.Event.Invoker,
+                            IncomingConnectionCmds = ev.Event.InvokerCmds
                         });
-                    }
-                }
-                
-                if (EntityManager.HasComponent<NetworkInstanceHost>(entity))
-                {
-                    var host = EntityManager.GetComponentData<NetworkInstanceHost>(entity).Host;
-                    using (var buffer = new DataBufferWriter(Allocator.Temp))
-                    {
-                        buffer.CpyWrite(64);
-                        host.Broadcast(buffer, Delivery.Reliable);
                     }
                 }
             }
 
             for (int i = 0; i != m_CreateInstanceList.Length; i++)
             {
-                var create            = m_CreateInstanceList[i];
-                var newInstanceResult = m_NetworkManager.GetIncomingInstance(create.Entity, create.Data, create.IncomingConnection);
-                
+                var create = m_CreateInstanceList[i];
+                var newInstanceResult = m_NetworkManager.GetIncomingInstance
+                (
+                    create.Entity,
+                    create.Data,
+                    create.IncomingConnection,
+                    create.IncomingConnectionCmds
+                );
+
                 Debug.Log($"Created a new instance: (Id: {newInstanceResult.InstanceId}, Entity: {newInstanceResult.InstanceEntity})");
             }
         }

@@ -16,41 +16,41 @@ namespace package.stormiumteam.networking.runtime.highlevel
     public struct UpdateLoop
     {
         [UpdateInGroup(typeof(Update))]
-        public abstract class IntNetworkManager
+        public class IntNetworkManager : BarrierSystem
         {
-            
+
         }
-        
+
         [UpdateAfter(typeof(IntNetworkManager))]
-        public abstract class IntInit
+        public class IntInit : BarrierSystem
         {
-            
+
         }
-        
+
         [UpdateAfter(typeof(IntInit))]
-        public class IntNetworkEventManager
+        public class IntNetworkEventManager : BarrierSystem
         {
         }
-        
+
         [UpdateAfter(typeof(IntNetworkEventManager))]
-        public abstract class IntNetworkCreateIncomingInstance
+        public class IntNetworkCreateIncomingInstance : BarrierSystem
         {
         }
-        
+
         [UpdateAfter(typeof(IntNetworkCreateIncomingInstance))]
-        public class IntNetworkConnectionManager
+        public class IntNetworkConnectionManager : BarrierSystem
         {
         }
-        
+
         [UpdateAfter(typeof(IntNetworkConnectionManager))]
-        public abstract class IntNetworkValidateInstance
+        public class IntNetworkValidateInstance : BarrierSystem
         {
         }
 
         [UpdateAfter(typeof(IntNetworkValidateInstance))]
-        public abstract class IntEnd
+        public class IntEnd : BarrierSystem
         {
-            
+
         }
     }
 }

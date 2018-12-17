@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace package.stormiumteam.networking.extensions
+namespace package.stormiumteam.networking
 {
     public sealed class PatternAttribute : Attribute
     {

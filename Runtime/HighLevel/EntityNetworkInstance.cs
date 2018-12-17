@@ -15,13 +15,15 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public int          ParentId;
         public InstanceType InstanceType;
         public Entity Parent;
+        public NetworkCommands Commands;
 
-        public NetworkInstanceData(int id, int parentId, Entity parent, InstanceType instanceType)
+        public NetworkInstanceData(int id, int parentId, Entity parent, InstanceType instanceType, NetworkCommands commands)
         {
             Id           = id;
             ParentId     = parentId;
             Parent = parent;
             InstanceType = instanceType;
+            Commands = commands;
         }
 
         public bool IsLocal()
@@ -47,6 +49,18 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public void Destroy()
         {
             Host.Dispose();
+        }
+    }
+
+    public struct ConnectedInstance : IBufferElementData
+    {
+        public Entity Entity;
+        public NetworkConnection Connection;
+
+        public ConnectedInstance(Entity entity, NetworkConnection connection)
+        {
+            Entity = entity;
+            Connection = connection;
         }
     }
 

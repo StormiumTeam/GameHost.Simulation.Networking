@@ -1,7 +1,7 @@
 ﻿using System;
 using PATTERN_ID_TYPE = System.Int32;
 
-namespace package.stormiumteam.networking.extensions
+namespace package.stormiumteam.networking
 {
     /// <summary>
     /// This is the result of registering a pattern.

@@ -22,7 +22,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
         {
             if (s_QueryTypes.ContainsKey(name))
             {
-                Debug.Log("Case1");
                 return s_QueryTypes[name];
             }
 
@@ -30,6 +29,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
             s_QueryNames[s_Counter] = name;
             s_QueryTypes[name]      = s_Counter;
+            
+            Debug.Log($"Created QueryType({s_Counter}) : {name}");
 
             return s_Counter;
         }

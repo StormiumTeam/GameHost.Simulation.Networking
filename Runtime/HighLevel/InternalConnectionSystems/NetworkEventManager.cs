@@ -87,7 +87,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                 var netEvent = default(NetworkEvent);
                 while (host.GetNextEvent(ref netEvent) > 0)
-                {                    
+                {
+                    if (netEvent.Type == NetworkEventType.DataReceived)
+                    {
+                        var evData = netEvent.GetDataSafe();
+                        Debug.Log($"Data received. Origin: {data.InstanceType}, Length: {evData.Length}B");
+                    }
+
                     eventDynBuffer.Add(new EventBuffer(netEvent));
                     EventNotifications.Add(new NewEventNotification(data.Id, netEvent));
                 }

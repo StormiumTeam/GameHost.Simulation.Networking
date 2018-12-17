@@ -19,6 +19,21 @@ namespace package.stormiumteam.networking.runtime.highlevel
         Unsequenced = Reliable << 1,
     }
 
+    public static class DeliveryExtensions
+    {
+        public static PacketFlags ToENetPacketFlags(this Delivery delivery)
+        {
+            var flags = default(PacketFlags);
+            
+            if ((delivery & Delivery.Reliable) != 0 && (delivery & Delivery.Unreliable) == 0) 
+                flags |= PacketFlags.Reliable;
+            if ((delivery & Delivery.Unsequenced) != 0) 
+                flags |= PacketFlags.Unsequenced;
+
+            return flags;
+        }
+    }
+
     public unsafe struct NetworkHost : IDisposable
     {
 #if NETWORKING_ENET
@@ -38,10 +53,18 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public int GetNextEvent(ref NetworkEvent networkEvent)
         {
             var foreignConnection = default(NetworkConnection);
+            var foreignCmds = default(NetworkCommands);
             var code = 0;
 #if NETWORKING_ENET
             Event ev;
             code = Native.Service(out ev);
+
+            if (ev.Type == EventType.None)
+            {
+                networkEvent = new NetworkEvent(NetworkEventType.None, foreignConnection, foreignCmds);
+                
+                return code;
+            }
 
             var enetPeerConnection = default(ENetPeerConnection);
             var peer = ev.Peer;
@@ -51,6 +74,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 {
                     enetPeerConnection.Connection = NetworkConnection.New(HostConnection.Id);
                 }
+                
+                foreignCmds = new NetworkCommands(1, peer.NativeData);
             }
 
             if (enetPeerConnection.IsCreated)
@@ -60,14 +85,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
             switch (ev.Type)
             {
-                case EventType.None:
-                {
-                    networkEvent = new NetworkEvent(NetworkEventType.None, foreignConnection);
-                    break;
-                }
                 case EventType.Connect:
                 {
-                    networkEvent = new NetworkEvent(NetworkEventType.Connected, foreignConnection)
+                    networkEvent = new NetworkEvent(NetworkEventType.Connected, foreignConnection, foreignCmds)
                     {
                         ConnectionData = ev.Data
                     };
@@ -75,7 +95,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 }
                 case EventType.Disconnect:
                 {
-                    networkEvent = new NetworkEvent(NetworkEventType.Disconnected, foreignConnection)
+                    networkEvent = new NetworkEvent(NetworkEventType.Disconnected, foreignConnection, foreignCmds)
                     {
                         TimeoutForeignDisconnection = 0
                     };
@@ -86,13 +106,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     var dataArray = new NativeArray<byte>(ev.Packet.Length, Allocator.Temp);
                     UnsafeUtility.MemCpy(dataArray.GetUnsafePtr(), (void*) ev.Packet.Data, ev.Packet.Length);
                     
-                    networkEvent = new NetworkEvent(NetworkEventType.DataReceived, foreignConnection);
+                    networkEvent = new NetworkEvent(NetworkEventType.DataReceived, foreignConnection, foreignCmds);
                     networkEvent.SetData(dataArray);
                     break;
                 }
                 case EventType.Timeout:
                 {
-                    networkEvent = new NetworkEvent(NetworkEventType.Disconnected, foreignConnection)
+                    networkEvent = new NetworkEvent(NetworkEventType.Disconnected, foreignConnection, foreignCmds)
                     {
                         TimeoutForeignDisconnection = 1
                     };
@@ -113,15 +133,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
             if (delivery == Delivery.Error) throw new InvalidOperationException("Invalid delivery type");
             
 #if NETWORKING_ENET
-            var flags = default(PacketFlags);
             var packet = new Packet();
-
-            if ((delivery & Delivery.Reliable) != 0 && (delivery & Delivery.Unreliable) == 0) 
-                flags |= PacketFlags.Reliable;
-            if ((delivery & Delivery.Unsequenced) != 0) 
-                flags |= PacketFlags.Unsequenced;
             
-            packet.Create(buffer.GetSafePtr(), buffer.Buffer.Length, flags);
+            packet.Create(buffer.GetSafePtr(), buffer.Buffer.Length, delivery.ToENetPacketFlags());
             
             Native.Broadcast(channel, ref packet);
 #endif

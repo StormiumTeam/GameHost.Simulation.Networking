@@ -28,6 +28,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
     public unsafe partial struct DataBufferWriter : IDisposable
     {
         public NativeList<byte> Buffer;
+        public int Length => Buffer.Length;
 
         public IntPtr GetSafePtr() => (IntPtr) Buffer.GetUnsafePtr();
 
@@ -49,7 +50,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void TryResize(int maxLength)
         {
-            Buffer.ResizeUninitialized(math.max(Buffer.Capacity, maxLength));
+            Buffer.ResizeUninitialized(math.max(Buffer.Length, maxLength));
         }
 
         public void WriteData(byte* data, int index, int length)
@@ -204,7 +205,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void WriteStatic(char* val, int strLength, Encoding encoding = null)
         {
-            // If we have a null encoding, let's get the default one (UTF8)
+            // If we have a null encoding, let's get the most used one (UTF8)
             encoding = encoding ?? Encoding.UTF8;
 
             void* tempCpyPtr = null;
@@ -265,7 +266,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             if (!data.IsCreated)
                 throw new InvalidOperationException("data is not created");
 
-            DataPtr       = (byte*) data.GetUnsafeReadOnlyPtr();
+            DataPtr       = (byte*) NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(data);
             CurrReadIndex = 0;
             Length        = data.Length;
         }
@@ -286,7 +287,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             var readIndex = marker.Buffer == null ? CurrReadIndex : marker.Index;
             if (readIndex >= Length)
             {
-                throw new IndexOutOfRangeException("p1");
+                throw new IndexOutOfRangeException($"p1 r={readIndex} >= l={Length}");
             }
 
             CurrReadIndex = readIndex + size;
