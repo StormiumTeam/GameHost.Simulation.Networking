@@ -7,12 +7,12 @@ namespace package.stormiumteam.networking.runtime.highlevel
 {
     public static class NetConnectionEntityLink
     {
-        private static NativeHashMap<int, Entity> s_EntitiesLink;
+        private static readonly NativeHashMap<int, Entity> EntitiesLink;
 
         static NetConnectionEntityLink()
         {
-            s_EntitiesLink = new NativeHashMap<int, Entity>(16, Allocator.Persistent);
-            Application.quitting += () => s_EntitiesLink.Dispose();
+            EntitiesLink = new NativeHashMap<int, Entity>(16, Allocator.Persistent);
+            Application.quitting += () => EntitiesLink.Dispose();
         }
         
         public static bool TryGetEntity(NetworkConnection connection, out Entity entity)
@@ -22,7 +22,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         
         public static bool TryGetEntity(int id, out Entity entity)
         {
-            return s_EntitiesLink.TryGetValue(id, out entity);
+            return EntitiesLink.TryGetValue(id, out entity);
         }
         
         public static int TrySetEntity(NetworkConnection connection, Entity entity)
@@ -35,7 +35,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             Entity _;
             if (!TryGetEntity(id, out _))
             {
-                return s_EntitiesLink.TryAdd(id, entity) ? 0 : 1;
+                return EntitiesLink.TryAdd(id, entity) ? 0 : 1;
             }
 
             return -1;

@@ -196,11 +196,11 @@ namespace package.stormiumteam.networking
                 var allPatterns = SourceBank.GetResults();
                 var writer      = new DataBufferWriter(Allocator.Temp, SourceBank.Count * 2);
                 writer.CpyWrite(MessageType.RegisterPattern);
-                writer.CpyWrite((short) SourceBank.Count); // short will suffice for now
+                writer.WriteDynInteger((ulong) SourceBank.Count);
 
                 foreach (var result in allPatterns.Values)
                 {
-                    writer.CpyWrite((short) result.Id);
+                    writer.WriteDynInteger((ulong) result.Id);
                     writer.WriteStatic(result.InternalIdent.Name);
                     writer.CpyWrite(result.InternalIdent.Version);
                 }
@@ -242,10 +242,10 @@ namespace package.stormiumteam.networking
                     if (msgType != MessageType.RegisterPattern)
                         continue;
 
-                    var patternCount = reader.ReadValue<short>();
+                    var patternCount = (int) reader.ReadDynInteger();
                     for (var patternIndex = 0; patternIndex != patternCount; patternIndex++)
                     {
-                        var id      = reader.ReadValue<short>();
+                        var id      = (int) reader.ReadDynInteger();
                         var name    = reader.ReadString();
                         var version = reader.ReadValue<byte>();
 

@@ -94,6 +94,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 Configuration.OutgoingBandwidth);
 
             Host.PreventConnections(true);
+            Host.EnableCompression();
 
             return NetDriverBindError.Success;
         }
@@ -111,6 +112,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public Peer Connect(Address address)
         {
             Host.PreventConnections(false);
+            Host.EnableCompression();
+            
             return Host.Connect(address);
         }
 

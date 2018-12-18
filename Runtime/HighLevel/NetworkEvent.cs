@@ -40,10 +40,10 @@ namespace package.stormiumteam.networking.runtime.highlevel
             InvokerCmds = invokerCmds;
         }
 
-        public void SetData(NativeArray<byte> data)
+        public void SetData(byte* data, int length)
         {
-            Data = (byte*) data.GetUnsafeReadOnlyPtr();
-            DataLength = data.Length;
+            Data = data;
+            DataLength = length;
         }
 
         public NativeArray<byte> GetDataSafe()

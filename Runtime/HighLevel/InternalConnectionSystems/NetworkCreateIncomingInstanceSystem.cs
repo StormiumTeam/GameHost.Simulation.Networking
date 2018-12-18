@@ -42,7 +42,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var instanceArray    = m_Group.GetComponentDataArray<NetworkInstanceData>();
             var eventBufferArray = m_Group.GetBufferArray<EventBuffer>();
 
-            for (int i = 0; i != length; i++)
+            for (var i = 0; i != length; i++)
             {
                 var instanceData = instanceArray[i];
                 if (!instanceData.IsLocal())
@@ -51,7 +51,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 var entity      = entityArray[i];
                 var eventBuffer = eventBufferArray[i];
 
-                for (int j = 0; j != eventBuffer.Length; j++)
+                for (var j = 0; j != eventBuffer.Length; j++)
                 {
                     var ev = eventBuffer[j];
                     if (ev.Event.Type == NetworkEventType.Connected)
@@ -67,7 +67,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 }
             }
 
-            for (int i = 0; i != m_CreateInstanceList.Length; i++)
+            for (var i = 0; i != m_CreateInstanceList.Length; i++)
             {
                 var create = m_CreateInstanceList[i];
                 var newInstanceResult = m_NetworkManager.GetIncomingInstance

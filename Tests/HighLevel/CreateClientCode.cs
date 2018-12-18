@@ -53,10 +53,12 @@ namespace package.stormiumteam.networking.Tests.HighLevel
         {
             var em = ClientWorld.GetOrCreateManager<EntityManager>();
             var eventBuffer = em.GetBuffer<EventBuffer>(ClientInstance);
+            var data = em.GetComponentData<NetworkInstanceData>(ClientInstance);
             if (eventBuffer.Length > 0)
             {
                 //Debug.Log("Events in queue: " + eventBuffer.Length);
             }
+            //Debug.Log(data.Commands.BytesReceived);
         }
 
         public void Stop()

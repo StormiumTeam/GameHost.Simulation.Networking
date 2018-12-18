@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Debug = UnityEngine.Debug;
@@ -50,6 +51,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             HostConnection = hostConnection;
         }
 
+        [BurstDiscard]
         public int GetNextEvent(ref NetworkEvent networkEvent)
         {
             var foreignConnection = default(NetworkConnection);
@@ -70,10 +72,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var peer = ev.Peer;
             if (peer.IsSet)
             {
-                if (!ENetPeerConnection.GetOrCreate(peer, out enetPeerConnection))
-                {
-                    enetPeerConnection.Connection = NetworkConnection.New(HostConnection.Id);
-                }
+                ENetPeerConnection.GetOrCreate(peer, out enetPeerConnection);
                 
                 foreignCmds = new NetworkCommands(1, peer.NativeData);
             }
@@ -81,6 +80,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             if (enetPeerConnection.IsCreated)
             {
                 foreignConnection = enetPeerConnection.Connection;
+                foreignConnection.ParentId = HostConnection.Id;
+                enetPeerConnection.Connection = foreignConnection;
             }
 
             switch (ev.Type)
@@ -103,11 +104,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 }
                 case EventType.Receive:
                 {
-                    var dataArray = new NativeArray<byte>(ev.Packet.Length, Allocator.Temp);
-                    UnsafeUtility.MemCpy(dataArray.GetUnsafePtr(), (void*) ev.Packet.Data, ev.Packet.Length);
-                    
                     networkEvent = new NetworkEvent(NetworkEventType.DataReceived, foreignConnection, foreignCmds);
-                    networkEvent.SetData(dataArray);
+                    networkEvent.SetData((byte*) ev.Packet.Data, ev.Packet.Length);
                     break;
                 }
                 case EventType.Timeout:

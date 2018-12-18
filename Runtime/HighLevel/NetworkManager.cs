@@ -162,7 +162,12 @@ namespace package.stormiumteam.networking.runtime.highlevel
             // Connect to the server, and get the server peer
             var peer = driver.Connect(peerEndPoint);
             // Get the server peer connection data struct (used for internal stuff).
-            var serverCon = NetworkConnection.New();
+            ENetPeerConnection serverPeerConnection;
+            if (ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
+            {
+                throw new InvalidOperationException();
+            }
+            var serverCon = serverPeerConnection.Connection;
 
             // Create a new client connection
             var clientCon = NetworkConnection.New(serverCon.Id);
@@ -191,16 +196,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             // Add ConnectedInstance element to client entity.
             var clientConnectedBuffer = EntityManager.GetBuffer<ConnectedInstance>(clientEntity);
             clientConnectedBuffer.Add(new ConnectedInstance(serverEntity, serverCon));
-
-            ENetPeerConnection serverPeerConnection;
-            if (!ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
-            {
-                serverPeerConnection.Connection     = serverCon;
-            }
-            else
-            {
-                throw new InvalidOperationException();
-            }
 
             m_InstanceToEntity[clientCon.Id] = clientEntity;
             m_InstanceToEntity[serverCon.Id] = serverEntity;
@@ -284,8 +279,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instance);
             if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
             {
-                var instanceHos = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
-                var host        = instanceHos.Host;
+                var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
+                var host        = instanceHost.Host;
                 host.Flush();
                 host.Dispose();
             }
@@ -293,6 +288,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
             sharedData.Connections.Dispose();
             sharedData.MappedConnections.Clear();
+
+            ENetPeerConnection peerConnection;
+            if (ENetPeerConnection.TryGet(instanceData.Id, out peerConnection))
+            {
+                Debug.Log("Freeing...");
+                ENetPeerConnection.Free(peerConnection);
+            }
             
             EntityManager.DestroyEntity(instance);
         }

@@ -73,11 +73,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public EntityManager EntityManager;
         public Entity        Target;
 
-        private DynamicBuffer<QueryBuffer> m_QueryBuffer;
+        private NativeValidatorManager m_Native;
 
         public ValidatorManager(EntityManager entityManager, Entity target)
         {
-            m_QueryBuffer = entityManager.GetBuffer<QueryBuffer>(target);
+            m_Native = new NativeValidatorManager(entityManager.GetBuffer<QueryBuffer>(target));
 
             EntityManager = entityManager;
             Target        = target;
@@ -85,23 +85,17 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         public void Add(int type, QueryStatus initStatus = QueryStatus.Waiting)
         {
-            for (var i = 0; i != m_QueryBuffer.Length; i++)
-            {
-                if (m_QueryBuffer[i].Type == type) return;
-            }
-
-            m_QueryBuffer.Add(new QueryBuffer(type, initStatus));
+            m_Native.Add(type, initStatus);
         }
 
         public void Set(int type, QueryStatus status)
         {
-            for (var i = 0; i != m_QueryBuffer.Length; i++)
-            {
-                if (m_QueryBuffer[i].Type != type) continue;
-                
-                m_QueryBuffer[i] = new QueryBuffer(type, status);
-                return;
-            }
+            m_Native.Set(type, status);
+        }
+        
+        public bool Has(int type)
+        {
+            return m_Native.Has(type);
         }
     }
 

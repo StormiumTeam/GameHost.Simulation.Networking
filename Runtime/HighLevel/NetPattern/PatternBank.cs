@@ -88,6 +88,8 @@ namespace package.stormiumteam.networking
         public void ForeignForceLink(PatternResult patternResult)
         {
             if (InstanceId == 0) throw new InvalidOperationException();
+            
+            Debug.Log("Added " + patternResult.InternalIdent.Name);
 
             m_IdLink[patternResult.Id] = patternResult.InternalIdent.Name;
             m_ResultLink[patternResult.InternalIdent.Name] = patternResult;

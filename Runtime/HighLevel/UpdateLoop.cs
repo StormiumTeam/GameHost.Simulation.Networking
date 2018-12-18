@@ -10,7 +10,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
     /// then NetworkManager
     /// then (IntInit)
     /// then NetworkEventManager
-    /// then NetowkrConnectionManager
+    /// then NetworkCreateIncomingInstance
+    /// then NetworkValidateInstance
     /// then (IntEnd)
     /// </remarks>
     public struct UpdateLoop
@@ -38,11 +39,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
         }
 
         [UpdateAfter(typeof(IntNetworkCreateIncomingInstance))]
-        public class IntNetworkConnectionManager : BarrierSystem
-        {
-        }
-
-        [UpdateAfter(typeof(IntNetworkConnectionManager))]
         public class IntNetworkValidateInstance : BarrierSystem
         {
         }

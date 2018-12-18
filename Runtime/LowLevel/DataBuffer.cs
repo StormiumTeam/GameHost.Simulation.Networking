@@ -195,6 +195,30 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             return returnMarker;
         }
 
+        public void WriteDynInteger(ulong integer)
+        {
+            if (integer <= byte.MaxValue)
+            {
+                Write((byte) sizeof(byte));
+                Write((byte) integer);
+            }
+            else if (integer <= ushort.MaxValue)
+            {
+                Write((byte) sizeof(ushort));
+                Write((ushort) integer);
+            }
+            else if (integer <= uint.MaxValue)
+            {
+                Write((byte) sizeof(uint));
+                Write((uint) integer);
+            }
+            else
+            {
+                Write((byte) sizeof(ulong));
+                Write(ref integer);
+            }
+        }
+
         public void WriteStatic(string val, Encoding encoding = null)
         {
             fixed (char* strPtr = val)
@@ -322,6 +346,17 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public DataBufferMarker CreateMarker(int index)
         {
             return new DataBufferMarker(Unsafe.AsPointer(ref this), index);
+        }
+
+        public ulong ReadDynInteger(DataBufferMarker marker = default(DataBufferMarker))
+        {
+            var byteCount = ReadValue<byte>();
+            if (byteCount == sizeof(byte)) return ReadValue<byte>();
+            if (byteCount == sizeof(ushort)) return ReadValue<ushort>();
+            if (byteCount == sizeof(uint)) return ReadValue<uint>();
+            if (byteCount == sizeof(ulong)) return ReadValue<ulong>();
+
+            throw new InvalidOperationException();
         }
 
         public string ReadString(DataBufferMarker marker = default(DataBufferMarker))

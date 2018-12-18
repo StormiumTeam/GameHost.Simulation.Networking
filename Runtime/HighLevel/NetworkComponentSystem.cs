@@ -23,7 +23,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         protected ReadOnlyDictionary<int, NetworkInstanceData> AliveInstances;
 
         /// <summary>
-        /// Called when an instance got added.
+        /// Called when an instance got added. You should use this method to add queries to an instance.
         /// </summary>
         /// <param name="instanceEntity"></param>
         public virtual void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)

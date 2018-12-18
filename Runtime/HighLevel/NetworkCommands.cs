@@ -3,6 +3,7 @@
 using System;
 using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace package.stormiumteam.networking.runtime.highlevel
@@ -12,6 +13,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 #if NETWORKING_ENET
         private Peer           m_ENetPeer;
         private NativeENetHost m_ENetHost;
+        private IntPtr         m_ENetData;
 
         private byte m_IsPeer;
 #endif
@@ -20,24 +22,26 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public NetworkCommands(Type type, IntPtr data)
         {
             Debug.Log(type.Name + ", " + data.ToString());
-            
+
 #if NETWORKING_ENET
             m_ENetPeer = default(Peer);
             m_ENetHost = default(NativeENetHost);
-            
+            m_ENetData = data;
+
             m_IsPeer = (byte) (type == typeof(Peer) ? 1 : 0);
 
             if (m_IsPeer == 1) m_ENetPeer = new Peer(data);
             else m_ENetHost               = new NativeENetHost(data);
 #endif
         }
-        
+
         public NetworkCommands(byte isPeer, IntPtr data)
         {
 #if NETWORKING_ENET
             m_ENetPeer = default(Peer);
             m_ENetHost = default(NativeENetHost);
-            
+            m_ENetData = data;
+
             m_IsPeer = isPeer;
 
             if (m_IsPeer == 1) m_ENetPeer = new Peer(data);
@@ -91,5 +95,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
             m_ENetHost.Broadcast(channel.Id, ref packet);
             return true;
         }
+
+        public ulong BytesSent =>
+            math.select((uint) Native.enet_peer_get_bytes_sent(m_ENetData), Native.enet_host_get_bytes_sent(m_ENetData), !IsPeer);
+
+        public ulong BytesReceived =>
+            math.select((uint) Native.enet_peer_get_bytes_received(m_ENetData), Native.enet_host_get_bytes_received(m_ENetData), !IsPeer);
     }
 }
