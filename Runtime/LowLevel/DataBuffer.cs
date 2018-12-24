@@ -219,6 +219,11 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             }
         }
 
+        public void WriteStatic(DataBufferWriter dataBuffer)
+        {
+            WriteDataSafe((byte*) dataBuffer.GetSafePtr(), dataBuffer.Length, default(DataBufferMarker));
+        }
+
         public void WriteStatic(string val, Encoding encoding = null)
         {
             fixed (char* strPtr = val)

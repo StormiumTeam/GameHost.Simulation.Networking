@@ -194,7 +194,7 @@ namespace package.stormiumteam.networking
                     continue;
 
                 var allPatterns = SourceBank.GetResults();
-                var writer      = new DataBufferWriter(Allocator.Temp, SourceBank.Count * 2);
+                var writer      = new DataBufferWriter(new NativeList<byte>(SourceBank.Count * 2, Allocator.Temp));
                 writer.CpyWrite(MessageType.RegisterPattern);
                 writer.WriteDynInteger((ulong) SourceBank.Count);
 
@@ -209,6 +209,8 @@ namespace package.stormiumteam.networking
                 {
                     Debug.LogError("Couldn't send data to " + data.InstanceType);
                 }
+                
+                writer.Dispose();
 
                 validator.Set(SendInitialPatternsQueryId, QueryStatus.Valid);
             }
