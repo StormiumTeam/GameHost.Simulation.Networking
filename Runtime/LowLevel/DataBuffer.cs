@@ -80,13 +80,19 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public DataBufferMarker Write<T>(ref T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
-            return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
+            lock (s_ConcurrentLock)
+            {
+                return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
+            }
         }
 
         public DataBufferMarker CpyWrite<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
-            return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
+            lock (s_ConcurrentLock)
+            {
+                return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
+            }
         }
 
         public DataBufferMarker CreateMarker(int index)
