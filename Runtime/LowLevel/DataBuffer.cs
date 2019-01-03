@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -8,7 +9,7 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace package.stormiumteam.networking.runtime.lowlevel
-{
+{    
     public unsafe struct DataBufferMarker
     {
         public int   Index;
@@ -26,10 +27,32 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         }
     }
 
+    public unsafe struct DataBufferWriterConcurrent
+    {
+        private NativeQueue<byte>.Concurrent m_ByteQueue;
+
+        public DataBufferWriterConcurrent(NativeQueue<byte>.Concurrent byteQueue)
+        {
+            m_ByteQueue = byteQueue;
+        }
+
+        public void Write<T>(T val)
+            where T : struct
+        {
+            var size = Unsafe.SizeOf<T>();
+            var it = 0;
+
+            var valPtr = (byte*) Unsafe.AsPointer(ref val);
+            while (it < size)
+            {
+                m_ByteQueue.Enqueue(valPtr[it]);
+                it++;
+            }
+        }
+    }
+
     public unsafe partial struct DataBufferWriter : IDisposable
     {
-        private static object s_ConcurrentLock = new object();
-        
         [NativeDisableParallelForRestriction]
         public NativeList<byte> Buffer;
         
@@ -55,11 +78,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void TryResize(int maxLength)
         {
-            // Needed as we can get `invalid memory pointer` errors in Parallel jobs.
-            lock (s_ConcurrentLock)
-            {
-                Buffer.ResizeUninitialized(math.max(Buffer.Length, maxLength));
-            }
+            Buffer.ResizeUninitialized(math.max(Buffer.Length, maxLength));
         }
 
         public void WriteData(byte* data, int index, int length)
@@ -80,19 +99,13 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public DataBufferMarker Write<T>(ref T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
-            lock (s_ConcurrentLock)
-            {
-                return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
-            }
+            return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
         }
 
         public DataBufferMarker CpyWrite<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
-            lock (s_ConcurrentLock)
-            {
-                return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
-            }
+            return WriteDataSafe((byte*) Unsafe.AsPointer(ref val), Unsafe.SizeOf<T>(), marker);
         }
 
         public DataBufferMarker CreateMarker(int index)
