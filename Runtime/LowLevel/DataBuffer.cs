@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -27,7 +28,11 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
     public unsafe partial struct DataBufferWriter : IDisposable
     {
+        private static object s_ConcurrentLock = new object();
+        
+        [NativeDisableParallelForRestriction]
         public NativeList<byte> Buffer;
+        
         public int Length => Buffer.Length;
 
         public IntPtr GetSafePtr() => (IntPtr) Buffer.GetUnsafePtr();
@@ -50,7 +55,11 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void TryResize(int maxLength)
         {
-            Buffer.ResizeUninitialized(math.max(Buffer.Length, maxLength));
+            // Needed as we can get `invalid memory pointer` errors in Parallel jobs.
+            lock (s_ConcurrentLock)
+            {
+                Buffer.ResizeUninitialized(math.max(Buffer.Length, maxLength));
+            }
         }
 
         public void WriteData(byte* data, int index, int length)
@@ -196,7 +205,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         }
 
         public void WriteDynInteger(ulong integer)
-        {
+        {        
             if (integer <= byte.MaxValue)
             {
                 Write((byte) sizeof(byte));
