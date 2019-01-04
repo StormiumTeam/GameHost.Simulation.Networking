@@ -38,7 +38,7 @@ namespace package.stormiumteam.networking.Tests
                                 writer.WriteStatic("Hello server!");
 
                                 var packet = default(Packet);
-                                packet.Create(writer.GetSafePtr(), writer.Buffer.Length, PacketFlags.Reliable);
+                                packet.Create(writer.GetSafePtr(), writer.Length, PacketFlags.Reliable);
 
                                 netEvent.Peer.Send(0, ref packet);
                             }

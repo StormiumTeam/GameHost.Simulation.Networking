@@ -133,7 +133,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 #if NETWORKING_ENET
             var packet = new Packet();
             
-            packet.Create(buffer.GetSafePtr(), buffer.Buffer.Length, delivery.ToENetPacketFlags());
+            packet.Create(buffer.GetSafePtr(), buffer.Length, delivery.ToENetPacketFlags());
             
             Native.Broadcast(channel, ref packet);
 #endif
