@@ -60,6 +60,9 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
     public unsafe partial struct DataBufferWriter : IDisposable
     {
+        [NativeDisableUnsafePtrRestriction]
+        private IntPtr m_BufferPtr;
+        
         [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> FixedBuffer;
 
@@ -70,13 +73,16 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public int Length => IsDynamic == 1 ? DynamicBuffer.Length : FixedBuffer.Length;
 
-        public IntPtr GetSafePtr() => IsDynamic == 1 ? (IntPtr) DynamicBuffer.GetUnsafePtr() : (IntPtr) FixedBuffer.GetUnsafePtr();
+        //public IntPtr GetSafePtr() => IsDynamic == 1 ? (IntPtr) DynamicBuffer.GetUnsafePtr() : (IntPtr) FixedBuffer.GetUnsafePtr();
+        public IntPtr GetSafePtr() => m_BufferPtr;
 
         public DataBufferWriter(NativeList<byte> buffer)
         {
             FixedBuffer = default;
             DynamicBuffer = buffer;
             IsDynamic = 1;
+
+            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
         }
 
         public DataBufferWriter(Allocator allocator, int capacity = 0)
@@ -84,6 +90,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             IsDynamic     = 1;
             FixedBuffer   = default;
             DynamicBuffer = new NativeList<byte>(capacity, allocator);
+            
+            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
         }
 
         public DataBufferWriter(Allocator allocator, bool isDynamic, int capacity = 0)
@@ -95,53 +103,65 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             if (isDynamic)
             {
                 DynamicBuffer = new NativeList<byte>(capacity, allocator);
+                m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
             }
             else
             {
                 FixedBuffer = new NativeArray<byte>(capacity, allocator);
+                m_BufferPtr = (IntPtr) FixedBuffer.GetUnsafePtr();
             }
         }
 
-        public void GetWriteInfo(int size, out int writeIndex, DataBufferMarker marker)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int GetWriteInfo(int size, DataBufferMarker marker)
         {
-            writeIndex = (IntPtr) marker.Buffer == IntPtr.Zero ? Length : marker.Index;
+            var writeIndex = marker.Buffer == null ? Length : marker.Index;
             TryResize(writeIndex + size);
+
+            return writeIndex;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void TryResize(int maxLength)
         {
             if (IsDynamic == 0 || DynamicBuffer.Length >= maxLength) return;
             
             DynamicBuffer.ResizeUninitialized(math.max(DynamicBuffer.Length, maxLength));
+            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteData(byte* data, int index, int length)
         {
-            UnsafeUtility.MemCpy((void*) IntPtr.Add(GetSafePtr(), index), data, (uint) length);
+            UnsafeUtility.MemCpy((void*) IntPtr.Add(m_BufferPtr, index), data, (uint) length);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker WriteDataSafe(byte* data, int writeSize, DataBufferMarker marker)
         {
-            int writeIndex;
-
-            GetWriteInfo(writeSize, out writeIndex, marker);
+            var writeIndex = GetWriteInfo(writeSize, marker);
             WriteData(data, writeIndex, writeSize);
             
             return CreateMarker(writeIndex);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker Write<T>(ref T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
+            //return default;
             return WriteDataSafe((byte*) UnsafeUtility.AddressOf(ref val), UnsafeUtility.SizeOf<T>(), marker);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker CpyWrite<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
+            //return default;
             return WriteDataSafe((byte*) UnsafeUtility.AddressOf(ref val), UnsafeUtility.SizeOf<T>(), marker);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker CreateMarker(int index)
         {
             return new DataBufferMarker(UnsafeUtility.AddressOf(ref this), index);
