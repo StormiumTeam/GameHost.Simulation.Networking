@@ -378,6 +378,20 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             Length        = length;
         }
 
+        public DataBufferReader(DataBufferReader reader, int start, int end)
+        {
+            DataPtr = (byte*)((IntPtr)reader.DataPtr + start);
+            CurrReadIndex = 0;
+            Length = end;
+        }
+
+        public DataBufferReader(DataBufferWriter writer)
+        {
+            DataPtr = (byte*) writer.GetSafePtr();
+            CurrReadIndex = 0;
+            Length = writer.Length;
+        }
+
         public DataBufferReader(NativeArray<byte> data)
         {
             if (!data.IsCreated)
