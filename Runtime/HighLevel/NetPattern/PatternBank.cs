@@ -73,6 +73,18 @@ namespace package.stormiumteam.networking
             return m_ResultLink[pattern.Name];
         }
 
+        public PatternResult GetPatternResult(int id)
+        {
+            // This is slow, and it's only used to compare Local Bank and Other Banks.
+            // There should be another way.
+            return GetPatternResult(new PatternIdent(m_IdLink[id]));
+        }
+        
+        public string GetPatternName(int id)
+        {
+            return m_IdLink[id];
+        }
+
         public ReadOnlyDictionary<string, PatternResult> GetResults()
         {
             return new ReadOnlyDictionary<string, PatternResult>(m_ResultLink);

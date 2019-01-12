@@ -283,22 +283,22 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             if (integer <= byte.MaxValue)
             {
                 Write((byte) sizeof(byte));
-                Write((byte) integer);
+                CpyWrite((byte) integer);
             }
             else if (integer <= ushort.MaxValue)
             {
                 Write((byte) sizeof(ushort));
-                Write((ushort) integer);
+                CpyWrite((ushort) integer);
             }
             else if (integer <= uint.MaxValue)
             {
                 Write((byte) sizeof(uint));
-                Write((uint) integer);
+                CpyWrite((uint) integer);
             }
             else
             {
                 Write((byte) sizeof(ulong));
-                Write(ref integer);
+                CpyWrite(integer);
             }
         }
 
@@ -360,9 +360,11 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
     public unsafe struct DataBufferReader
     {
+        [NativeDisableUnsafePtrRestriction]
         public byte* DataPtr;
-        public int   CurrReadIndex;
-        public int   Length;
+
+        public int CurrReadIndex;
+        public int Length;
 
         public DataBufferReader(IntPtr dataPtr, int length) : this((byte*) dataPtr, length)
         {
@@ -380,16 +382,16 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public DataBufferReader(DataBufferReader reader, int start, int end)
         {
-            DataPtr = (byte*)((IntPtr)reader.DataPtr + start);
+            DataPtr       = (byte*) ((IntPtr) reader.DataPtr + start);
             CurrReadIndex = 0;
-            Length = end;
+            Length        = end;
         }
 
         public DataBufferReader(DataBufferWriter writer)
         {
-            DataPtr = (byte*) writer.GetSafePtr();
+            DataPtr       = (byte*) writer.GetSafePtr();
             CurrReadIndex = 0;
-            Length = writer.Length;
+            Length        = writer.Length;
         }
 
         public DataBufferReader(NativeArray<byte> data)
@@ -458,12 +460,13 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public ulong ReadDynInteger(DataBufferMarker marker = default(DataBufferMarker))
         {
             var byteCount = ReadValue<byte>();
+
             if (byteCount == sizeof(byte)) return ReadValue<byte>();
             if (byteCount == sizeof(ushort)) return ReadValue<ushort>();
             if (byteCount == sizeof(uint)) return ReadValue<uint>();
             if (byteCount == sizeof(ulong)) return ReadValue<ulong>();
 
-            throw new InvalidOperationException();
+            throw new InvalidOperationException($"Expected byte count range: [{sizeof(byte)}..{sizeof(ulong)}], received: {byteCount}");
         }
 
         public string ReadString(DataBufferMarker marker = default(DataBufferMarker))
