@@ -112,6 +112,18 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             }
         }
 
+        public void UpdateReference()
+        {
+            if (IsDynamic == 1)
+            {
+                m_BufferPtr   = (IntPtr) DynamicBuffer.GetUnsafePtr();
+            }
+            else
+            {
+                m_BufferPtr = (IntPtr) FixedBuffer.GetUnsafePtr();
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetWriteInfo(int size, DataBufferMarker marker)
         {
@@ -434,7 +446,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void ReadUnsafe(byte* data, int index, int size)
         {
-            Unsafe.CopyBlock(data, DataPtr + index, (uint) size);
+            Unsafe.CopyBlock(data, (void*) IntPtr.Add((IntPtr)DataPtr, index), (uint) size);
         }
 
         public T ReadValue<T>(DataBufferMarker marker = default(DataBufferMarker))
