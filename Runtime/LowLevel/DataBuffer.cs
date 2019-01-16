@@ -291,8 +291,12 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         }
 
         public void WriteDynInteger(ulong integer)
-        {        
-            if (integer <= byte.MaxValue)
+        {
+            if (integer == 0)
+            {
+                CpyWrite((byte) 0);
+            }
+            else if (integer <= byte.MaxValue)
             {
                 Write((byte) sizeof(byte));
                 CpyWrite((byte) integer);
@@ -473,6 +477,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         {
             var byteCount = ReadValue<byte>();
 
+            if (byteCount == 0) return 0;
             if (byteCount == sizeof(byte)) return ReadValue<byte>();
             if (byteCount == sizeof(ushort)) return ReadValue<ushort>();
             if (byteCount == sizeof(uint)) return ReadValue<uint>();
