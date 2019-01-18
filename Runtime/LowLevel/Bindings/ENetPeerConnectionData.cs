@@ -134,5 +134,10 @@ namespace ENet
                 s_Connections.Dispose();
             }, 10001);
         }
+
+        public static void StaticCreate()
+        {
+            // It will do nothing
+        }
     }
 }

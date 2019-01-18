@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using package.stormiumteam.networking.runtime.highlevel;
 using package.stormiumteam.networking.runtime.lowlevel;
+using package.stormiumteam.shared;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -20,6 +21,7 @@ namespace package.stormiumteam.networking
 
         private static PatternBank                  s_LocalBank;
         private        Dictionary<int, PatternBank> m_ConnectionsBank;
+        private Dictionary<long, PatternBankExchange> m_Exchanges;
         private        NetPatternImpl               m_Impl;
 
         static NetPatternSystem()
@@ -52,7 +54,10 @@ namespace package.stormiumteam.networking
 
         public override void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
         {
+            var exchangeId = StMath.DoubleIntToLong(0, instanceId);
+            
             m_ConnectionsBank[instanceId] = new PatternBank(instanceId);
+            m_Exchanges[exchangeId] = new PatternBankExchange(exchangeId);
 
             var data = EntityManager.GetComponentData<NetworkInstanceData>(instanceEntity);
             // We only add queries on non local instances.
@@ -101,6 +106,16 @@ namespace package.stormiumteam.networking
                 Debug.LogError($"GetBank(0) -> Can't access to local bank here");
 
             return m_ConnectionsBank[instanceId];
+        }
+
+        public PatternBankExchange GetLocalExchange(int destinationInstanceId)
+        {
+            return GetExchange(0, destinationInstanceId);
+        }
+
+        public PatternBankExchange GetExchange(int originInstanceId, int destinationInstanceId)
+        {
+            return m_Exchanges[StMath.DoubleIntToLong(originInstanceId, destinationInstanceId)];
         }
     }
 

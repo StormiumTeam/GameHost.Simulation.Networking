@@ -40,6 +40,28 @@ namespace package.stormiumteam.networking
         {
             return obj1.Id != obj2.Id;
         }
+        
+        /// <summary>
+        /// Compare two instances of the result id
+        /// </summary>
+        /// <param name="obj1">Object 1</param>
+        /// <param name="id">Identifier</param>
+        /// <returns>Return true if both objects got the same identifier</returns>
+        public static bool operator ==(PatternResult obj1, int id)
+        {
+            return obj1.Id == id;
+        }
+        
+        /// <summary>
+        /// Compare two instances of the result id
+        /// </summary>
+        /// <param name="obj1">Object 1</param>
+        /// <param name="id">Identifier</param>
+        /// <returns>Return true if both objects don't have the same identifier</returns>
+        public static bool operator !=(PatternResult obj1, int id)
+        {
+            return obj1.Id != id;
+        }
     }
     
     /// <summary>

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reflection;
+using package.stormiumteam.shared;
 using UnityEngine;
 using PATTERN_ID_TYPE = System.Int32;
 using PATTERN_STRING_LINK = System.Collections.Generic.Dictionary<string, package.stormiumteam.networking.PatternIdent>;
@@ -11,6 +12,52 @@ using PATTERN_ID_LINK = System.Collections.Generic.Dictionary<int, string>;
 
 namespace package.stormiumteam.networking
 {
+    public class PatternBankExchange
+    {
+        public readonly int  Origin;
+        public readonly int  Destination;
+        public readonly long Id;
+
+        public Dictionary<int, int> OriginToDestination;
+        public Dictionary<int, int> DestinationToOrigin;
+
+        public PatternBankExchange(int origin, int destination)
+        {
+            Origin      = origin;
+            Destination = destination;
+            Id          = StMath.DoubleIntToLong(origin, destination);
+
+            OriginToDestination = new Dictionary<int, int>();
+            DestinationToOrigin = new Dictionary<int, int>();
+        }
+
+        public PatternBankExchange(long id)
+        {
+            (Origin, Destination) = StMath.LongToDoubleInt(id);
+
+            Id = id;
+        }
+
+        public void Set(int originId, int destinationId)
+        {
+            OriginToDestination[originId]      = destinationId;
+            DestinationToOrigin[destinationId] = originId;
+
+            OriginToDestination = new Dictionary<int, int>();
+            DestinationToOrigin = new Dictionary<int, int>();
+        }
+
+        public int GetOriginId(int destinationId)
+        {
+            return DestinationToOrigin[destinationId];
+        }
+
+        public int GetDestinationId(int originId)
+        {
+            return OriginToDestination[originId];
+        }
+    }
+
     public class PatternBank : IDisposable
     {        
         private PATTERN_STRING_LINK m_StringLink;

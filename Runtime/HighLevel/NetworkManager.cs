@@ -68,6 +68,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         protected override void OnCreateManager()
         {
+            ENetPeerConnection.StaticCreate();
+            
             DataType               = ComponentType.Create<NetworkInstanceData>();
             SharedDataType         = ComponentType.Create<NetworkInstanceSharedData>();
             DataHostType           = ComponentType.Create<NetworkInstanceHost>();
@@ -204,6 +206,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
             InternalOnNetworkInstanceAdded(clientCon.Id, clientEntity);
             InternalOnNetworkInstanceAdded(serverCon.Id, serverEntity);
+            
+            EntityManager.SetName(clientEntity, $"<NET> Local Client #{clientCon.Id} ({clientEntity}) -> Host: #{serverCon.Id} ({serverEntity})");
+            EntityManager.SetName(serverEntity, $"<NET> Host Server #{serverCon.Id} ({serverEntity}) <- Local: #{clientCon.Id} ({clientEntity})");
 
             return new StartClientResult
             {
@@ -274,8 +279,30 @@ namespace package.stormiumteam.networking.runtime.highlevel
             };
         }
 
-        public void Stop(Entity instance)
+        public void StopAll()
         {
+            foreach (var o in m_InstanceToEntity)
+                Stop(o.Value);
+        }
+
+        public void Stop(Entity instance, bool deleteChildConnections = true)
+        {
+            void FreeConnection(int instanceId)
+            {
+                ENetPeerConnection peerConnection;
+                if (ENetPeerConnection.TryGet(instanceId, out peerConnection))
+                {
+                    Debug.Log("Freeing...");
+                    ENetPeerConnection.Free(peerConnection);
+                }
+            }
+            
+            if (instance == default)
+            {
+                Debug.Log("No instance to destroy.");
+                return;
+            }
+            
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instance);
             if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
             {
@@ -289,13 +316,39 @@ namespace package.stormiumteam.networking.runtime.highlevel
             sharedData.Connections.Dispose();
             sharedData.MappedConnections.Clear();
 
-            ENetPeerConnection peerConnection;
-            if (ENetPeerConnection.TryGet(instanceData.Id, out peerConnection))
+            FreeConnection(instanceData.Id);
+
+            // Destroy all connections that are linked to the target instance.
+            if (deleteChildConnections && instanceData.IsLocal())
             {
-                Debug.Log("Freeing...");
-                ENetPeerConnection.Free(peerConnection);
+                using (var ecb = new EntityCommandBuffer(Allocator.Temp))
+                {
+                    var foreignGroup = GetComponentGroup(DataType, SharedDataType, QueryBufferType, ConnectedBufferType);
+                    var entityArray  = foreignGroup.GetEntityArray();
+                    var dataArray    = foreignGroup.GetComponentDataArray<NetworkInstanceData>();
+                    for (var i = 0; i != entityArray.Length; i++)
+                    {
+                        if (
+                            // Destroy clients from server...
+                            (dataArray[i].HasParent() && dataArray[i].Parent == instance)
+                            ||
+                            // Destroy server from client...
+                            (instanceData.HasParent() && instanceData.Parent == entityArray[i])
+                        )
+                        {
+                            FreeConnection(dataArray[i].Id);
+                            
+                            ecb.DestroyEntity(entityArray[i]);
+                            m_InstanceToEntity[dataArray[i].Id] = default;
+                        }
+                    }
+
+                    ecb.Playback(EntityManager);
+                }
             }
-            
+
+            m_InstanceToEntity[instanceData.Id] = default;
+
             EntityManager.DestroyEntity(instance);
         }
 

@@ -15,8 +15,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             {
                 PeerLimit         = 32,
                 ChannelLimit      = (int) Library.maxChannelCount,
-                IncomingBandwidth = 0,
-                OutgoingBandwidth = 0
+                IncomingBandwidth = int.MaxValue,
+                OutgoingBandwidth = int.MaxValue,
             };
         }
     }
@@ -93,7 +93,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 Configuration.IncomingBandwidth,
                 Configuration.OutgoingBandwidth);
 
-            Host.PreventConnections(true);
+            //Host.PreventConnections(true);
             Host.EnableCompression();
 
             return NetDriverBindError.Success;
@@ -101,7 +101,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void Listen()
         {
-            Host.PreventConnections(false);
+            //Host.PreventConnections(false);
         }
 
         public Peer Connect(IPEndPoint ipEndPoint)
@@ -111,16 +111,19 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public Peer Connect(Address address)
         {
-            Host.PreventConnections(false);
+            //Host.PreventConnections(false);
             Host.EnableCompression();
             
             return Host.Connect(address);
         }
 
         public Address IPEndPointToENetAddress(IPEndPoint ipEndPoint)
-        {   
+        {
+            if (ipEndPoint == null)
+                return default;
+            
             var addr = new Address();
-            var addrFailure = !addr.SetHost(ipEndPoint.Address.ToString());
+            var addrFailure = ipEndPoint.Address != null && !addr.SetHost(ipEndPoint.Address.ToString());
             addr.Port = (ushort) ipEndPoint.Port;
             
             if (addrFailure) Debug.LogError("addrFailure: " + ipEndPoint.Address.ToString());
