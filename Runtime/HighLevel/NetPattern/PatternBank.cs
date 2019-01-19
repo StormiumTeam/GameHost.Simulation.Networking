@@ -36,15 +36,17 @@ namespace package.stormiumteam.networking
             (Origin, Destination) = StMath.LongToDoubleInt(id);
 
             Id = id;
+            
+            OriginToDestination = new Dictionary<int, int>();
+            DestinationToOrigin = new Dictionary<int, int>();
         }
 
         public void Set(int originId, int destinationId)
         {
+            Debug.Log($"Synced ({originId}, {destinationId})");
+            
             OriginToDestination[originId]      = destinationId;
             DestinationToOrigin[destinationId] = originId;
-
-            OriginToDestination = new Dictionary<int, int>();
-            DestinationToOrigin = new Dictionary<int, int>();
         }
 
         public int GetOriginId(int destinationId)

@@ -61,6 +61,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             Event ev;
             code = Native.Service(out ev);
 
+            Debug.Log($"code={code}, type={ev.Type}");
+            
             if (ev.Type == EventType.None)
             {
                 networkEvent = new NetworkEvent(NetworkEventType.None, foreignConnection, foreignCmds);
@@ -75,6 +77,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 ENetPeerConnection.GetOrCreate(peer, out enetPeerConnection);
                 
                 foreignCmds = new NetworkCommands(1, peer.NativeData);
+                
+                peer.Timeout(3, 1000, 5000);
             }
 
             if (enetPeerConnection.IsCreated)
@@ -100,6 +104,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     {
                         TimeoutForeignDisconnection = 0
                     };
+
+                    peer.Data = IntPtr.Zero;
+                    
                     break;
                 }
                 case EventType.Receive:
@@ -114,6 +121,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     {
                         TimeoutForeignDisconnection = 1
                     };
+                    
+                    peer.Data = IntPtr.Zero;
+                    
                     break;
                 }
                 default:

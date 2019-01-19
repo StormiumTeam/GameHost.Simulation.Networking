@@ -88,6 +88,12 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 var netEvent = default(NetworkEvent);
                 while (host.GetNextEvent(ref netEvent) > 0)
                 {
+                    if (netEvent.Type == NetworkEventType.Connected)
+                        Debug.Log( netEvent.Invoker.Id + " connection");
+                    
+                    if (netEvent.Type == NetworkEventType.Disconnected)
+                        Debug.Log( netEvent.Invoker.Id + " disconnection");
+                    
                     eventDynBuffer.Add(new EventBuffer(netEvent));
                     EventNotifications.Add(new NewEventNotification(data.Id, netEvent));
                 }

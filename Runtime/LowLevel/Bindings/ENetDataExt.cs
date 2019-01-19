@@ -1,5 +1,6 @@
 ﻿using System;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace ENet
 {
@@ -41,6 +42,9 @@ namespace ENet
             
             if (result <= 0) {
                 @event = new Event();
+                
+                if (result < 0)
+                    Debug.LogError("Failure");
 
                 return result;
             }

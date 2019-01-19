@@ -32,6 +32,7 @@ namespace package.stormiumteam.networking
         protected override void OnCreateManager()
         {
             m_ConnectionsBank = new Dictionary<int, PatternBank>();
+            m_Exchanges = new Dictionary<long, PatternBankExchange>();
             m_Impl = new NetPatternImpl
             (
                 EntityManager,
@@ -81,8 +82,11 @@ namespace package.stormiumteam.networking
             {
                 var incomingPattern = incomingPatterns[i];
                 var instanceBank    = GetBank(incomingPattern.InstanceId);
-
+                var localBank = GetLocalBank();
+                var exchange = GetLocalExchange(incomingPattern.InstanceId);
+                
                 instanceBank.ForeignForceLink(incomingPattern.PatternResult);
+                exchange.Set(localBank.GetPatternResult(incomingPattern.PatternResult.InternalIdent).Id, incomingPattern.PatternResult.Id);
             }
         }
 

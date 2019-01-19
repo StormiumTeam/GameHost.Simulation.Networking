@@ -101,5 +101,17 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         public ulong BytesReceived =>
             math.select((uint) Native.enet_peer_get_bytes_received(m_ENetData), Native.enet_host_get_bytes_received(m_ENetData), !IsPeer);
+
+        public PeerState PeerState => (PeerState) math.select((int) m_ENetPeer.State, 5, !IsPeer);
+        public float RoundTripTime => math.@select(Native.enet_peer_get_rtt(m_ENetData), -1, !IsPeer);
+
+        public bool SendDisconnectSignal(uint data)
+        {
+            if (!IsPeer)
+                return false;
+            
+            Native.enet_peer_disconnect_now(m_ENetData, data);
+            return true;
+        }
     }
 }

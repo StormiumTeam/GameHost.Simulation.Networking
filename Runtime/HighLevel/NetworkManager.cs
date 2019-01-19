@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Net;
 using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
@@ -69,6 +70,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         protected override void OnCreateManager()
         {
             ENetPeerConnection.StaticCreate();
+            Library.Initialize();
             
             DataType               = ComponentType.Create<NetworkInstanceData>();
             SharedDataType         = ComponentType.Create<NetworkInstanceSharedData>();
@@ -91,14 +93,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         protected override void OnDestroyManager()
         {
-            foreach (var instance in m_InstanceToEntity)
-            {
-                if (instance.Value == default(Entity)) continue;
-                
-                Stop(instance.Value);
-            }
+            StopAll();
             
             m_InstanceToEntity.Clear();
+            
+            Library.Deinitialize();
         }
 
         public StartServerResult StartServer(IPEndPoint localEndPoint, NetDriverConfiguration driverConfiguration)
@@ -207,8 +206,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             InternalOnNetworkInstanceAdded(clientCon.Id, clientEntity);
             InternalOnNetworkInstanceAdded(serverCon.Id, serverEntity);
             
-            EntityManager.SetName(clientEntity, $"<NET> Local Client #{clientCon.Id} ({clientEntity}) -> Host: #{serverCon.Id} ({serverEntity})");
-            EntityManager.SetName(serverEntity, $"<NET> Host Server #{serverCon.Id} ({serverEntity}) <- Local: #{clientCon.Id} ({clientEntity})");
+            //EntityManager.SetName(clientEntity, $"<NET> Local Client #{clientCon.Id} ({clientEntity}) -> Host: #{serverCon.Id} ({serverEntity})");
+            //EntityManager.SetName(serverEntity, $"<NET> Host Server #{serverCon.Id} ({serverEntity}) <- Local: #{clientCon.Id} ({clientEntity})");
 
             return new StartClientResult
             {
@@ -281,8 +280,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         public void StopAll()
         {
-            foreach (var o in m_InstanceToEntity)
-                Stop(o.Value);
+            foreach (var o in m_InstanceToEntity.Values.ToArray())
+                Stop(o, false);
         }
 
         public void Stop(Entity instance, bool deleteChildConnections = true)
@@ -312,11 +311,25 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 host.Dispose();
             }
             
+            Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
+            
             var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
             sharedData.Connections.Dispose();
             sharedData.MappedConnections.Clear();
 
             FreeConnection(instanceData.Id);
+
+            var connectionList = EntityManager.GetBuffer<ConnectedInstance>(instance);
+            for (var i = 0; i != connectionList.Length; i++)
+            {
+                var connection = connectionList[i];
+                if (!EntityManager.Exists(connection.Entity))
+                    continue;
+                
+                var data = EntityManager.GetComponentData<NetworkInstanceData>(connectionList[i].Entity);
+
+                data.Commands.SendDisconnectSignal(0);
+            }
 
             // Destroy all connections that are linked to the target instance.
             if (deleteChildConnections && instanceData.IsLocal())
@@ -337,9 +350,18 @@ namespace package.stormiumteam.networking.runtime.highlevel
                         )
                         {
                             FreeConnection(dataArray[i].Id);
+
+                            dataArray[i].Commands.SendDisconnectSignal(0);
                             
                             ecb.DestroyEntity(entityArray[i]);
-                            m_InstanceToEntity[dataArray[i].Id] = default;
+                            if (m_InstanceToEntity.ContainsKey(dataArray[i].Id))
+                            {
+                                m_InstanceToEntity[dataArray[i].Id] = default;
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"Problem with {dataArray[i].Id} ({dataArray[i].InstanceType})");
+                            }
                         }
                     }
 
@@ -347,7 +369,14 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 }
             }
 
-            m_InstanceToEntity[instanceData.Id] = default;
+            if (m_InstanceToEntity.ContainsKey(instanceData.Id))
+            {
+                m_InstanceToEntity[instanceData.Id] = default;
+            }
+            else
+            {
+                Debug.LogWarning($"Problem with {instanceData.Id} ({instanceData.InstanceType})");
+            }
 
             EntityManager.DestroyEntity(instance);
         }

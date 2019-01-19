@@ -38,47 +38,41 @@ namespace package.stormiumteam.networking.runtime.highlevel
             m_CreateInstanceList.Clear();
 
             var length           = m_Group.CalculateLength();
-            var entityArray      = m_Group.GetEntityArray();
-            var instanceArray    = m_Group.GetComponentDataArray<NetworkInstanceData>();
-            var eventBufferArray = m_Group.GetBufferArray<EventBuffer>();
-
-            for (var i = 0; i != length; i++)
+            using (var entityArray = m_Group.ToEntityArray(Allocator.TempJob))
+            using (var instanceArray = m_Group.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob))
             {
-                var instanceData = instanceArray[i];
-                if (!instanceData.IsLocal())
-                    continue;
-
-                var entity      = entityArray[i];
-                var eventBuffer = eventBufferArray[i];
-
-                for (var j = 0; j != eventBuffer.Length; j++)
+                for (var i = 0; i != length; i++)
                 {
-                    var ev = eventBuffer[j];
-                    if (ev.Event.Type == NetworkEventType.Connected)
+                    var instanceData = instanceArray[i];
+                    if (!instanceData.IsLocal())
+                        continue;
+
+                    var entity      = entityArray[i];
+                    var eventBuffer = new NativeArray<EventBuffer>(EntityManager.GetBuffer<EventBuffer>(entity).AsNativeArray(), Allocator.TempJob);
+
+                    for (var j = 0; j != eventBuffer.Length; j++)
                     {
-                        m_CreateInstanceList.Add(new CreateInstance
+                        var ev = eventBuffer[j];
+                        if (ev.Event.Type == NetworkEventType.Connected)
                         {
-                            Entity                 = entity,
-                            Data                   = instanceData,
-                            IncomingConnection     = ev.Event.Invoker,
-                            IncomingConnectionCmds = ev.Event.InvokerCmds
-                        });
+                            var newInstanceResult = m_NetworkManager.GetIncomingInstance
+                            (
+                                entity,
+                                instanceData,
+                                ev.Event.Invoker,
+                                ev.Event.InvokerCmds
+                            );
+
+                            Debug.Log($"Created a new instance: (Id: {newInstanceResult.InstanceId}, Entity: {newInstanceResult.InstanceEntity})");
+                        }
+                        else if (ev.Event.Type == NetworkEventType.Disconnected)
+                        {
+                            m_NetworkManager.Stop(m_NetworkManager.GetNetworkInstanceEntity(ev.Event.Invoker.Id), false);
+                        }
                     }
+                    
+                    eventBuffer.Dispose();
                 }
-            }
-
-            for (var i = 0; i != m_CreateInstanceList.Length; i++)
-            {
-                var create = m_CreateInstanceList[i];
-                var newInstanceResult = m_NetworkManager.GetIncomingInstance
-                (
-                    create.Entity,
-                    create.Data,
-                    create.IncomingConnection,
-                    create.IncomingConnectionCmds
-                );
-
-                Debug.Log($"Created a new instance: (Id: {newInstanceResult.InstanceId}, Entity: {newInstanceResult.InstanceEntity})");
             }
         }
     }
