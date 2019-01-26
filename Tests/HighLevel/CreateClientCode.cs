@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Net;
-using ENet;
 using package.stormiumteam.networking.extensions;
 using package.stormiumteam.networking.runtime.highlevel;
 using package.stormiumteam.networking.runtime.lowlevel;
@@ -28,8 +27,7 @@ namespace package.stormiumteam.networking.Tests.HighLevel
         public void Start()
         {
             var networkMgr   = ClientWorld.GetOrCreateManager<NetworkManager>();
-            var driverConf   = NetDriverConfiguration.@default();
-            var clientResult = networkMgr.StartClient(new IPEndPoint(IPAddress.Loopback, 9000), new IPEndPoint(IPAddress.Any, 0), driverConf);
+            var clientResult = networkMgr.StartClient(new IPEndPoint(IPAddress.Parse("127.0.0.1"), 9000));
             if (clientResult.IsError)
             {
                 Debug.LogError("Error");

@@ -1,52 +1,62 @@
-﻿#define NETWORKING_ENET
-
-using System;
-using ENet;
+﻿using System;
 using package.stormiumteam.networking.runtime.lowlevel;
+using package.stormiumteam.shared.utils;
 using Unity.Mathematics;
 using UnityEngine;
+using Valve.Sockets;
 
 namespace package.stormiumteam.networking.runtime.highlevel
 {
     public unsafe struct NetworkCommands
     {
-#if NETWORKING_ENET
-        private Peer           m_ENetPeer;
-        private NativeENetHost m_ENetHost;
-        private IntPtr         m_ENetData;
-
+        // foreign
+        private uint m_GnsConnectionId;
+        // ...
+        // local
+        private uint m_GnsListenSocketId;
+        private IntPtr m_GnsNative;
+        // ...
+        
         private byte m_IsPeer;
-#endif
+
         public bool IsPeer => m_IsPeer == 1;
-
-        public NetworkCommands(Type type, IntPtr data)
+        
+        public static NetworkCommands CreateFromListenSocket(IntPtr native, uint socketId)
         {
-            Debug.Log(type.Name + ", " + data.ToString());
-
-#if NETWORKING_ENET
-            m_ENetPeer = default(Peer);
-            m_ENetHost = default(NativeENetHost);
-            m_ENetData = data;
-
-            m_IsPeer = (byte) (type == typeof(Peer) ? 1 : 0);
-
-            if (m_IsPeer == 1) m_ENetPeer = new Peer(data);
-            else m_ENetHost               = new NativeENetHost(data);
-#endif
+            return new NetworkCommands
+            {
+                m_IsPeer = 0,
+                
+                m_GnsConnectionId   = 0,
+                m_GnsListenSocketId = socketId,
+                m_GnsNative         = native
+            };
+        }
+        
+        public static NetworkCommands CreateFromConnection(IntPtr native, uint connectionId)
+        {
+            return new NetworkCommands
+            {
+                m_IsPeer = 1,
+                
+                m_GnsConnectionId   = connectionId,
+                m_GnsListenSocketId = 0,
+                m_GnsNative         = native
+            };
         }
 
-        public NetworkCommands(byte isPeer, IntPtr data)
+        private GnsExecution GetExecution()
         {
-#if NETWORKING_ENET
-            m_ENetPeer = default(Peer);
-            m_ENetHost = default(NativeENetHost);
-            m_ENetData = data;
+            return new GnsExecution(m_GnsNative, m_GnsListenSocketId);
+        }
 
-            m_IsPeer = isPeer;
-
-            if (m_IsPeer == 1) m_ENetPeer = new Peer(data);
-            else m_ENetHost               = new NativeENetHost(data);
-#endif
+        public NmLkSpan<NetworkingMessage> ReceiveMessageFromConnection(uint connectionId)
+        {
+            if (connectionId == 0)
+                throw new InvalidOperationException();
+                
+            var execution = GetExecution();
+            return execution.ReceiveMessageOnConnection(connectionId);
         }
 
         /// <summary>
@@ -84,34 +94,46 @@ namespace package.stormiumteam.networking.runtime.highlevel
         /// <returns></returns>
         public bool Send(IntPtr ptr, int length, NetworkChannel channel, Delivery delivery)
         {
-            var packet = new Packet();
-            packet.Create(ptr, length, delivery.ToENetPacketFlags());
+            var execution = GetExecution();
 
             if (m_IsPeer == 1)
             {
-                return m_ENetPeer.Send(channel.Id, ref packet);
+                var result = execution.SendToConnection(m_GnsConnectionId, ptr, (uint) length, delivery.ToGnsSendTypeFlags());
+                if (result != Result.OK)
+                    Debug.LogError($"Expected {Result.OK} when sending a message but we got {result}.");
+                
+                return result == Result.OK;
             }
 
-            m_ENetHost.Broadcast(channel.Id, ref packet);
-            return true;
+            Debug.LogWarning("The broadcast method don't exist yet for the ListenSocket type.");
+            return false;
         }
 
-        public ulong BytesSent =>
-            math.select((uint) Native.enet_peer_get_bytes_sent(m_ENetData), Native.enet_host_get_bytes_sent(m_ENetData), !IsPeer);
-
-        public ulong BytesReceived =>
-            math.select((uint) Native.enet_peer_get_bytes_received(m_ENetData), Native.enet_host_get_bytes_received(m_ENetData), !IsPeer);
-
-        public PeerState PeerState => (PeerState) math.select((int) m_ENetPeer.State, 5, !IsPeer);
-        public float RoundTripTime => math.@select(Native.enet_peer_get_rtt(m_ENetData), -1, !IsPeer);
-
-        public bool SendDisconnectSignal(uint data)
+        public ConnectionStatus ConnectionStatus
         {
-            if (!IsPeer)
+            get
+            {
+                var execution = GetExecution();
+                if (m_IsPeer == 0)
+                    throw new InvalidOperationException();
+
+                if (!execution.GetConnectionStatus(m_GnsConnectionId, out var status))
+                    throw new Exception();
+
+                return status;
+            }
+        }
+
+        public bool SendDisconnectSignal(int data)
+        {
+            if (m_IsPeer == 0)
+            {
+                Debug.LogError("IsPeer=false");
                 return false;
-            
-            Native.enet_peer_disconnect_now(m_ENetData, data);
-            return true;
+            }
+
+            var execution = GetExecution();
+            return execution.CloseConnection(m_GnsConnectionId, data);
         }
     }
 }

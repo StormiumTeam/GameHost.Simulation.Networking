@@ -1,5 +1,4 @@
-﻿using ENet;
-using package.stormiumteam.networking.runtime.lowlevel;
+﻿using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -23,7 +22,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         private NativeList<CreateInstance> m_CreateInstanceList;
 
         protected override void OnCreateManager()
-        {
+        { 
             m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceSharedData), typeof(EventBuffer));
             m_CreateInstanceList = new NativeList<CreateInstance>(Allocator.Persistent);
         }

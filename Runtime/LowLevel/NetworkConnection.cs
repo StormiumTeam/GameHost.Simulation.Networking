@@ -1,5 +1,4 @@
-﻿using ENet;
-using package.stormiumteam.networking.runtime.highlevel;
+﻿using package.stormiumteam.networking.runtime.highlevel;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -16,6 +15,11 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         {
             Id       = id;
             ParentId = parentId;
+        }
+
+        public override string ToString()
+        {
+            return $"Connection(id:{Id}, pid:{ParentId})";
         }
 
         public static NetworkConnection New(int parentId = 0)

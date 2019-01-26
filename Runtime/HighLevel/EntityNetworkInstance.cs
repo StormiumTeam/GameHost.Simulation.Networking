@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -17,13 +16,17 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public Entity Parent;
         public NetworkCommands Commands;
 
-        public NetworkInstanceData(int id, int parentId, Entity parent, InstanceType instanceType, NetworkCommands commands)
+        public uint GnsConnectionId;
+
+        public NetworkInstanceData(int id, int parentId, Entity parent, InstanceType instanceType, NetworkCommands commands, uint gnsConnectionId = 0)
         {
             Id           = id;
             ParentId     = parentId;
             Parent = parent;
             InstanceType = instanceType;
             Commands = commands;
+
+            GnsConnectionId = gnsConnectionId;
         }
 
         public bool IsLocal()
@@ -44,11 +47,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public NetworkInstanceHost(NetworkHost host)
         {
             Host = host;
-        }
-
-        public void Destroy()
-        {
-            Host.Dispose();
         }
     }
 

@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
-using ENet;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.RegularExpressions;
 using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Profiling;
+using Valve.Sockets;
 
 namespace package.stormiumteam.networking.runtime.highlevel
 {
@@ -56,9 +59,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
         private Dictionary<int, Entity>                    m_InstanceToEntity;
+        
+        // Gns.Connection to NetworkConnection.Id
+        internal Dictionary<uint, NativeConnection> UglyPendingServerConnections;
 
         public int InstanceValidQueryId { get; private set; }
-
         public ComponentType   DataType        { get; private set; }
         public ComponentType   SharedDataType  { get; private set; }
         public ComponentType   DataHostType    { get; private set; }
@@ -67,11 +72,29 @@ namespace package.stormiumteam.networking.runtime.highlevel
         public EntityArchetype LocalEntityArchetype { get; private set; }
         public EntityArchetype ForeignEntityArchetype { get; private set; }
 
+        private static void DebugOutputCallback(int type, string message)
+        {
+            Debug.Log($"[Steam Error] [{(ESteamNetworkingSocketsDebugOutputType) type}] {message}");
+        }
+
+        // We don't initialize any library in the instance methods, as there can be multiple worlds running a NetworkManager
+        static NetworkManager()
+        {
+            NativeConnection.StaticCreate();
+            
+            var initializeMsg = new StringBuilder(Library.maxErrorMessageLength);
+            if (!Library.Initialize(initializeMsg))
+            {
+                Debug.LogError($"Couldn't initialize GameNetworkingSockets: {initializeMsg}");
+            }
+            
+            Library.SetDebugCallback((int) ESteamNetworkingSocketsDebugOutputType.Msg, DebugOutputCallback);
+
+            Application.quitting += Library.Deinitialize;
+        }
+        
         protected override void OnCreateManager()
         {
-            ENetPeerConnection.StaticCreate();
-            Library.Initialize();
-            
             DataType               = ComponentType.Create<NetworkInstanceData>();
             SharedDataType         = ComponentType.Create<NetworkInstanceSharedData>();
             DataHostType           = ComponentType.Create<NetworkInstanceHost>();
@@ -82,6 +105,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
             m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
+            UglyPendingServerConnections = new Dictionary<uint, NativeConnection>();
 
             InstanceValidQueryId = QueryTypeManager.Create("IntNetMgr_InstanceValid");
         }
@@ -96,15 +120,17 @@ namespace package.stormiumteam.networking.runtime.highlevel
             StopAll();
             
             m_InstanceToEntity.Clear();
-            
-            Library.Deinitialize();
         }
 
-        public StartServerResult StartServer(IPEndPoint localEndPoint, NetDriverConfiguration driverConfiguration)
+        public StartServerResult StartServer(IPEndPoint localEndPoint)
         {
             var connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
-            var driver      = new NetDriver(driverConfiguration);
-            var bindResult  = driver.Bind(localEndPoint);
+            var driver      = new NetDriver(IntPtr.Zero);
+            var address = new Address();
+            
+            address.SetLocalHost((ushort) localEndPoint.Port);
+            
+            var bindResult  = driver.Listen(address, out var socketId);
             if (bindResult != NetDriverBindError.Success)
             {
                 Debug.Log($"StartServer({localEndPoint}, ...) error -> {(int) bindResult}");
@@ -115,18 +141,14 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     ErrorCode = (int) bindResult
                 };
             }
-            
-            driver.Host.LockDispose = true;
-
-            driver.Listen();
 
             var connection = NetworkConnection.New();
             var instanceId = connection.Id;
 
             var entity = EntityManager.CreateEntity(LocalEntityArchetype);
-            var cmds = new NetworkCommands(typeof(NativeENetHost), driver.Host.NativeData);
+            var cmds = NetworkCommands.CreateFromListenSocket(driver.Sockets.NativeData, socketId);
             EntityManager.SetComponentData(entity, new NetworkInstanceData(connection.Id, 0, default(Entity), InstanceType.LocalServer, cmds));
-            EntityManager.SetComponentData(entity, new NetworkInstanceHost(new NetworkHost(connection, driver.Host.NativeData)));
+            EntityManager.SetComponentData(entity, new NetworkInstanceHost(new NetworkHost(connection, driver.Sockets.NativeData, socketId)));
             EntityManager.SetSharedComponentData(entity, new NetworkInstanceSharedData(connections));
             m_InstanceToEntity[instanceId] = entity;
 
@@ -139,17 +161,40 @@ namespace package.stormiumteam.networking.runtime.highlevel
             };
         }
 
-        public StartClientResult StartClient(IPEndPoint peerEndPoint, IPEndPoint localEndPoint, NetDriverConfiguration configuration)
+        public StartClientResult StartClient(IPEndPoint peerEndPoint)
         {
-            configuration.PeerLimit = 1;
-            
             var connections = new NativeList<NetworkConnection>(1, Allocator.Persistent);
             var serverConnections = new NativeList<NetworkConnection>(1, Allocator.Persistent);
-            var driver      = new NetDriver(configuration);
-            var bindResult  = driver.Bind(localEndPoint);
+            var driver      = new NetDriver(IntPtr.Zero);
+            
+            var peerAddress = new Address();
+            if (peerEndPoint.AddressFamily == AddressFamily.InterNetwork)
+            {
+                Debug.Log("Set IPV4");
+                peerAddress.SetIPv4(peerEndPoint.Address.ToString(), (ushort) peerEndPoint.Port);
+            }
+            else if (peerEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                Debug.Log("Set IPV6");
+                peerAddress.SetIPv6(peerEndPoint.Address.ToString(), (ushort) peerEndPoint.Port);
+            }
+            else
+            {
+                Debug.LogError($"addressFamily={peerEndPoint.AddressFamily}");
+
+                return new StartClientResult
+                {
+                    IsError   = true,
+                    ErrorCode = -8
+                };
+            }
+
+            var bindResult  = driver.Connect(peerAddress, out var serverConnectionId);
+            Debug.Log($"ServerId: {serverConnectionId}");
+            var socketPtr = driver.Sockets.NativeData;
             if (bindResult != NetDriverBindError.Success)
             {
-                Debug.Log($"StartClient({localEndPoint}, ...) error -> {(int) bindResult}");
+                Debug.Log($"StartClient({peerEndPoint}) error -> {(int) bindResult}");
 
                 return new StartClientResult
                 {
@@ -158,17 +203,16 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 };
             }
 
-            driver.Host.LockDispose = true;
-
-            // Connect to the server, and get the server peer
-            var peer = driver.Connect(peerEndPoint);
             // Get the server peer connection data struct (used for internal stuff).
-            ENetPeerConnection serverPeerConnection;
-            if (ENetPeerConnection.GetOrCreate(peer, out serverPeerConnection))
+            NativeConnection serverNativeCon;
+            if (NativeConnection.GetOrCreate(socketPtr, serverConnectionId, out serverNativeCon))
             {
                 throw new InvalidOperationException();
             }
-            var serverCon = serverPeerConnection.Connection;
+            var serverCon = serverNativeCon.Connection;
+            
+            // this is ugly but we need to do that.
+            UglyPendingServerConnections[serverConnectionId] = serverNativeCon;
 
             // Create a new client connection
             var clientCon = NetworkConnection.New(serverCon.Id);
@@ -177,14 +221,14 @@ namespace package.stormiumteam.networking.runtime.highlevel
             serverConnections.Add(clientCon);
 
             var serverEntity = EntityManager.CreateEntity(ForeignEntityArchetype);
-            var serverCmds = new NetworkCommands(typeof(Peer), peer.NativeData);
-            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server, serverCmds));
+            var serverCmds = NetworkCommands.CreateFromConnection(socketPtr, serverConnectionId);
+            EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server, serverCmds, serverConnectionId));
             EntityManager.SetSharedComponentData(serverEntity, new NetworkInstanceSharedData(serverConnections));
             
             var clientEntity = EntityManager.CreateEntity(LocalEntityArchetype);
-            var clientCmds = new NetworkCommands(typeof(NativeENetHost), driver.Host.NativeData);
+            var clientCmds = NetworkCommands.CreateFromListenSocket(socketPtr, 0); // we need to find a way to get the socket id
             EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientCon.Id, clientCon.ParentId, serverEntity, InstanceType.LocalClient, clientCmds));
-            EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientCon, driver.Host.NativeData)));
+            EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientCon, driver.Sockets.NativeData, 0)));
             EntityManager.SetSharedComponentData(clientEntity, new NetworkInstanceSharedData(connections));
 
             var queryBuffer = EntityManager.GetBuffer<QueryBuffer>(serverEntity);
@@ -286,13 +330,16 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         public void Stop(Entity instance, bool deleteChildConnections = true)
         {
-            void FreeConnection(int instanceId)
+            void FreeConnection(long netConId)
             {
-                ENetPeerConnection peerConnection;
-                if (ENetPeerConnection.TryGet(instanceId, out peerConnection))
+                if (NativeConnection.TryGet(netConId, out var peerConnection))
                 {
                     Debug.Log("Freeing...");
-                    ENetPeerConnection.Free(peerConnection);
+                    NativeConnection.Free(peerConnection);
+                }
+                else
+                {
+                    Debug.LogError($"???? {netConId}");
                 }
             }
             
@@ -303,7 +350,22 @@ namespace package.stormiumteam.networking.runtime.highlevel
             }
             
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instance);
+            if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
+            {
+                var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
+                var host        = instanceHost.Host;
+                //host.Flush();
+                //host.Dispose();
+            }
             
+            Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
+            
+            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
+            sharedData.Connections.Dispose();
+            sharedData.MappedConnections.Clear();
+
+            FreeConnection(instanceData.Id);
+
             var connectionList = EntityManager.GetBuffer<ConnectedInstance>(instance);
             for (var i = 0; i != connectionList.Length; i++)
             {
@@ -315,23 +377,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                 data.Commands.SendDisconnectSignal(0);
             }
-            
-            if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
-            {
-                var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
-                var host        = instanceHost.Host;
-                
-                host.Flush();
-                host.Dispose();
-            }
-            
-            Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
-            
-            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
-            sharedData.Connections.Dispose();
-            sharedData.MappedConnections.Clear();
-
-            FreeConnection(instanceData.Id);
 
             // Destroy all connections that are linked to the target instance.
             if (deleteChildConnections && instanceData.IsLocal())
@@ -404,6 +449,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     networkComponentSystem.OnNetworkInstanceAdded(instanceId, entity);
                 }
             }
+        }
+
+        public uint GetGnsId(int dataParentId)
+        {
+            return 0;
         }
     }
 }

@@ -45,7 +45,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public void Write<T>(T val)
             where T : struct
-        {
+        {            
             var size = Unsafe.SizeOf<T>();
             var it = 0;
 

@@ -10,8 +10,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
     {
         None = 0,
         DataReceived = 1,
-        Connected = 2,
-        Disconnected = 3
+        Connecting = 2,
+        Connected = 3,
+        Disconnected = 4
     }
     
     public unsafe struct NetworkEvent

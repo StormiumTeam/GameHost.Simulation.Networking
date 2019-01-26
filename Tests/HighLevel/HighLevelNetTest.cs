@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Linq;
-using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared.utils;
 using Unity.Burst;
@@ -21,36 +20,54 @@ namespace package.stormiumteam.networking.Tests.HighLevel
         private World m_ClientWorld;
 
         private void Start()
-        {   
-            if (!Library.Initialize()) Debug.LogWarning("Couldn't initialize ENet");
-            
-            m_ServerWorld = new World("Server");
-            m_ClientWorld = new World("Client");
-
-            // Copy the systems into our new worlds
-            foreach (var sbm in World.Active.BehaviourManagers)
+        {
+            // Server
+            if (Application.isEditor)
             {
-                m_ServerWorld.GetOrCreateManager(sbm.GetType());
-                m_ClientWorld.GetOrCreateManager(sbm.GetType());
+                m_ServerWorld = new World("Server");
+                
+                foreach (var sbm in World.Active.BehaviourManagers)
+                {
+                    m_ServerWorld.GetOrCreateManager(sbm.GetType());
+                }
+                
+                m_ServerCode = new CreateServerCode(m_ServerWorld);
+                m_ServerCode.Start(); 
+
             }
-            
-            m_ServerCode = new CreateServerCode(m_ServerWorld);
-            m_ClientCode = new CreateClientCode(m_ClientWorld);
-            
+            else
+            {
+                m_ClientWorld = new World("Client");
+
+                // Copy the systems into our new worlds
+                foreach (var sbm in World.Active.BehaviourManagers)
+                {
+                    m_ClientWorld.GetOrCreateManager(sbm.GetType());
+                }
+
+                m_ClientCode = new CreateClientCode(m_ClientWorld);
+                m_ClientCode.Start();
+            }
+
             ScriptBehaviourUpdateOrder.UpdatePlayerLoop(World.AllWorlds.ToArray());
-            
-            m_ServerCode.Start(); 
-            m_ClientCode.Start();
         }
 
         private void Update()
         {
-            m_ServerCode.Update();
-            m_ClientCode.Update();
+            if (Application.isEditor)
+            {
+                m_ServerCode.Update();
+            }
+            else
+            {
+                m_ClientCode.Update();
+            }
         }
-        
+
         private void OnGUI()
         {
+            return;
+            
             GUILayout.BeginVertical();
             if (m_ServerCode.ServerInstance != Entity.Null)
             {
@@ -89,11 +106,6 @@ namespace package.stormiumteam.networking.Tests.HighLevel
             }
 
             GUILayout.EndVertical();
-        }
-
-        private void OnDestroy()
-        {            
-            Library.Deinitialize();
         }
     }
 } 

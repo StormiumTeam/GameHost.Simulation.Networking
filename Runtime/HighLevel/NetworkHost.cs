@@ -1,12 +1,11 @@
-﻿#define NETWORKING_ENET
-
-using System;
+﻿using System;
 using System.Diagnostics;
-using ENet;
 using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
+using Valve.Sockets;
 using Debug = UnityEngine.Debug;
 
 namespace package.stormiumteam.networking.runtime.highlevel
@@ -22,33 +21,23 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
     public static class DeliveryExtensions
     {
-        public static PacketFlags ToENetPacketFlags(this Delivery delivery)
+        public static SendType ToGnsSendTypeFlags(this Delivery delivery)
         {
-            var flags = default(PacketFlags);
-            
-            if ((delivery & Delivery.Reliable) != 0 && (delivery & Delivery.Unreliable) == 0) 
-                flags |= PacketFlags.Reliable;
-            if ((delivery & Delivery.Unsequenced) != 0) 
-                flags |= PacketFlags.Unsequenced;
-
-            return flags;
+            return (delivery & Delivery.Reliable) != 0 ? SendType.Reliable : SendType.Unreliable;
         }
     }
 
-    public unsafe struct NetworkHost : IDisposable
+    public unsafe struct NetworkHost
     {
-#if NETWORKING_ENET
-        public NativeENetHost Native;
-#endif
+        public IntPtr NativePtr;
         public NetworkConnection HostConnection;
+        public uint Socket;
 
-        public NetworkHost(NetworkConnection hostConnection, IntPtr data)
+        public NetworkHost(NetworkConnection hostConnection, IntPtr native, uint socket)
         {
-#if NETWORKING_ENET
-            Native = new NativeENetHost(data);
-#endif
-            
+            NativePtr = native;
             HostConnection = hostConnection;
+            Socket = socket;
         }
 
         [BurstDiscard]
@@ -78,7 +67,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 
                 foreignCmds = new NetworkCommands(1, peer.NativeData);
                 
-                peer.Timeout(Library.timeoutLimit, 500, 2500);
+                peer.Timeout(3, 1000, 5000);
             }
 
             if (enetPeerConnection.IsCreated)
@@ -136,10 +125,19 @@ namespace package.stormiumteam.networking.runtime.highlevel
             return code;
         }
 
-        public void Broadcast(DataBufferWriter buffer, Delivery delivery, byte channel = 0)
+        public void BatchSend(DataBufferWriter buffer, Delivery delivery, in NativeArray<uint> connections, ref NativeArray<Result> results)
         {
             if (delivery == Delivery.Error) throw new InvalidOperationException("Invalid delivery type");
-            
+
+            for (var i = 0; i != connections.Length; i++)
+            {
+                var con = connections[i];
+                var bufferPtr = buffer.GetSafePtr();
+                var bufferCnt = (uint) buffer.Length;
+                var sendType = delivery.ToGnsSendTypeFlags();
+                
+                Native.SteamAPI_ISteamNetworkingSockets_SendMessageToConnection(NativePtr, con, bufferPtr, bufferCnt, sendType);
+            }
 #if NETWORKING_ENET
             var packet = new Packet();
             
@@ -147,16 +145,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             
             Native.Broadcast(channel, ref packet);
 #endif
-        }
-
-        public void Flush()
-        {
-            Native.Flush();
-        }
-        
-        public void Dispose()
-        {
-            Native.Dispose();
         }
     }
 }
