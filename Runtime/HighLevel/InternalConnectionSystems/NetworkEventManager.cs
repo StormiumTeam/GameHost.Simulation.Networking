@@ -85,6 +85,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                 eventDynBuffer.Clear();
 
+                host.Flush();
+                
                 var netEvent = default(NetworkEvent);
                 while (host.GetNextEvent(ref netEvent) > 0)
                 {

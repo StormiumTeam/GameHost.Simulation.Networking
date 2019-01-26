@@ -303,22 +303,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             }
             
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instance);
-            if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
-            {
-                var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
-                var host        = instanceHost.Host;
-                host.Flush();
-                host.Dispose();
-            }
             
-            Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
-            
-            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
-            sharedData.Connections.Dispose();
-            sharedData.MappedConnections.Clear();
-
-            FreeConnection(instanceData.Id);
-
             var connectionList = EntityManager.GetBuffer<ConnectedInstance>(instance);
             for (var i = 0; i != connectionList.Length; i++)
             {
@@ -330,6 +315,23 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                 data.Commands.SendDisconnectSignal(0);
             }
+            
+            if (instanceData.IsLocal() && EntityManager.HasComponent(instance, DataHostType))
+            {
+                var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
+                var host        = instanceHost.Host;
+                
+                host.Flush();
+                host.Dispose();
+            }
+            
+            Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
+            
+            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
+            sharedData.Connections.Dispose();
+            sharedData.MappedConnections.Clear();
+
+            FreeConnection(instanceData.Id);
 
             // Destroy all connections that are linked to the target instance.
             if (deleteChildConnections && instanceData.IsLocal())

@@ -15,8 +15,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             {
                 PeerLimit         = 32,
                 ChannelLimit      = (int) Library.maxChannelCount,
-                IncomingBandwidth = int.MaxValue,
-                OutgoingBandwidth = int.MaxValue,
+                IncomingBandwidth = 0,
+                OutgoingBandwidth = 0,
             };
         }
     }
@@ -94,7 +94,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 Configuration.OutgoingBandwidth);
 
             //Host.PreventConnections(true);
-            Host.EnableCompression();
+            //Host.EnableCompression();
 
             return NetDriverBindError.Success;
         }
@@ -112,7 +112,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public Peer Connect(Address address)
         {
             //Host.PreventConnections(false);
-            Host.EnableCompression();
+            //Host.EnableCompression();
             
             return Host.Connect(address);
         }

@@ -65,7 +65,7 @@ namespace ENet
 
             Native.enet_host_flush(m_NativeHost);
         }
-
+        
         public void Dispose()
         {
             if (m_NativeHost == IntPtr.Zero) return;

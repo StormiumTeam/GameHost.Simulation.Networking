@@ -78,7 +78,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 
                 foreignCmds = new NetworkCommands(1, peer.NativeData);
                 
-                peer.Timeout(3, 1000, 5000);
+                peer.Timeout(Library.timeoutLimit, 500, 2500);
             }
 
             if (enetPeerConnection.IsCreated)
