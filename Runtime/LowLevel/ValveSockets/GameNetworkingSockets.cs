@@ -25,7 +25,7 @@ namespace Valve.Sockets
         {
             IntPtr msgPtr;
             
-            var count = Native.SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket(NativePtr, TargetListenSocket, out msgPtr, byte.MaxValue);
+            var count = Native.SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnListenSocket(NativePtr, TargetListenSocket, out msgPtr, 1);
             if (count < 0)
                 throw new InvalidOperationException();
             
@@ -36,7 +36,7 @@ namespace Valve.Sockets
         {
             IntPtr msgPtr;
             
-            var count = Native.SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection(NativePtr, connection, out msgPtr, byte.MaxValue);
+            var count = Native.SteamAPI_ISteamNetworkingSockets_ReceiveMessagesOnConnection(NativePtr, connection, out msgPtr, 1); 
             if (count < 0)
                 throw new InvalidOperationException($"Invalid connection ({connection}) handle");
             

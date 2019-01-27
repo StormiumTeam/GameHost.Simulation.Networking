@@ -128,7 +128,26 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var driver      = new NetDriver(IntPtr.Zero);
             var address = new Address();
             
-            address.SetLocalHost((ushort) localEndPoint.Port);
+            if (localEndPoint.AddressFamily == AddressFamily.InterNetwork)
+            {
+                Debug.Log("Set IPV4");
+                address.SetIPv4(localEndPoint.Address.ToString(), (ushort) localEndPoint.Port);
+            }
+            else if (localEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                Debug.Log("Set IPV6");
+                address.SetIPv6(localEndPoint.Address.ToString(), (ushort) localEndPoint.Port);
+            }
+            else
+            {
+                Debug.LogError($"addressFamily={localEndPoint.AddressFamily}");
+
+                return new StartServerResult
+                {
+                    IsError   = true,
+                    ErrorCode = -8
+                };
+            }
             
             var bindResult  = driver.Listen(address, out var socketId);
             if (bindResult != NetDriverBindError.Success)

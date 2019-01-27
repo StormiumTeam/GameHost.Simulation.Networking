@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared.utils;
 using Unity.Burst;
@@ -46,12 +47,15 @@ namespace package.stormiumteam.networking.runtime.highlevel
         protected override void OnCreateManager()
         {
             m_EventNotifications = new NativeList<NewEventNotification>(8, Allocator.Persistent);
+            m_RunConnectionCallbacks = new List<StatusInfo>();
             m_Group = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceHost));
         }
 
         protected override void OnDestroyManager()
         {
             m_EventNotifications.Dispose();
+            m_RunConnectionCallbacks.Clear();
+            m_RunConnectionCallbacks = null;
         }
 
         public override void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
@@ -73,15 +77,26 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     continue;
                 }
                 
-                Debug.Log($"Received a message from NativeConnection={msg.connection}, peerId={peerConnection.Connection.ToString()}, l={msg.length}");
+                //Debug.Log($"Received a message from NativeConnection={msg.connection}, peerId={peerConnection.Connection.ToString()}, l={msg.length}");
                 
                 var netCmd = NetworkCommands.CreateFromConnection(execution.NativePtr, msg.connection);
                 var ev = new NetworkEvent(NetworkEventType.DataReceived, peerConnection.Connection, netCmd);
-                
-                ev.SetData((byte*) msg.data, msg.length);
+
+                var cpyData = UnsafeUtility.Malloc(msg.length, UnsafeUtility.AlignOf<NetworkingMessage>(), Allocator.TempJob);
+                UnsafeUtility.MemCpy(cpyData, (void*) msg.data, msg.length);
+                ev.SetData((byte*) cpyData, msg.length);
+
+                msg.release = messages.Pointer + (UnsafeUtility.SizeOf<NetworkingMessage>() * i);
+                msg.Destroy();
                 
                 evBuffer.Add(new EventBuffer(ev));
             }
+        }
+
+        private List<StatusInfo> m_RunConnectionCallbacks;
+        private void OnCallback(StatusInfo statusInfo, IntPtr ctx)
+        {
+            m_RunConnectionCallbacks.Add(statusInfo);
         }
 
         protected override void OnUpdate()
@@ -110,43 +125,62 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     // This is seriously ugly and a big hack, but we need to do that
                     // as the GNS api will reset our peer at first connection (problematic for Client To Server relation).
                     var pendingConnections = networkMgr.UglyPendingServerConnections;
-                    
-                    void Callback(StatusInfo info, IntPtr ctx)
+
+                    // Clear previous data from buffer
+                    for (var j = 0; j != evBuffer.Length; j++)
                     {
+                        var ev = evBuffer[j].Event;
+                        if (ev.Type == NetworkEventType.DataReceived)
+                        {
+                            UnsafeUtility.Free(ev.Data, Allocator.TempJob);
+                        }
+                    }
+
+                    m_RunConnectionCallbacks.Clear();
+                    evBuffer.Clear();
+                    
+                    NmLkSpan<NetworkingMessage> messages;
+                    
+                    execution.RunConnectionStatusCallback(OnCallback, IntPtr.Zero);
+
+                    for (var j = 0; j != m_RunConnectionCallbacks.Count; j++)
+                    {
+                        var info = m_RunConnectionCallbacks[j];
+
                         NativeConnection peerConnection;
-                        
+
                         if (!pendingConnections.ContainsKey(info.connection))
                         {
                             if (!NativeConnection.GetOrCreate(nativePtr, info.connection, out peerConnection))
                             {
                                 Debug.Log("We allocated a new NativeCollection for #" + info.connection);
                             }
-                            
+
                             execution.SetConnectionData(info.connection, foreignConnection.Id);
                         }
                         else
                         {
                             peerConnection = pendingConnections[info.connection];
-                            
+
                             //pendingConnections.Remove(info.connection);
                         }
 
                         if (peerConnection.IsCreated)
                         {
-                            foreignConnection             = peerConnection.Connection;
-                            foreignConnection.ParentId    = hostConnection.Id;
-                            peerConnection.Connection = foreignConnection;
+                            foreignConnection          = peerConnection.Connection;
+                            foreignConnection.ParentId = hostConnection.Id;
+                            peerConnection.Connection  = foreignConnection;
                         }
 
                         var newNetEvent = new NetworkEvent
                         {
-                            Invoker = foreignConnection,
+                            Invoker     = foreignConnection,
                             InvokerCmds = NetworkCommands.CreateFromConnection(nativePtr, info.connection)
                         };
-                        
+
                         //
                         execution.SetConnectionData(info.connection, foreignConnection.Id);
-                        
+
                         switch (info.connectionInfo.state)
                         {
                             // For now accept any connection.
@@ -163,7 +197,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                                         execution.CloseConnection(info.connection);
                                     }
-                                    
+
                                     Debug.Log("Accepted.");
                                 }
                                 else
@@ -176,42 +210,43 @@ namespace package.stormiumteam.networking.runtime.highlevel
                             case ConnectionState.Connected:
                             {
                                 newNetEvent.Type = NetworkEventType.Connected;
-                                
+
                                 Debug.Log($"connection#{info.connection} has connected!");
                                 break;
                             }
-                            
+
                             case ConnectionState.ClosedByPeer:
                             {
                                 newNetEvent.Type = NetworkEventType.Disconnected;
 
                                 if (!execution.CloseConnection(info.connection))
                                     Debug.LogError($"execution.CloseConnection#{info.connection}=false (expected=true)");
-                                    
+
                                 break;
                             }
                         }
-                        
+
                         evBuffer.Add(new EventBuffer(newNetEvent));
                     }
 
-                    evBuffer.Clear();
-
-                    NmLkSpan<NetworkingMessage> messages;
-                    
-                    execution.RunConnectionStatusCallback(Callback, IntPtr.Zero);
-
                     if ((data.InstanceType & InstanceType.Server) != 0)
                     {
-                        messages = execution.ReceiveMessageOnListenSocket();
-                        AddMessagesAsEvent(messages, evBuffer, execution);
+                        // This is ugly, but we need to limit the rate to one message per function
+                        // Or else we will get strange bug when we will read the second message.
+                        while ((messages = execution.ReceiveMessageOnListenSocket()).Length > 0)
+                        {
+                            AddMessagesAsEvent(messages, evBuffer, execution);
+                        }
                     }
                     else
                     {
                         var serverConnection = EntityManager.GetComponentData<NetworkInstanceData>(data.Parent).GnsConnectionId;
-                            
-                        messages = execution.ReceiveMessageOnConnection(serverConnection);
-                        AddMessagesAsEvent(messages, evBuffer, execution);
+                        // This is ugly, but we need to limit the rate to one message per function
+                        // Or else we will get strange bug when we will read the second message.
+                        while ((messages = execution.ReceiveMessageOnConnection(serverConnection)).Length > 0)
+                        {
+                            AddMessagesAsEvent(messages, evBuffer, execution);
+                        }
                     }
                 }
             }
