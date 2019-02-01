@@ -146,5 +146,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
             Native.Broadcast(channel, ref packet);
 #endif
         }
+
+        public void Stop()
+        {
+            if (Socket == 0)
+                return;
+
+            Native.SteamAPI_ISteamNetworkingSockets_CloseListenSocket(NativePtr, Socket);
+        }
     }
 }

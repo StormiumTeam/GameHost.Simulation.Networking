@@ -94,6 +94,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         }
 
         private List<StatusInfo> m_RunConnectionCallbacks;
+        
         private void OnCallback(StatusInfo statusInfo, IntPtr ctx)
         {
             m_RunConnectionCallbacks.Add(statusInfo);

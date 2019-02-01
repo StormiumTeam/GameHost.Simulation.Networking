@@ -373,8 +373,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 var instanceHost = EntityManager.GetComponentData<NetworkInstanceHost>(instance);
                 var host        = instanceHost.Host;
-                //host.Flush();
-                //host.Dispose();
+                host.Stop();
             }
             
             Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
