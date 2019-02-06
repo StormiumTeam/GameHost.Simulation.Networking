@@ -10,213 +10,192 @@ using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace package.stormiumteam.networking.runtime.lowlevel
-{    
+{
     public unsafe struct DataBufferMarker
     {
-        public int   Index;
-        public void* Buffer;
-
-        public DataBufferMarker(void* buffer, int index)
-        {
-            Index  = index;
-            Buffer = buffer;
-        }
+        public bool Valid;
+        public int  Index;
 
         public DataBufferMarker(int index)
         {
             Index = index;
-            Buffer = null;
+            Valid = true;
         }
 
         public DataBufferMarker GetOffset(int offset)
         {
-            return new DataBufferMarker(Buffer, Index + offset);
-        }
-    }
-
-    public unsafe struct DataBufferWriterConcurrent
-    {
-        private NativeQueue<byte>.Concurrent m_ByteQueue;
-
-        public DataBufferWriterConcurrent(NativeQueue<byte>.Concurrent byteQueue)
-        {
-            m_ByteQueue = byteQueue;
-        }
-
-        public void Write<T>(T val)
-            where T : struct
-        {            
-            var size = Unsafe.SizeOf<T>();
-            var it = 0;
-
-            var valPtr = (byte*) Unsafe.AsPointer(ref val);
-            while (it < size)
-            {
-                m_ByteQueue.Enqueue(valPtr[it]);
-                it++;
-            }
+            return new DataBufferMarker(Index + offset);
         }
     }
 
     public unsafe partial struct DataBufferWriter : IDisposable
     {
-        [NativeDisableUnsafePtrRestriction]
-        private IntPtr m_BufferPtr;
-        
-        [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction]
-        public NativeArray<byte> FixedBuffer;
-
-        [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction]
-        public NativeList<byte> DynamicBuffer;
-
-        public byte IsDynamic;
-
-        public int Length => IsDynamic == 1 ? DynamicBuffer.Length : FixedBuffer.Length;
-
-        //public IntPtr GetSafePtr() => IsDynamic == 1 ? (IntPtr) DynamicBuffer.GetUnsafePtr() : (IntPtr) FixedBuffer.GetUnsafePtr();
-        public IntPtr GetSafePtr() => m_BufferPtr;
-
-        public DataBufferWriter(NativeList<byte> buffer)
+        internal struct DataBuffer
         {
-            FixedBuffer = default;
-            DynamicBuffer = buffer;
-            IsDynamic = 1;
-
-            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
+            public byte* buffer;
+            public int   length;
+            public int   capacity;
         }
 
-        public DataBufferWriter(Allocator allocator, int capacity = 0)
+        private Allocator   m_Allocator;
+        private DataBuffer* m_Data;
+
+        public int Length
         {
-            IsDynamic     = 1;
-            FixedBuffer   = default;
-            DynamicBuffer = new NativeList<byte>(capacity, allocator);
-            
-            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
+            get => m_Data->length;
+            set => m_Data->length = value;
         }
 
-        public DataBufferWriter(Allocator allocator, bool isDynamic, int capacity = 0)
+        public int Capacity
         {
-            DynamicBuffer = default;
-            FixedBuffer = default;
-            
-            IsDynamic = (byte) (isDynamic ? 1 : 0);
-            if (isDynamic)
+            get => m_Data->capacity;
+            set
             {
-                DynamicBuffer = new NativeList<byte>(capacity, allocator);
-                m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
+                var dataCapacity = m_Data->capacity;
+                if (dataCapacity == value)
+                    return;
+
+                if (dataCapacity > value)
+                    throw new InvalidOperationException("New capacity is shorter than current one");
+
+                var newBuffer = (byte*) UnsafeUtility.Malloc(value, UnsafeUtility.AlignOf<byte>(), m_Allocator);
+
+                UnsafeUtility.MemCpy(newBuffer, m_Data->buffer, m_Data->length);
+                UnsafeUtility.Free(m_Data->buffer, m_Allocator);
+
+                m_Data->buffer   = newBuffer;
+                m_Data->capacity = value;
             }
-            else
-            {
-                FixedBuffer = new NativeArray<byte>(capacity, allocator);
-                m_BufferPtr = (IntPtr) FixedBuffer.GetUnsafePtr();
-            }
+        }
+
+        public IntPtr GetSafePtr() => (IntPtr) m_Data->buffer;
+
+
+        public DataBufferWriter(int capacity, Allocator allocator)
+        {
+            m_Allocator = allocator;
+
+            m_Data           = (DataBuffer*) UnsafeUtility.Malloc(sizeof(DataBuffer), UnsafeUtility.AlignOf<DataBuffer>(), allocator);
+            m_Data->buffer   = (byte*) UnsafeUtility.Malloc(capacity, UnsafeUtility.AlignOf<byte>(), allocator);
+            m_Data->length   = 0;
+            m_Data->capacity = capacity;
         }
 
         public void UpdateReference()
         {
-            if (IsDynamic == 1)
-            {
-                m_BufferPtr   = (IntPtr) DynamicBuffer.GetUnsafePtr();
-            }
-            else
-            {
-                m_BufferPtr = (IntPtr) FixedBuffer.GetUnsafePtr();
-            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetWriteInfo(int size, DataBufferMarker marker)
         {
-            var writeIndex = marker.Buffer == null ? Length : marker.Index;
+            var writeIndex = marker.Valid ? marker.Index : m_Data->length;
+
             TryResize(writeIndex + size);
 
             return writeIndex;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void TryResize(int maxLength)
+        public void TryResize(int newCapacity)
         {
-            if (IsDynamic == 0 || DynamicBuffer.Length >= maxLength) return;
-            
-            DynamicBuffer.ResizeUninitialized(math.max(DynamicBuffer.Length, maxLength));
-            m_BufferPtr = (IntPtr) DynamicBuffer.GetUnsafePtr();
+            if (m_Data->capacity >= newCapacity) return;
+
+            Capacity = newCapacity * 2;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteData(byte* data, int index, int length)
         {
-            UnsafeUtility.MemCpy((void*) IntPtr.Add(m_BufferPtr, index), data, (uint) length);
+            UnsafeUtility.MemCpy(m_Data->buffer + index, data, (uint) length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker WriteDataSafe(byte* data, int writeSize, DataBufferMarker marker)
         {
-            var writeIndex = GetWriteInfo(writeSize, marker);
-            WriteData(data, writeIndex, writeSize);
+            int dataLength = m_Data->length, 
+                writeIndex = math.select(dataLength, marker.Index, marker.Valid);
             
-            return CreateMarker(writeIndex);
+            // Copy from GetWriteInfo()
+
+            var predictedLength = writeIndex + writeSize;
+            
+            // Copy from TryResize()
+            if (m_Data->capacity < predictedLength)
+            {
+                Capacity = predictedLength * 2;
+            }
+            
+            // Copy from WriteData()
+            UnsafeUtility.MemCpy(m_Data->buffer + writeIndex, data, (uint) writeSize);
+
+            m_Data->length = math.max(predictedLength, dataLength);
+            
+            return new DataBufferMarker {Valid = true, Index = writeIndex};
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public DataBufferMarker Write<T>(ref T val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteRef<T>(ref T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : struct
         {
-            //return default;
             return WriteDataSafe((byte*) UnsafeUtility.AddressOf(ref val), UnsafeUtility.SizeOf<T>(), marker);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public DataBufferMarker CpyWrite<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
-            where T : struct
+        public DataBufferMarker WriteValue<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
+            where T : unmanaged
         {
-            //return default;
-            return WriteDataSafe((byte*) UnsafeUtility.AddressOf(ref val), UnsafeUtility.SizeOf<T>(), marker);
+            return WriteDataSafe((byte*) &val, sizeof(T), marker);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker CreateMarker(int index)
-        {
-            return new DataBufferMarker(UnsafeUtility.AddressOf(ref this), index);
+        {            
+            DataBufferMarker marker = default;
+            marker.Valid = true;
+            marker.Index = index;
+            return marker;
         }
 
         public void Dispose()
         {
-            if (IsDynamic == 1) DynamicBuffer.Dispose();
-            else FixedBuffer.Dispose();
+            UnsafeUtility.Free(m_Data->buffer, m_Allocator);
+            UnsafeUtility.Free(m_Data, m_Allocator);
+
+            m_Data = null;
         }
     }
 
     public unsafe partial struct DataBufferWriter
     {
-        public DataBufferMarker Write(byte val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteByte(byte val, DataBufferMarker marker = default(DataBufferMarker))
         {
             return WriteDataSafe((byte*) &val, sizeof(byte), marker);
         }
 
-        public DataBufferMarker Write(short val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteShort(short val, DataBufferMarker marker = default(DataBufferMarker))
         {
             return WriteDataSafe((byte*) &val, sizeof(short), marker);
         }
 
-        public DataBufferMarker Write(int val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteInt(int val, DataBufferMarker marker = default(DataBufferMarker))
         {
             return WriteDataSafe((byte*) &val, sizeof(int), marker);
         }
 
-        public DataBufferMarker Write(long val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteLong(long val, DataBufferMarker marker = default(DataBufferMarker))
         {
             return WriteDataSafe((byte*) &val, sizeof(long), marker);
         }
 
-        public DataBufferMarker Write(string val, Encoding encoding = null, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteString(string val, Encoding encoding = null, DataBufferMarker marker = default(DataBufferMarker))
         {
             fixed (char* strPtr = val)
             {
-                return Write(strPtr, val.Length, encoding, marker);
+                return WriteString(strPtr, val.Length, encoding, marker);
             }
         }
 
-        public DataBufferMarker Write(char* val, int strLength, Encoding encoding = null, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteString(char* val, int strLength, Encoding encoding = null, DataBufferMarker marker = default(DataBufferMarker))
         {
             // If we have a null encoding, let's get the default one (UTF8)
             encoding = encoding ?? Encoding.UTF8;
@@ -234,7 +213,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             // The previous end index before re-writing the data
             var endIndex     = -1;
             var oldStrLength = -1;
-            if (marker.Buffer != null)
+            if (marker.Valid)
             {
                 // Read the data from this buffer
                 var reader = new DataBufferReader(GetSafePtr(), Length);
@@ -266,15 +245,15 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 encoding.GetBytes(val, strLength, (byte*) tempCpyPtr, cpyLength);
 
                 // Write the length of the string to the current index from the marker (or buffer if default)
-                returnMarker = Write(cpyLength, marker);
+                returnMarker = WriteInt(cpyLength, marker);
                 // This integer give us the possilibity to know where will be our next values
                 // If we update the string with a smaller length, we need to know where our next values are.
-                var endMarker = Write(0, returnMarker.GetOffset(sizeof(int)));
+                var endMarker = WriteInt(0, returnMarker.GetOffset(sizeof(int)));
                 // Write the string buffer data
-                Write(strLength, returnMarker.GetOffset(sizeof(int) * 2)); // In future, we should get a better way to define that
+                WriteInt(strLength, returnMarker.GetOffset(sizeof(int) * 2)); // In future, we should get a better way to define that
                 WriteDataSafe((byte*) tempCpyPtr, cpyLength - sizeDiff, returnMarker.GetOffset(sizeof(int) * 3));
                 // Re-write the end integer from end marker
-                Write(endIndex < 0 ? Length : endIndex, endMarker);
+                WriteInt(endIndex < 0 ? Length : endIndex, endMarker);
             }
             catch (Exception ex)
             {
@@ -290,53 +269,53 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             return returnMarker;
         }
 
-        public void WriteDynInteger(ulong integer)
+        public void WriteDynamicInt(ulong integer)
         {
             if (integer == 0)
             {
-                CpyWrite((byte) 0);
+                WriteValue<byte>((byte) 0);
             }
             else if (integer <= byte.MaxValue)
             {
-                Write((byte) sizeof(byte));
-                CpyWrite((byte) integer);
+                WriteByte((byte) sizeof(byte));
+                WriteValue<byte>((byte) integer);
             }
             else if (integer <= ushort.MaxValue)
             {
-                Write((byte) sizeof(ushort));
-                CpyWrite((ushort) integer);
+                WriteByte((byte) sizeof(ushort));
+                WriteValue((ushort) integer);
             }
             else if (integer <= uint.MaxValue)
             {
-                Write((byte) sizeof(uint));
-                CpyWrite((uint) integer);
+                WriteByte((byte) sizeof(uint));
+                WriteValue((uint) integer);
             }
             else
             {
-                Write((byte) sizeof(ulong));
-                CpyWrite(integer);
+                WriteByte((byte) sizeof(ulong));
+                WriteValue(integer);
             }
         }
 
-        public void WriteStatic(DataBufferWriter dataBuffer)
+        public void WriteBuffer(DataBufferWriter dataBuffer)
         {
             WriteDataSafe((byte*) dataBuffer.GetSafePtr(), dataBuffer.Length, default(DataBufferMarker));
         }
         
-        public void WriteStatic(DataBufferWriterFixed dataBufferFixed)
+        public void WriteBuffer(DataBufferWriterFixed dataBufferFixed)
         {
             WriteDataSafe((byte*) dataBufferFixed.GetSafePtr(), dataBufferFixed.Cursor, default(DataBufferMarker));
         }
 
-        public void WriteStatic(string val, Encoding encoding = null)
+        public void WriteStaticString(string val, Encoding encoding = null)
         {
             fixed (char* strPtr = val)
             {
-                WriteStatic(strPtr, val.Length, encoding);
+                WriteStaticString(strPtr, val.Length, encoding);
             }
         }
 
-        public void WriteStatic(char* val, int strLength, Encoding encoding = null)
+        public void WriteStaticString(char* val, int strLength, Encoding encoding = null)
         {
             // If we have a null encoding, let's get the most used one (UTF8)
             encoding = encoding ?? Encoding.UTF8;
@@ -353,13 +332,20 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 encoding.GetBytes(val, strLength, (byte*) tempCpyPtr, cpyLength);
 
                 // Write the length of the string to the current index of the buffer
-                Write(cpyLength);
-                var endMarker = Write(0);
+                WriteInt(cpyLength);
+                var endMarker = WriteInt(0);
                 // Write the string buffer data
-                Write(strLength); // In future, we should get a better way to define that
+                WriteInt(strLength); // In future, we should get a better way to define that
                 WriteDataSafe((byte*) tempCpyPtr, cpyLength, default(DataBufferMarker));
                 // Re-write the end integer from end marker
-                Write(Length, endMarker);
+                Debug.Log("Length(0)=" + Length);
+                var l = Length;
+                WriteInt(Length, endMarker);
+                Debug.Log("Length(1)=" + Length);
+                
+                Debug.Log($"0= " + cpyLength);
+                Debug.Log($"1= " + l);
+                Debug.Log($"2= " + strLength);
             }
             catch (Exception ex)
             {
@@ -400,7 +386,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         {
             DataPtr       = (byte*) ((IntPtr) reader.DataPtr + start);
             CurrReadIndex = 0;
-            Length        = end;
+            Length        = end - start;
         }
 
         public DataBufferReader(DataBufferWriter writer)
@@ -422,7 +408,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public int GetReadIndex(DataBufferMarker marker)
         {
-            var readIndex = marker.Buffer == null ? CurrReadIndex : marker.Index;
+            var readIndex = !marker.Valid ? CurrReadIndex : marker.Index;
             if (readIndex >= Length)
             {
                 throw new IndexOutOfRangeException("p1");
@@ -433,7 +419,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public int GetReadIndexAndSetNew(DataBufferMarker marker, int size)
         {
-            var readIndex = marker.Buffer == null ? CurrReadIndex : marker.Index;
+            var readIndex = !marker.Valid ? CurrReadIndex : marker.Index;
             if (readIndex >= Length)
             {
                 throw new IndexOutOfRangeException($"p1 r={readIndex} >= l={Length}");
@@ -470,7 +456,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public DataBufferMarker CreateMarker(int index)
         {
-            return new DataBufferMarker(Unsafe.AsPointer(ref this), index);
+            return new DataBufferMarker(index);
         }
 
         public ulong ReadDynInteger(DataBufferMarker marker = default(DataBufferMarker))
@@ -490,10 +476,14 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         {
             var encoding = (UTF8Encoding) Encoding.UTF8;
 
+            if (!marker.Valid)
+                marker = CreateMarker(CurrReadIndex);
+
             var strDataLength     = ReadValue<int>(marker);
             var strDataEnd        = ReadValue<int>(marker.GetOffset(sizeof(int) * 1));
             var strExpectedLength = ReadValue<int>(marker.GetOffset(sizeof(int) * 2));
             var strDataStart      = GetReadIndex(marker.GetOffset(sizeof(int) * 3));
+            
             if (strDataLength <= 0)
             {
                 if (strDataLength < 0)

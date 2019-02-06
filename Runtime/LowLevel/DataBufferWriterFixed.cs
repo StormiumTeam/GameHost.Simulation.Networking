@@ -42,7 +42,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         public void GetWriteInfo(int size, out int writeIndex, DataBufferMarker marker)
         {
             Profiler.BeginSample("Get Write Index");
-            writeIndex = (IntPtr) marker.Buffer == IntPtr.Zero ? Cursor : marker.Index;
+            writeIndex = !marker.Valid ? Cursor : marker.Index;
             Profiler.EndSample();
             Profiler.BeginSample("Set cursor");
             SetCursor(math.max(writeIndex + size, Cursor));
@@ -96,7 +96,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public DataBufferMarker CreateMarker(int index)
         {
-            return new DataBufferMarker(UnsafeUtility.AddressOf(ref this), index);
+            return new DataBufferMarker(index);
         }
 
         public void Dispose()
@@ -153,7 +153,7 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             // The previous end index before re-writing the data
             var endIndex     = -1;
             var oldStrLength = -1;
-            if (marker.Buffer != null)
+            if (marker.Valid)
             {
                 // Read the data from this buffer
                 var reader = new DataBufferReader(m_Buffer);

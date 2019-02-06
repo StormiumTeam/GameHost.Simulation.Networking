@@ -11,19 +11,19 @@ namespace package.stormiumteam.networking.Tests
         public void Test()
         {
                         // test compression
-            using (var sendData = new DataBufferWriter(Allocator.Temp))
+            using (var sendData = new DataBufferWriter(0, Allocator.Temp))
             {
-                sendData.Write((long) 8);
-                sendData.Write((long) 16);
-                sendData.Write((long) 32);
-                sendData.Write((long) 64);
-                sendData.Write((long) 128);
-                sendData.Write((long) 256);
-                sendData.Write((long) 512);
-                sendData.Write((long) 1024);
-                sendData.Write((long) 2048);
-                sendData.Write((long) 4096);
-                sendData.Write((long) 8192);
+                sendData.WriteLong((long) 8);
+                sendData.WriteLong((long) 16);
+                sendData.WriteLong((long) 32);
+                sendData.WriteLong((long) 64);
+                sendData.WriteLong((long) 128);
+                sendData.WriteLong((long) 256);
+                sendData.WriteLong((long) 512);
+                sendData.WriteLong((long) 1024);
+                sendData.WriteLong((long) 2048);
+                sendData.WriteLong((long) 4096);
+                sendData.WriteLong((long) 8192);
 
                 using (var compressed = new UnsafeAllocationLength<byte>(Allocator.Temp, sendData.Length))
                 {

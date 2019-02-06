@@ -213,15 +213,15 @@ namespace package.stormiumteam.networking
                     continue;
 
                 var allPatterns = SourceBank.GetResults();
-                var writer      = new DataBufferWriter(new NativeList<byte>(SourceBank.Count * 2, Allocator.Temp));
-                writer.CpyWrite(MessageType.RegisterPattern);
-                writer.WriteDynInteger((ulong) SourceBank.Count);
+                var writer      = new DataBufferWriter(SourceBank.Count * 2, Allocator.Temp);
+                writer.WriteValue(MessageType.RegisterPattern);
+                writer.WriteDynamicInt((ulong) SourceBank.Count);
 
                 foreach (var result in allPatterns.Values)
                 {
-                    writer.WriteDynInteger((ulong) result.Id);
-                    writer.WriteStatic(result.InternalIdent.Name);
-                    writer.CpyWrite(result.InternalIdent.Version);
+                    writer.WriteDynamicInt((ulong) result.Id);
+                    writer.WriteStaticString(result.InternalIdent.Name);
+                    writer.WriteValue<byte>(result.InternalIdent.Version);
                 }
 
                 if (!data.Commands.Send(writer, new NetworkChannel(0), Delivery.Reliable))
@@ -270,7 +270,7 @@ namespace package.stormiumteam.networking
                         var name    = reader.ReadString();
                         var version = reader.ReadValue<byte>();
 
-                        m_NewPatterns.Add(new NewPattern(data.Id, new PatternResult {Id = id, InternalIdent = new PatternIdent(name, version)}));
+                        m_NewPatterns.Add(new NewPattern(ev.Invoker.Id, new PatternResult {Id = id, InternalIdent = new PatternIdent(name, version)}));
                     }
                 }
             }
