@@ -101,6 +101,8 @@ namespace package.stormiumteam.networking
                 m_ResultLink[patternIdent.Name] = patternResult;
                 PatternRegister?.Invoke(patternResult);
             }
+            
+            Debug.Log($"Register {patternIdent.Name} as {GetPatternResult(patternIdent).Id}");
 
             m_StringLink[patternIdent.Name] = patternIdent;
 

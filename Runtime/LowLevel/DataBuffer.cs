@@ -11,15 +11,21 @@ using UnityEngine.Profiling;
 
 namespace package.stormiumteam.networking.runtime.lowlevel
 {
-    public unsafe struct DataBufferMarker
+    public struct DataBufferMarker
     {
-        public bool Valid;
+        public byte Validity;
         public int  Index;
+
+        public bool Valid
+        {
+            get => Validity == 1;
+            set => Validity = value ? (byte) 1 : (byte) 0;
+        }
 
         public DataBufferMarker(int index)
         {
             Index = index;
-            Valid = true;
+            Validity = 1;
         }
 
         public DataBufferMarker GetOffset(int offset)
@@ -338,14 +344,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 WriteInt(strLength); // In future, we should get a better way to define that
                 WriteDataSafe((byte*) tempCpyPtr, cpyLength, default(DataBufferMarker));
                 // Re-write the end integer from end marker
-                Debug.Log("Length(0)=" + Length);
                 var l = Length;
                 WriteInt(Length, endMarker);
-                Debug.Log("Length(1)=" + Length);
-                
-                Debug.Log($"0= " + cpyLength);
-                Debug.Log($"1= " + l);
-                Debug.Log($"2= " + strLength);
             }
             catch (Exception ex)
             {

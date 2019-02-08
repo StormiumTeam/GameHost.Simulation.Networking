@@ -22,8 +22,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
         private NativeList<CreateInstance> m_CreateInstanceList;
 
         protected override void OnCreateManager()
-        { 
-            m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceSharedData), typeof(EventBuffer));
+        {
+            m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(EventBuffer));
             m_CreateInstanceList = new NativeList<CreateInstance>(Allocator.Persistent);
         }
 
@@ -47,7 +47,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                         continue;
 
                     var entity      = entityArray[i];
-                    var eventBuffer = new NativeArray<EventBuffer>(EntityManager.GetBuffer<EventBuffer>(entity).AsNativeArray(), Allocator.TempJob);
+                    var eventBuffer = EntityManager.GetBuffer<EventBuffer>(entity);
 
                     for (var j = 0; j != eventBuffer.Length; j++)
                     {
@@ -69,8 +69,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
                             m_NetworkManager.Stop(m_NetworkManager.GetNetworkInstanceEntity(ev.Event.Invoker.Id), false);
                         }
                     }
-                    
-                    eventBuffer.Dispose();
                 }
             }
         }

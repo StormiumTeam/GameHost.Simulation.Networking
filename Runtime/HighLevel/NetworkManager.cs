@@ -65,7 +65,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         public int InstanceValidQueryId { get; private set; }
         public ComponentType   DataType        { get; private set; }
-        public ComponentType   SharedDataType  { get; private set; }
         public ComponentType   DataHostType    { get; private set; }
         public ComponentType   QueryBufferType { get; private set; }
         public ComponentType ConnectedBufferType { get; private set; }
@@ -96,12 +95,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
         protected override void OnCreateManager()
         {
             DataType               = ComponentType.Create<NetworkInstanceData>();
-            SharedDataType         = ComponentType.Create<NetworkInstanceSharedData>();
             DataHostType           = ComponentType.Create<NetworkInstanceHost>();
             QueryBufferType        = ComponentType.Create<QueryBuffer>();
             ConnectedBufferType    = ComponentType.Create<ConnectedInstance>();
-            LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, SharedDataType, DataHostType, QueryBufferType, ConnectedBufferType);
-            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, SharedDataType, QueryBufferType, ConnectedBufferType);
+            LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, DataHostType, QueryBufferType, ConnectedBufferType);
+            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, QueryBufferType, ConnectedBufferType);
 
             m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
@@ -168,7 +166,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var cmds = NetworkCommands.CreateFromListenSocket(driver.Sockets.NativeData, socketId);
             EntityManager.SetComponentData(entity, new NetworkInstanceData(connection.Id, 0, default(Entity), InstanceType.LocalServer, cmds));
             EntityManager.SetComponentData(entity, new NetworkInstanceHost(new NetworkHost(connection, driver.Sockets.NativeData, socketId)));
-            EntityManager.SetSharedComponentData(entity, new NetworkInstanceSharedData(connections));
             m_InstanceToEntity[instanceId] = entity;
 
             InternalOnNetworkInstanceAdded(instanceId, entity);
@@ -242,13 +239,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var serverEntity = EntityManager.CreateEntity(ForeignEntityArchetype);
             var serverCmds = NetworkCommands.CreateFromConnection(socketPtr, serverConnectionId);
             EntityManager.SetComponentData(serverEntity, new NetworkInstanceData(serverCon.Id, 0, default(Entity), InstanceType.Server, serverCmds, serverConnectionId));
-            EntityManager.SetSharedComponentData(serverEntity, new NetworkInstanceSharedData(serverConnections));
             
             var clientEntity = EntityManager.CreateEntity(LocalEntityArchetype);
             var clientCmds = NetworkCommands.CreateFromListenSocket(socketPtr, 0); // we need to find a way to get the socket id
             EntityManager.SetComponentData(clientEntity, new NetworkInstanceData(clientCon.Id, clientCon.ParentId, serverEntity, InstanceType.LocalClient, clientCmds));
             EntityManager.SetComponentData(clientEntity, new NetworkInstanceHost(new NetworkHost(clientCon, driver.Sockets.NativeData, 0)));
-            EntityManager.SetSharedComponentData(clientEntity, new NetworkInstanceSharedData(connections));
 
             var queryBuffer = EntityManager.GetBuffer<QueryBuffer>(serverEntity);
             queryBuffer.Add(new QueryBuffer(InstanceValidQueryId, QueryStatus.Waiting));
@@ -280,6 +275,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 ClientInstanceEntity = clientEntity,
                 ServerInstanceEntity = serverEntity
             };
+        }
+        
+        public void CreateFakeForeigner(Entity origin, NetworkInstanceData originData)
+        {
+            var connection = NetworkConnection.New(originData.Id);
+
+            GetIncomingInstance(origin, originData, connection, default);
         }
 
         public GetIncomingInstanceResult GetIncomingInstance(Entity origin, NetworkInstanceData originData, NetworkConnection incomingConnection, 
@@ -317,7 +319,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             var foreignConList = new NativeList<NetworkConnection>(1, Allocator.Persistent);
             foreignEntity  = EntityManager.CreateEntity(ForeignEntityArchetype);
             EntityManager.SetComponentData(foreignEntity, new NetworkInstanceData(incomingConnection.Id, originData.Id, origin, InstanceType.Client, foreignCmds));
-            EntityManager.SetSharedComponentData(foreignEntity, new NetworkInstanceSharedData(foreignConList));
             
             foreignConList.Add(new NetworkConnection(originData.Id, originData.ParentId));
 
@@ -332,7 +333,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             foreignConnectedBuffer.Add(new ConnectedInstance(origin, incomingConnection));
             
             InternalOnNetworkInstanceAdded(incomingConnection.Id, foreignEntity);
-
+            
             return new GetIncomingInstanceResult
             {
                 IsError    = false,
@@ -377,10 +378,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
             }
             
             Debug.Log($"Removing instance, Id={instanceData.Id}, Type={instanceData.InstanceType}");
-            
-            var sharedData = EntityManager.GetSharedComponentData<NetworkInstanceSharedData>(instance);
-            sharedData.Connections.Dispose();
-            sharedData.MappedConnections.Clear();
 
             FreeConnection(instanceData.Id);
 
@@ -399,39 +396,42 @@ namespace package.stormiumteam.networking.runtime.highlevel
             // Destroy all connections that are linked to the target instance.
             if (deleteChildConnections && instanceData.IsLocal())
             {
-                using (var ecb = new EntityCommandBuffer(Allocator.Temp))
+                var entitiesToDestroy = new NativeList<Entity>(Allocator.Temp);
+                
+                var foreignGroup = GetComponentGroup(DataType, QueryBufferType, ConnectedBufferType);
+                var entityArray  = foreignGroup.GetEntityArray();
+                var dataArray    = foreignGroup.GetComponentDataArray<NetworkInstanceData>();
+                for (var i = 0; i != entityArray.Length; i++)
                 {
-                    var foreignGroup = GetComponentGroup(DataType, SharedDataType, QueryBufferType, ConnectedBufferType);
-                    var entityArray  = foreignGroup.GetEntityArray();
-                    var dataArray    = foreignGroup.GetComponentDataArray<NetworkInstanceData>();
-                    for (var i = 0; i != entityArray.Length; i++)
+                    if (
+                        // Destroy clients from server...
+                        (dataArray[i].HasParent() && dataArray[i].Parent == instance)
+                        ||
+                        // Destroy server from client...
+                        (instanceData.HasParent() && instanceData.Parent == entityArray[i])
+                    )
                     {
-                        if (
-                            // Destroy clients from server...
-                            (dataArray[i].HasParent() && dataArray[i].Parent == instance)
-                            ||
-                            // Destroy server from client...
-                            (instanceData.HasParent() && instanceData.Parent == entityArray[i])
-                        )
-                        {
-                            FreeConnection(dataArray[i].Id);
+                        FreeConnection(dataArray[i].Id);
 
-                            dataArray[i].Commands.SendDisconnectSignal(0);
-                            
-                            ecb.DestroyEntity(entityArray[i]);
-                            if (m_InstanceToEntity.ContainsKey(dataArray[i].Id))
-                            {
-                                m_InstanceToEntity[dataArray[i].Id] = default;
-                            }
-                            else
-                            {
-                                Debug.LogWarning($"Problem with {dataArray[i].Id} ({dataArray[i].InstanceType})");
-                            }
+                        dataArray[i].Commands.SendDisconnectSignal(0);
+                        
+                        entitiesToDestroy.Add(entityArray[i]);
+
+                        if (m_InstanceToEntity.ContainsKey(dataArray[i].Id))
+                        {
+                            m_InstanceToEntity[dataArray[i].Id] = default;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"Problem with {dataArray[i].Id} ({dataArray[i].InstanceType})");
                         }
                     }
-
-                    ecb.Playback(EntityManager);
                 }
+                
+                for (var i = 0; i != entitiesToDestroy.Length; i++)
+                    EntityManager.DestroyEntity(entitiesToDestroy[i]);
+                
+                entitiesToDestroy.Dispose();
             }
 
             if (m_InstanceToEntity.ContainsKey(instanceData.Id))
