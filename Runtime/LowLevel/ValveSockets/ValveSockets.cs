@@ -210,35 +210,6 @@ namespace Valve.Sockets {
 	}
 
 	[StructLayout(LayoutKind.Sequential)]
-	public struct Address {
-		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-		public byte[] ip;
-		public ushort port;
-
-		public bool IsLocalHost {
-			get {
-				return Native.SteamAPI_SteamNetworkingIPAddr_IsLocalHost(this);
-			}
-		}
-
-		public string GetIP() {
-			return ip.ParseIP();
-		}
-
-		public void SetLocalHost(ushort port) {
-			Native.SteamAPI_SteamNetworkingIPAddr_SetIPv6LocalHost(ref this, port);
-		}
-
-		public void SetIPv4(string ip, ushort port) {
-			Native.SteamAPI_SteamNetworkingIPAddr_SetIPv4(ref this, ip.ParseIPv4(), port);
-		}
-
-		public void SetIPv6(string ip, ushort port) {
-			Native.SteamAPI_SteamNetworkingIPAddr_SetIPv6(ref this, ip.ParseIPv6(), port);
-		}
-	}
-
-	[StructLayout(LayoutKind.Sequential)]
 	public struct StatusInfo {
 		private const int callback = Library.socketsCallbacks + 1;
 		public Connection connection;
@@ -530,54 +501,7 @@ namespace Valve.Sockets {
 			}
 		}
 	}
-
-	public static class Extensions {
-		public static uint ParseIPv4(this string ip) {
-			IPAddress address = default(IPAddress);
-
-			if (IPAddress.TryParse(ip, out address)) {
-				if (address.AddressFamily != AddressFamily.InterNetwork)
-					throw new Exception("Incorrect format of an IPv4 address");
-			}
-
-			byte[] bytes = address.GetAddressBytes();
-
-			Array.Reverse(bytes);
-
-			return BitConverter.ToUInt32(bytes, 0);
-		}
-
-		public static byte[] ParseIPv6(this string ip) {
-			IPAddress address = default(IPAddress);
-
-			if (IPAddress.TryParse(ip, out address)) {
-				if (address.AddressFamily != AddressFamily.InterNetworkV6)
-					throw new Exception("Incorrect format of an IPv6 address");
-			}
-
-			return address.GetAddressBytes();
-		}
-
-		public static string ParseIP(this byte[] ip) {
-			IPAddress address = new IPAddress(ip);
-			string converted = address.ToString();
-
-			if (converted.Length > 7 && converted.Remove(7) == "::ffff:") {
-				Address ipv4 = default(Address);
-
-				ipv4.ip = ip;
-
-				byte[] bytes = BitConverter.GetBytes(Native.SteamAPI_SteamNetworkingIPAddr_GetIPv4(ipv4));
-
-				Array.Reverse(bytes);
-
-				address = new IPAddress(bytes);
-			}
-
-			return address.ToString();
-		}
-	}
-
+	
 	[SuppressUnmanagedCodeSecurity]
 	internal static class Native {
 		private const string nativeLibrary = "GameNetworkingSockets";

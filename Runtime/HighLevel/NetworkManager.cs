@@ -26,37 +26,15 @@ namespace package.stormiumteam.networking.runtime.highlevel
         LocalServer = Local | Server
     }
 
+    public enum ErrorCode
+    {
+        Ok = 0,
+        InvalidAddress = 1,
+    }
+
     [UpdateInGroup(typeof(UpdateLoop.IntNetworkManager))]
     public unsafe class NetworkManager : ComponentSystem
     {
-        public struct StartServerResult
-        {
-            public bool IsError;
-            public int  ErrorCode;
-
-            public int InstanceId;
-            public Entity Entity;
-        }
-        
-        public struct StartClientResult
-        {
-            public bool IsError;
-            public int  ErrorCode;
-
-            public int ClientInstanceId;
-            public int ServerInstanceId;
-            public Entity ClientInstanceEntity;
-            public Entity ServerInstanceEntity;
-        }
-
-        public struct GetIncomingInstanceResult
-        {
-            public bool IsError;
-            
-            public int InstanceId;
-            public Entity InstanceEntity;
-        }
-
         private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
         private Dictionary<int, Entity>                    m_InstanceToEntity;
         
@@ -64,12 +42,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         internal Dictionary<uint, NativeConnection> UglyPendingServerConnections;
 
         public int InstanceValidQueryId { get; private set; }
-        public ComponentType   DataType        { get; private set; }
-        public ComponentType   DataHostType    { get; private set; }
-        public ComponentType   QueryBufferType { get; private set; }
-        public ComponentType ConnectedBufferType { get; private set; }
-        public EntityArchetype LocalEntityArchetype { get; private set; }
-        public EntityArchetype ForeignEntityArchetype { get; private set; }
+        public EntityArchetype Archetype;
 
         private static void DebugOutputCallback(int type, string message)
         {
@@ -94,12 +67,12 @@ namespace package.stormiumteam.networking.runtime.highlevel
         
         protected override void OnCreateManager()
         {
-            DataType               = ComponentType.Create<NetworkInstanceData>();
-            DataHostType           = ComponentType.Create<NetworkInstanceHost>();
-            QueryBufferType        = ComponentType.Create<QueryBuffer>();
-            ConnectedBufferType    = ComponentType.Create<ConnectedInstance>();
-            LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, DataHostType, QueryBufferType, ConnectedBufferType);
-            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, QueryBufferType, ConnectedBufferType);
+            Archetype = EntityManager.CreateArchetype
+            (
+                ComponentType.Create<NetworkInstanceData>(),
+                ComponentType.Create<QueryBuffer>(),
+                ComponentType.Create<ConnectedInstance>()
+            );
 
             m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
@@ -120,11 +93,13 @@ namespace package.stormiumteam.networking.runtime.highlevel
             m_InstanceToEntity.Clear();
         }
 
-        public StartServerResult StartServer(IPEndPoint localEndPoint)
+        public ErrorCode StartServer(IPEndPoint localEndPoint, out Entity entity)
         {
+            entity = default;
+            
             var connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
             var driver      = new NetDriver(IntPtr.Zero);
-            var address = new Address();
+            var address = new Address(localEndPoint);
             
             if (localEndPoint.AddressFamily == AddressFamily.InterNetwork)
             {
@@ -140,11 +115,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 Debug.LogError($"addressFamily={localEndPoint.AddressFamily}");
 
-                return new StartServerResult
-                {
-                    IsError   = true,
-                    ErrorCode = -8
-                };
+                return ErrorCode.InvalidAddress;
             }
             
             var bindResult  = driver.Listen(address, out var socketId);
