@@ -3,19 +3,15 @@ This readme is still in WIP
 # StormiumTeam Networking
 
 This project was designed for Stormium, but it can be used on other games.  
-The backend is for now based on ENet (with a support for new multiplayer library from unity soon.).
+The backend is for now based on GameNetworkingSockets (with a support for new multiplayer library from unity soon and possibilty to add your own library.).
+
+GameNetworkingSockets: https://github.com/ValveSoftware/GameNetworkingSockets
+Wrapper (I modified it a bit): https://github.com/nxrighthere/ValveSockets-CSharp
 
 ## Links
 
-...
+- [Documentation](Documentation/GettingStarted.md)
 
 **Used for:**
-<html>
-    <p align="center">
-    <img
-    src="https://orig00.deviantart.net/6b55/f/2018/328/a/4/stlogo1_by_guerro323-dcsrj1j.png" alt="Super Logo!" height="128" />
-    </p>
-    <p align="center">
-    <img src="https://orig00.deviantart.net/65f8/f/2018/328/f/5/pataponnewlogo_by_guerro323-dcsriny.png" alt="Super Logo!" height="192" />
-    </p>
-</html>
+
+..
