@@ -26,15 +26,37 @@ namespace package.stormiumteam.networking.runtime.highlevel
         LocalServer = Local | Server
     }
 
-    public enum ErrorCode
-    {
-        Ok = 0,
-        InvalidAddress = 1,
-    }
-
     [UpdateInGroup(typeof(UpdateLoop.IntNetworkManager))]
     public unsafe class NetworkManager : ComponentSystem
     {
+        public struct StartServerResult
+        {
+            public bool IsError;
+            public int  ErrorCode;
+
+            public int InstanceId;
+            public Entity Entity;
+        }
+        
+        public struct StartClientResult
+        {
+            public bool IsError;
+            public int  ErrorCode;
+
+            public int ClientInstanceId;
+            public int ServerInstanceId;
+            public Entity ClientInstanceEntity;
+            public Entity ServerInstanceEntity;
+        }
+
+        public struct GetIncomingInstanceResult
+        {
+            public bool IsError;
+            
+            public int InstanceId;
+            public Entity InstanceEntity;
+        }
+
         private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
         private Dictionary<int, Entity>                    m_InstanceToEntity;
         
@@ -42,7 +64,12 @@ namespace package.stormiumteam.networking.runtime.highlevel
         internal Dictionary<uint, NativeConnection> UglyPendingServerConnections;
 
         public int InstanceValidQueryId { get; private set; }
-        public EntityArchetype Archetype;
+        public ComponentType   DataType        { get; private set; }
+        public ComponentType   DataHostType    { get; private set; }
+        public ComponentType   QueryBufferType { get; private set; }
+        public ComponentType ConnectedBufferType { get; private set; }
+        public EntityArchetype LocalEntityArchetype { get; private set; }
+        public EntityArchetype ForeignEntityArchetype { get; private set; }
 
         private static void DebugOutputCallback(int type, string message)
         {
@@ -54,25 +81,27 @@ namespace package.stormiumteam.networking.runtime.highlevel
         {
             NativeConnection.StaticCreate();
             
+            Library.SetDebugCallback((int) ESteamNetworkingSocketsDebugOutputType.Msg, DebugOutputCallback);
+            
+            Debug.Log("Launch GNS!");
+            
             var initializeMsg = new StringBuilder(Library.maxErrorMessageLength);
             if (!Library.Initialize(initializeMsg))
             {
                 Debug.LogError($"Couldn't initialize GameNetworkingSockets: {initializeMsg}");
             }
-            
-            Library.SetDebugCallback((int) ESteamNetworkingSocketsDebugOutputType.Msg, DebugOutputCallback);
 
             Application.quitting += Library.Deinitialize;
         }
         
         protected override void OnCreateManager()
         {
-            Archetype = EntityManager.CreateArchetype
-            (
-                ComponentType.Create<NetworkInstanceData>(),
-                ComponentType.Create<QueryBuffer>(),
-                ComponentType.Create<ConnectedInstance>()
-            );
+            DataType               = ComponentType.Create<NetworkInstanceData>();
+            DataHostType           = ComponentType.Create<NetworkInstanceHost>();
+            QueryBufferType        = ComponentType.Create<QueryBuffer>();
+            ConnectedBufferType    = ComponentType.Create<ConnectedInstance>();
+            LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, DataHostType, QueryBufferType, ConnectedBufferType);
+            ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, QueryBufferType, ConnectedBufferType);
 
             m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
@@ -93,13 +122,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
             m_InstanceToEntity.Clear();
         }
 
-        public ErrorCode StartServer(IPEndPoint localEndPoint, out Entity entity)
+        public StartServerResult StartServer(IPEndPoint localEndPoint)
         {
-            entity = default;
-            
             var connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
             var driver      = new NetDriver(IntPtr.Zero);
-            var address = new Address(localEndPoint);
+            var address = new Address();
             
             if (localEndPoint.AddressFamily == AddressFamily.InterNetwork)
             {
@@ -115,7 +142,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 Debug.LogError($"addressFamily={localEndPoint.AddressFamily}");
 
-                return ErrorCode.InvalidAddress;
+                return new StartServerResult
+                {
+                    IsError   = true,
+                    ErrorCode = -8
+                };
             }
             
             var bindResult  = driver.Listen(address, out var socketId);
@@ -293,6 +324,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             
             foreignConList.Add(new NetworkConnection(originData.Id, originData.ParentId));
 
+            Debug.Log($"Set {incomingConnection.Id} in.");
             m_InstanceToEntity[incomingConnection.Id] = foreignEntity;
             
             // Add ConnectedInstance element to origin entity.

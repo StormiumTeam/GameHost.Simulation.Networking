@@ -85,8 +85,6 @@ namespace package.stormiumteam.networking
                 var localBank = GetLocalBank();
                 var exchange = GetLocalExchange(incomingPattern.InstanceId);
                 
-                Debug.Log($"Linking {incomingPattern.PatternResult.InternalIdent.Name} with id {incomingPattern.PatternResult.Id}");
-                
                 instanceBank.ForeignForceLink(incomingPattern.PatternResult);
                 exchange.Set(localBank.GetPatternResult(incomingPattern.PatternResult.InternalIdent).Id, incomingPattern.PatternResult.Id);
             }
@@ -237,7 +235,7 @@ namespace package.stormiumteam.networking
             }
         }
 
-        public unsafe List<NewPattern> GetIncomingMessages()
+        public List<NewPattern> GetIncomingMessages()
         {
             m_NewPatterns.Clear();
 
@@ -259,7 +257,7 @@ namespace package.stormiumteam.networking
                     if (ev.Type != NetworkEventType.DataReceived)
                         continue;
 
-                    var reader  = new DataBufferReader(ev.Data, ev.DataLength);
+                    var reader  = new DataBufferReader(ev.GetDataSafe());
                     var msgType = reader.ReadValue<MessageType>();
                     // Process only 'RegisterPattern' messages.
                     if (msgType != MessageType.RegisterPattern)

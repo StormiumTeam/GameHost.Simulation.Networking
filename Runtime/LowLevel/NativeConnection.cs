@@ -10,9 +10,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 {
     public unsafe struct NativeConnection
     {
-        private void* m_Buffer;
+                private void* m_Buffer;
 
-        private long m_PtrValidation;
         private NetworkConnection m_ConnectionBuffer;
 
         public NetworkConnection Connection
@@ -52,11 +51,9 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
             var connectionData = new NativeConnection();
 
-            var buffer = (NativeConnection*) UnsafeUtility.Malloc(UnsafeUtility.SizeOf<NativeConnection>(),
+            var buffer = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<NativeConnection>(),
                 UnsafeUtility.AlignOf<NativeConnection>(), label);
-            
-            buffer->m_PtrValidation = new IntPtr(buffer).ToInt64();
-            
+
             connectionData.m_Buffer   = buffer;
             connectionData.Connection = netCon;
             if (!s_Connections.TryAdd(netCon.Id, connectionData))
@@ -73,21 +70,16 @@ namespace package.stormiumteam.networking.runtime.lowlevel
 
         public static void Free(NativeConnection connection)
         {
+            Debug.Log("1");
             InternalFree(connection);
+            Debug.Log("2");
             s_Connections.Remove(connection.Connection.Id);
+            Debug.Log("3");
         }
 
         private static void InternalFree(NativeConnection connection)
         {
             Debug.Log($"Freeing NativeConnection ptr={new IntPtr(connection.m_Buffer)} {connection.Connection.ToString()})");
-
-            var buffer = (NativeConnection*) connection.m_Buffer;
-            if (((IntPtr) connection.m_Buffer).ToInt64() != buffer->m_PtrValidation)
-            {
-                Debug.LogError($"Error when freeing connection: {((IntPtr) connection.m_Buffer).ToInt64()} against {connection.m_PtrValidation}");
-                return;
-            }
-            
             UnsafeUtility.Free(connection.m_Buffer, Allocator.Persistent);
         }
 

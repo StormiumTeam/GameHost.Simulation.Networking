@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -11,21 +12,15 @@ using UnityEngine.Profiling;
 
 namespace package.stormiumteam.networking.runtime.lowlevel
 {
-    public struct DataBufferMarker
+    public unsafe struct DataBufferMarker
     {
-        public byte Validity;
+        public bool Valid;
         public int  Index;
-
-        public bool Valid
-        {
-            get => Validity == 1;
-            set => Validity = value ? (byte) 1 : (byte) 0;
-        }
 
         public DataBufferMarker(int index)
         {
             Index = index;
-            Validity = 1;
+            Valid = true;
         }
 
         public DataBufferMarker GetOffset(int offset)
@@ -302,6 +297,108 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 WriteValue(integer);
             }
         }
+        
+        public void WriteDynamicIntWithMask(in ulong r1, in ulong r2)
+        {
+            byte setval(ref DataBufferWriter data, in ulong i)
+            {
+                if (i <= byte.MaxValue)
+                {
+                    data.WriteValue((byte) i);
+                    return 0;
+                }
+
+                if (i <= ushort.MaxValue)
+                {
+                    data.WriteValue((ushort) i);
+                    return 1;
+                }
+
+                if (i <= uint.MaxValue)
+                {
+                    data.WriteValue((uint) i);
+                    return 2;
+                }
+
+                data.WriteValue(i);
+                return 3;
+            }
+
+            var maskMarker = WriteByte(0);
+            var m1         = setval(ref this, r1);
+            var m2         = setval(ref this, r2);
+
+            WriteByte((byte) (m1 | (m2 << 2)), maskMarker);
+        }
+        
+        public void WriteDynamicIntWithMask(in ulong r1, in ulong r2, in ulong r3)
+        {
+            byte setval(ref DataBufferWriter data, in ulong i)
+            {
+                if (i <= byte.MaxValue)
+                {
+                    data.WriteValue((byte) i);
+                    return 0;
+                }
+
+                if (i <= ushort.MaxValue)
+                {
+                    data.WriteValue((ushort) i);
+                    return 1;
+                }
+
+                if (i <= uint.MaxValue)
+                {
+                    data.WriteValue((uint) i);
+                    return 2;
+                }
+
+                data.WriteValue(i);
+                return 3;
+            }
+
+            var maskMarker = WriteByte(0);
+            var m1 = setval(ref this, r1);
+            var m2 = setval(ref this, r2);
+            var m3 = setval(ref this, r3);
+
+            WriteByte((byte) (m1 | (m2 << 2) | (m3 << 4)), maskMarker);
+        }
+
+        public void WriteDynamicIntWithMask(in ulong r1, in ulong r2, in ulong r3, in ulong r4)
+        {
+            byte setval(ref DataBufferWriter data, in ulong i)
+            {
+                if (i <= byte.MaxValue)
+                {
+                    data.WriteValue((byte) i);
+                    return 0;
+                }
+
+                if (i <= ushort.MaxValue)
+                {
+                    data.WriteValue((ushort) i);
+                    return 1;
+                }
+
+                if (i <= uint.MaxValue)
+                {
+                    data.WriteValue((uint) i);
+                    return 2;
+                }
+
+                data.WriteValue(i);
+                return 3;
+            }
+
+            var maskMarker = WriteByte(0);
+            var m1         = setval(ref this, r1);
+            var m2         = setval(ref this, r2);
+            var m3         = setval(ref this, r3);
+            var m4         = setval(ref this, r4);
+
+            WriteByte((byte) (m1 | (m2 << 2) | (m3 << 4) | (m4 << 6)), maskMarker);
+        }
 
         public void WriteBuffer(DataBufferWriter dataBuffer)
         {
@@ -344,8 +441,14 @@ namespace package.stormiumteam.networking.runtime.lowlevel
                 WriteInt(strLength); // In future, we should get a better way to define that
                 WriteDataSafe((byte*) tempCpyPtr, cpyLength, default(DataBufferMarker));
                 // Re-write the end integer from end marker
+                Debug.Log("Length(0)=" + Length);
                 var l = Length;
                 WriteInt(Length, endMarker);
+                Debug.Log("Length(1)=" + Length);
+                
+                Debug.Log($"0= " + cpyLength);
+                Debug.Log($"1= " + l);
+                Debug.Log($"2= " + strLength);
             }
             catch (Exception ex)
             {
@@ -470,6 +573,78 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             if (byteCount == sizeof(ulong)) return ReadValue<ulong>();
 
             throw new InvalidOperationException($"Expected byte count range: [{sizeof(byte)}..{sizeof(ulong)}], received: {byteCount}");
+        }
+        
+        public void ReadDynIntegerFromMask(out ulong r1, out ulong r2)
+        {
+            void getval(ref DataBufferReader data, int mr, ref ulong i)
+            {
+                if (mr == 0) i = data.ReadValue<byte>();
+                if (mr == 1) i = data.ReadValue<ushort>();
+                if (mr == 2) i = data.ReadValue<uint>();
+                if (mr == 3) i = data.ReadValue<ulong>();
+            }
+
+            var mask = ReadValue<byte>();
+            var val1 = (mask & 3);
+            var val2 = (mask & 12) >> 2;
+
+            r1 = default;
+            r2 = default;
+            
+            getval(ref this, val1, ref r1);
+            getval(ref this, val2, ref r2);
+        }
+
+        public void ReadDynIntegerFromMask(out ulong r1, out ulong r2, out ulong r3)
+        {
+            void getval(ref DataBufferReader data, int mr, ref ulong i)
+            {
+                if (mr == 0) i = data.ReadValue<byte>();
+                if (mr == 1) i = data.ReadValue<ushort>();
+                if (mr == 2) i = data.ReadValue<uint>();
+                if (mr == 3) i = data.ReadValue<ulong>();
+            }
+
+            var mask = ReadValue<byte>();
+            var val1 = (mask & 3);
+            var val2 = (mask & 12) >> 2;
+            var val3 = (mask & 48) >> 4;
+
+            r1 = default;
+            r2 = default;
+            r3 = default;
+            
+            getval(ref this, val1, ref r1);
+            getval(ref this, val2, ref r2);
+            getval(ref this, val3, ref r3);
+        }
+        
+        public void ReadDynIntegerFromMask(out ulong r1, out ulong r2, out ulong r3, out ulong r4)
+        {
+            void getval(ref DataBufferReader data, int mr, ref ulong i)
+            {
+                if (mr == 0) i = data.ReadValue<byte>();
+                if (mr == 1) i = data.ReadValue<ushort>();
+                if (mr == 2) i = data.ReadValue<uint>();
+                if (mr == 3) i = data.ReadValue<ulong>();
+            }
+
+            var mask = ReadValue<byte>();
+            var val1 = (mask & 3);
+            var val2 = (mask & 12) >> 2;
+            var val3 = (mask & 48) >> 4;
+            var val4 = (mask & 192) >> 6;
+
+            r1 = default;
+            r2 = default;
+            r3 = default;
+            r4 = default;
+            
+            getval(ref this, val1, ref r1);
+            getval(ref this, val2, ref r2);
+            getval(ref this, val3, ref r3);
+            getval(ref this, val3, ref r4);
         }
 
         public string ReadString(DataBufferMarker marker = default(DataBufferMarker))

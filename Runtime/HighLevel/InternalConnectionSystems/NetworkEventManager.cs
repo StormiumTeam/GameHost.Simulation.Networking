@@ -62,12 +62,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         {
             var instanceData = EntityManager.GetComponentData<NetworkInstanceData>(instanceEntity);
             if (!EntityManager.HasComponent<EventBuffer>(instanceEntity) && instanceData.IsLocal())
-            {
-                var buffer = EntityManager.AddBuffer<EventBuffer>(instanceEntity);
-                
-                buffer.ResizeUninitialized(128);
-                buffer.Clear();
-            }
+                EntityManager.AddBuffer<EventBuffer>(instanceEntity);
         }
 
         private void AddMessagesAsEvent(NmLkSpan<NetworkingMessage> messages, DynamicBuffer<EventBuffer> evBuffer, GnsExecution execution)

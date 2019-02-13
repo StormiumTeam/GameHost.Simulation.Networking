@@ -46,5 +46,10 @@ namespace package.stormiumteam.networking.runtime.highlevel
             Data = data;
             DataLength = length;
         }
+
+        public NativeArray<byte> GetDataSafe()
+        {
+            return NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(Data, DataLength, Allocator.Temp);
+        }
     }
 }

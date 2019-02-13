@@ -7,7 +7,7 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace Valve.Sockets
 {
-	[StructLayout(LayoutKind.Sequential)]
+	/*[StructLayout(LayoutKind.Sequential)]
 	public unsafe struct Address
 	{
 		private const byte IpSize = 16;
@@ -120,5 +120,5 @@ namespace Valve.Sockets
 			fixed (byte* numPtr = s_ByteFromIntTempArray)
 				*(int*) numPtr = value;
 		}
-	}
+	}*/
 }

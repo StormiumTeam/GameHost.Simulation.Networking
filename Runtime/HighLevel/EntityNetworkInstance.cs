@@ -62,6 +62,20 @@ namespace package.stormiumteam.networking.runtime.highlevel
         }
     }
 
+    public struct NetworkInstanceSharedData : ISharedComponentData
+    {
+        public NativeList<NetworkConnection>      Connections;
+        public Dictionary<int, NetworkConnection> MappedConnections;
+
+        public NetworkInstanceSharedData(NativeList<NetworkConnection> connections)
+        {
+            Debug.Assert(connections.IsCreated, "connections.IsCreated");
+
+            Connections       = connections;
+            MappedConnections = new Dictionary<int, NetworkConnection>(connections.Capacity);
+        }
+    }
+
     public struct NetworkInstanceToClient : IComponentData
     {
         public Entity Target;

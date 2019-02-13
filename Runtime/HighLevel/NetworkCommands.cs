@@ -100,11 +100,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 var result = execution.SendToConnection(m_GnsConnectionId, ptr, (uint) length, delivery.ToGnsSendTypeFlags());
                 if (result != Result.OK)
-                {
                     Debug.LogError($"Expected {Result.OK} when sending a message but we got {result}.");
-                    execution.CloseConnection(m_GnsConnectionId);
-                }
-
+                
                 return result == Result.OK;
             }
 

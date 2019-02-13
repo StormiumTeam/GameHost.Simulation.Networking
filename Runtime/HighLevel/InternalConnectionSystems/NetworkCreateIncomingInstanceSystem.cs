@@ -22,7 +22,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         private NativeList<CreateInstance> m_CreateInstanceList;
 
         protected override void OnCreateManager()
-        {
+        { 
             m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(EventBuffer));
             m_CreateInstanceList = new NativeList<CreateInstance>(Allocator.Persistent);
         }
