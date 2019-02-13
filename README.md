@@ -1,14 +1,17 @@
-# package.stormiumteam.networking
+This readme is still in WIP
 
-### Use V2 Branch in the future instead: https://github.com/StormiumTeam/package.stormiumteam.networking/tree/v2_prototype
+# StormiumTeam Networking
 
-This is the original version of this networking library.
-Even if it's more complete than the V2 version, the V1 branch is a complete mess.  
-- Weird code
-- Freeze when someone is connecting (creation of world per instance = system activator)
-- Not compliant to ECS
-- No threading possibility.
-- Hard to update without breaking everything.
-- A lot of allocations.
-- Bad performance.
-- And other things I forgot...
+This project was designed for Stormium, but it can be used on other games.  
+The backend is for now based on GameNetworkingSockets (with a support for new multiplayer library from unity soon and possibilty to add your own library.).
+
+GameNetworkingSockets: https://github.com/ValveSoftware/GameNetworkingSockets   
+Wrapper (I modified it a bit): https://github.com/nxrighthere/ValveSockets-CSharp   
+
+## Links
+
+- [Documentation](Documentation/GettingStarted.md)
+
+**Used for:**
+
+..
