@@ -1,20 +1,18 @@
 # Snapshot
-[What is a snapshot?](#What)
-[How is this done for this library?](#How)
-[Creation of a simple snapshot system](#Creation)
+- [What is a snapshot?](#What)   
+- [How is this done for this library?](#How)   
+- [Creation of a simple snapshot system](#Creation)   
 
 ## What
 ---
-
 todo ...
 
 ## How
 ---
-
 todo ...
 
 ## Creation
---
+---
 
 You'll be mostly interested at sending/receiving entities data.
 Lucky for you, this library provide you two class to get started:
