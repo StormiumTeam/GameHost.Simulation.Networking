@@ -1,6 +1,6 @@
 # Snapshot
-- [What is a snapshot?](#What)   
-- [How is this done for this library?](#How)   
+- [What is a snapshot? (todo)](#What)   
+- [How is this done for this library? (todo)](#How)   
 - [Creation of a simple snapshot system](#Creation)   
 
 ## What
