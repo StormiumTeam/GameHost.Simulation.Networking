@@ -1,9 +1,14 @@
+using System;
+using System.CodeDom;
+using System.CodeDom.Compiler;
+using System.IO;
 using package.stormiumteam.networking;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace StormiumShared.Core.Networking
 {
@@ -14,24 +19,24 @@ namespace StormiumShared.Core.Networking
     public abstract unsafe class SnapshotDataStreamerBase : ComponentSystem, ISnapshotSubscribe, ISnapshotManageForClient
     {
         private PatternResult m_PatternResult;
+        
+        static string GetTypeName(Type type)
+        {
+            var codeDomProvider         = CodeDomProvider.CreateProvider("C#");
+            var typeReferenceExpression = new CodeTypeReferenceExpression(new CodeTypeReference(type));
+            using (var writer = new StringWriter())
+            {
+                codeDomProvider.GenerateCodeFromExpression(typeReferenceExpression, writer, new CodeGeneratorOptions());
+                return writer.GetStringBuilder().ToString();
+            } 
+        }
 
         protected override void OnCreateManager()
         {
-            var className = string.Empty;
-            var outerType = GetType().DeclaringType;
-            while (outerType != null)
-            {
-                className += outerType.Name + ".";
-
-                outerType = outerType.DeclaringType;
-            }
-
-            className += GetType().Name;
-
             World.GetOrCreateManager<AppEventSystem>().SubscribeToAll(this);
             m_PatternResult = World.GetOrCreateManager<NetPatternSystem>()
                                    .GetLocalBank()
-                                   .Register(new PatternIdent($"auto." + GetType().Namespace + "." + className));
+                                   .Register(new PatternIdent($"auto." + GetTypeName(GetType())));
         }
 
         public PatternResult GetSystemPattern()

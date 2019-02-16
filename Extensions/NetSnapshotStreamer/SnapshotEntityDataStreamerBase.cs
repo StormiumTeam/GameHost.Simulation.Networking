@@ -19,6 +19,8 @@ namespace StormiumShared.Core.Networking
         private ComponentDataFromEntityBurstExtensions.CallExistsAsBurst m_StateExistsBurst;
         private ComponentDataFromEntityBurstExtensions.CallExistsAsBurst m_ChangedStateExistsBurst;
 
+        private ComponentGroup m_EntitiesWithoutDataChanged;
+
         static DataBufferMarker WriteDataSafe(ref DataBufferWriter writer, int val)
         {
             return default;
@@ -33,10 +35,24 @@ namespace StormiumShared.Core.Networking
 
             m_StateExistsBurst        = GetExistsCall<TState>();
             m_ChangedStateExistsBurst = GetExistsCall<DataChanged<TState>>();
+            
+            World.GetOrCreateManager<DataChangedSystem<TState>>();
 
             m_EntityVersion = -1;
 
             UpdateComponentDataFromEntity();
+
+            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.Create<TState>(), ComponentType.Subtractive<DataChanged<TState>>());
+        }
+
+        protected override void OnUpdate()
+        {
+            base.OnUpdate();
+
+            ForEach((Entity entity, ref TState state) =>
+            {
+                PostUpdateCommands.AddComponent(entity, new DataChanged<TState> {IsDirty = 1});
+            }, m_EntitiesWithoutDataChanged);
         }
 
         protected ComponentDataFromEntityBurstExtensions.CallExistsAsBurst GetExistsCall<T>()

@@ -3,6 +3,7 @@ using System.Linq;
 using package.stormiumteam.networking;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -32,7 +33,7 @@ namespace StormiumShared.Core.Networking
         {
         }
 
-        //[BurstCompile]
+        [BurstCompile]
         struct TransformEntityArrayJob : IJobParallelFor
         {
             public NativeArray<Entity> EntityArray;
@@ -52,14 +53,14 @@ namespace StormiumShared.Core.Networking
             var entityLength = entityArray.Length;
             var entities     = new NativeArray<SnapshotEntityInformation>(entityLength, allocator);
             
-            /*new TransformEntityArrayJob
+            new TransformEntityArrayJob
             {
                 EntityArray = entityArray,
                 Entities    = entities,
                 
                 Component = GetComponentDataFromEntity<ModelIdent>()
-            }.Run(entityLength);*/
-            for (var i = 0; i != entityLength; i++)
+            }.Run(entityLength);
+            /*for (var i = 0; i != entityLength; i++)
             {
                 var e = entityArray[i];
                 var m = EntityManager.GetComponentData<ModelIdent>(e);
@@ -79,7 +80,7 @@ namespace StormiumShared.Core.Networking
                 }
                 
                 entities[i] = new SnapshotEntityInformation(e, m.Id);
-            }
+            }*/
 
             return entities;
         }
@@ -113,18 +114,44 @@ namespace StormiumShared.Core.Networking
 
             return GenerateSnapshot(snapshotIdx, sender, receiver, gameTime, entities, allocator, ref data, ref previousRuntime);
         }
+        
+        [BurstCompile]
+        struct WriteFullEntitiesJob : IJob
+        {
+            [NativeDisableUnsafePtrRestriction]
+            public DataBufferWriter Data;
+            public NativeArray<SnapshotEntityInformation> Entities;
+            
+            public void Execute()
+            {
+                for (var i = 0; i != Entities.Length; i++)
+                {
+                    var entity  = Entities[i].Source;
+                    var modelId = Entities[i].ModelId;
+                
+                    Data.WriteDynamicIntWithMask((ulong) entity.Index, (ulong) entity.Version, (ulong) modelId);
+                }
+            }
+        }
 
         private unsafe void WriteFullEntities(ref DataBufferWriter data, ref NativeArray<SnapshotEntityInformation> entities)
         {
             data.WriteByte((byte) 0);
             data.WriteInt(entities.Length);
-            for (var i = 0; i != entities.Length; i++)
+            Profiler.BeginSample("WriteFullEntities");
+            /*for (var i = 0; i != entities.Length; i++)
             {
                 var entity = entities[i].Source;
                 var modelId = entities[i].ModelId;
                 
                 data.WriteDynamicIntWithMask((ulong) entity.Index, (ulong) entity.Version, (ulong) modelId);
-            }
+            }*/
+            new WriteFullEntitiesJob
+            {
+                Data = data,
+                Entities = entities
+            }.Run();
+            Profiler.EndSample();
 
             //if (entities.Length > 0) data.WriteDataSafe((byte*) entities.GetUnsafePtr(), entities.Length * sizeof(SnapshotEntityInformation), default);
         }
@@ -209,16 +236,22 @@ namespace StormiumShared.Core.Networking
                                                       ref StSnapshotRuntime                  runtime)
         {
             IntPtr previousEntityArrayPtr = default;
+            Profiler.BeginSample("Create Header");
             var    header                 = new StSnapshotHeader(gt, snapshotIdx, sender);
 
             runtime.Header = header;
+            Profiler.EndSample();
             if (!runtime.Entities.IsCreated)
                 runtime.Entities = entities;
             else
                 previousEntityArrayPtr = new IntPtr(runtime.Entities.GetUnsafePtr());
 
+            Profiler.BeginSample("Update hashmap");
             runtime.UpdateHashMapFromLocalData();
-
+            
+            data.TryResize(data.Length + entities.Length * 4);
+            Profiler.EndSample();
+            
             // Write Game time
             Profiler.BeginSample("Write Header");
             data.WriteInt(header.SnapshotIdx);
@@ -231,7 +264,7 @@ namespace StormiumShared.Core.Networking
             {
                 WriteFullEntities(ref data, ref entities);
             }
-            else
+            else 
             {
                 WriteIncrementalEntities(ref data, ref entities, ref runtime);
             }
@@ -349,8 +382,10 @@ namespace StormiumShared.Core.Networking
                 var length               = (int) uLength;
                 var system               = GetSystem(exchange.GetOriginId(foreignSystemPattern));
 
+                Profiler.BeginSample($"Read From System {system.GetSystemPattern().InternalIdent.Name} #" + system.GetSystemPattern().Id);
                 system.ReadData(sender, runtime, new DataBufferReader(data, data.CurrReadIndex, data.CurrReadIndex + length));
-
+                Profiler.EndSample();
+                
                 data.CurrReadIndex += length;
             }
 

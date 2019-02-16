@@ -2,6 +2,7 @@ using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace StormiumShared.Core.Networking
 {
@@ -18,7 +19,7 @@ namespace StormiumShared.Core.Networking
 
         public struct WriteDataPayload<T, Tw>
             where T : struct, IComponentData
-            where Tw : struct, IWriteEntityDataPayload
+            where Tw : struct, IWriteEntityDataPayload<T>
         {
             public DataBufferWriter                           Buffer;
             public SnapshotReceiver                           Receiver;
@@ -31,8 +32,8 @@ namespace StormiumShared.Core.Networking
         }
 
         public static class CreateCall<T, Tw, Tr> where T : struct, IComponentData
-                                                  where Tw : struct, IWriteEntityDataPayload
-                                                  where Tr : struct, IReadEntityDataPayload
+                                                  where Tw : struct, IWriteEntityDataPayload<T>
+                                                  where Tr : struct, IReadEntityDataPayload<T>
         {
             public static CallWriteDataAsBurst WriteData()
             {
@@ -41,46 +42,56 @@ namespace StormiumShared.Core.Networking
 
             private static void InternalWriteData(void* payloadPtr)
             {
+                const byte ReasonNoComponent = (byte) StreamerSkipReason.NoComponent;
+                const byte ReasonDelta = (byte) StreamerSkipReason.Delta;
+                const byte ReasonNoSkip = (byte) StreamerSkipReason.NoSkip;
+                
                 UnsafeUtility.CopyPtrToStructure(payloadPtr, out WriteDataPayload<T, Tw> payload);
 
-                ref var entityLength = ref payload.EntityLength;
-                ref var buffer       = ref payload.Buffer;
-                ref var receiver     = ref payload.Receiver;
-                ref var runtime      = ref payload.Runtime;
-                ref var states       = ref payload.States;
-                ref var changes      = ref payload.Changes;
+                var entityLength = payload.EntityLength;
+                var buffer       = payload.Buffer;
+                var receiver     = payload.Receiver;
+                var runtime      = payload.Runtime;
+                var states       = payload.States;
+                var changes      = payload.Changes;
+                
+                var wdfePayload = default(WriteDataForEntityPayload);
+                var wdfePayloadAddress = UnsafeUtility.AddressOf(ref wdfePayload);
+                var customPayloadAddress = UnsafeUtility.AddressOf(ref payload.CustomWritePayload);
+                
+                wdfePayload.Data     = buffer;
+                wdfePayload.Receiver = receiver;
+                wdfePayload.Runtime  = runtime;
+                
+                var m = payload.WriteFunction.Invoke;
 
                 for (var i = 0; i != entityLength; i++)
                 {
                     var entity = runtime.Entities[i].Source;
                     if (!states.Exists(entity))
                     {
-                        buffer.WriteValue(StreamerSkipReason.NoComponent);
+                        buffer.WriteByte(ReasonNoComponent);
                         continue;
                     }
 
-                    var change = new DataChanged<T> {IsDirty = 1};
+                    var change = default(DataChanged<T>);
+                    change.IsDirty = 1;
+                    
                     if (changes.Exists(entity))
                         change = changes[entity];
 
                     if (SnapshotOutputUtils.ShouldSkip(receiver, change))
                     {
-                        buffer.WriteValue(StreamerSkipReason.Delta);
+                        buffer.WriteByte(ReasonDelta);
                         continue;
                     }
 
-                    buffer.WriteValue(StreamerSkipReason.NoSkip);
+                    buffer.WriteByte(ReasonNoSkip);
 
-                    var wdfePayload = new WriteDataForEntityPayload
-                    {
-                        Index    = i,
-                        Entity   = entity,
-                        Data     = buffer,
-                        Receiver = receiver,
-                        Runtime  = runtime
-                    };
+                    wdfePayload.Index    = i;
+                    wdfePayload.Entity   = entity;
 
-                    payload.WriteFunction.Invoke(UnsafeUtility.AddressOf(ref wdfePayload), UnsafeUtility.AddressOf(ref payload.CustomWritePayload));
+                    m(wdfePayloadAddress, customPayloadAddress);
                 }
             }
         }
@@ -92,7 +103,7 @@ namespace StormiumShared.Core.Networking
                                                 FunctionPointer<WriteDataForEntityToBurst> writeFunction,
                                                 Tw                                         customWritePayload)
             where T : struct, IComponentData
-            where Tw : struct, IWriteEntityDataPayload
+            where Tw : struct, IWriteEntityDataPayload<T>
         {
             var payload = new WriteDataPayload<T, Tw>
             {

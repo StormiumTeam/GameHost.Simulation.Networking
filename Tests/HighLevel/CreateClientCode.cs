@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Net;
-using package.stormiumteam.networking.extensions;
 using package.stormiumteam.networking.runtime.highlevel;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;

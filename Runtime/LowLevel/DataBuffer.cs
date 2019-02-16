@@ -39,6 +39,8 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         }
 
         private Allocator   m_Allocator;
+        
+        [NativeDisableUnsafePtrRestriction]
         private DataBuffer* m_Data;
 
         public int Length
@@ -113,7 +115,9 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DataBufferMarker WriteDataSafe(byte* data, int writeSize, DataBufferMarker marker)
         {
-            int dataLength = m_Data->length, 
+            var depointed = *m_Data;
+            
+            int dataLength = depointed.length, 
                 writeIndex = math.select(dataLength, marker.Index, marker.Valid);
             
             // Copy from GetWriteInfo()
@@ -121,17 +125,22 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             var predictedLength = writeIndex + writeSize;
             
             // Copy from TryResize()
-            if (m_Data->capacity < predictedLength)
+            if (depointed.capacity < predictedLength)
             {
-                Capacity = predictedLength * 2;
+                Capacity = math.mul(predictedLength, 2);
+                depointed = *m_Data; // need to update our depointed data as we modified the capacity
             }
             
             // Copy from WriteData()
-            UnsafeUtility.MemCpy(m_Data->buffer + writeIndex, data, (uint) writeSize);
+            UnsafeUtility.MemCpy(depointed.buffer + writeIndex, data, (uint) writeSize);
 
             m_Data->length = math.max(predictedLength, dataLength);
+
+            var rm = default(DataBufferMarker);
+            rm.Valid = true;
+            rm.Index = writeIndex;
             
-            return new DataBufferMarker {Valid = true, Index = writeIndex};
+            return rm;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
