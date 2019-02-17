@@ -2,6 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using package.stormiumteam.networking.runtime.lowlevel;
+using package.stormiumteam.shared;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -53,24 +54,37 @@ namespace StormiumShared.Core.Networking
                 const byte ReasonDelta       = (byte) StreamerSkipReason.Delta;
                 const byte ReasonNoSkip      = (byte) StreamerSkipReason.NoSkip;
                 
+                DataBufferMarker marker = default;
+                
+                byte bitMask = 0;
                 for (var i = 0; i != EntityLength; i++)
                 {
+                    // 4 because 8 bits and 2 bits used per flag write
+                    var mod = (byte) (i % (sizeof(byte) * 4));
+                    if (mod == 0)
+                    {
+                        bitMask = 0;
+                        marker  = Buffer.WriteByte(0);
+                    }
+
                     var entity = Runtime.Entities[i].Source;
                     if (!States.Exists(entity))
                     {
-                        Buffer.WriteByte(ReasonNoComponent);
+                        MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoComponent, 2);
+                        Buffer.WriteByte(bitMask, marker);
                         continue;
                     }
 
                     var change = default(DataChanged<TState>);
                     change.IsDirty = 1;
-                    
+
                     if (Changes.Exists(entity))
                         change = Changes[entity];
 
                     if (SnapshotOutputUtils.ShouldSkip(Receiver, change))
                     {
-                        Buffer.WriteByte(ReasonDelta);
+                        MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.Delta, 2);
+                        Buffer.WriteByte(bitMask, marker);
                         continue;
                     }
 
@@ -80,7 +94,8 @@ namespace StormiumShared.Core.Networking
                         cp = Unsafe.As<TState, TWriteEntityPayload>(ref state);
                     }
 
-                    Buffer.WriteByte(ReasonNoSkip);
+                    MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoSkip, 2);
+                    Buffer.WriteByte(bitMask, marker);
                     cp.Write(i, entity, States, Changes, Buffer, Receiver, Runtime);
                 }
             }
@@ -189,10 +204,18 @@ namespace StormiumShared.Core.Networking
             UpdateComponentDataFromEntity();
             UpdatePayloadR(ref m_CurrentReadPayload);
 
+            byte bitMask = 0;
             for (var index = 0; index != length; index++)
             {
+                // 4 because 8 bits and 2 bits used per flag write
+                var mod = (byte) (index % (sizeof(byte) * 4));
+                if (mod == 0)
+                {
+                    bitMask = sysData.ReadValue<byte>();
+                }
+
                 var worldEntity = runtime.GetWorldEntityFromGlobal(index);
-                var skip        = sysData.ReadValue<StreamerSkipReason>();
+                var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte) (mod * 2), 2);
 
                 if (skip != StreamerSkipReason.NoSkip)
                 {
@@ -272,12 +295,24 @@ namespace StormiumShared.Core.Networking
 
             public void Execute()
             {
+                DataBufferMarker marker = default;
+                
+                byte bitMask = 0;
                 for (var i = 0; i != EntityLength; i++)
                 {
+                    // 4 because 8 bits and 2 bits used per flag write
+                    var mod = (byte) (i % (sizeof(byte) * 4));
+                    if (mod == 0)
+                    {
+                        bitMask = 0;
+                        marker  = Buffer.WriteByte(0);
+                    }
+
                     var entity = Runtime.Entities[i].Source;
                     if (!States.Exists(entity))
                     {
-                        Buffer.WriteUnmanaged(StreamerSkipReason.NoComponent);
+                        MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoComponent, 2);
+                        Buffer.WriteByte(bitMask, marker);
                         continue;
                     }
 
@@ -289,11 +324,14 @@ namespace StormiumShared.Core.Networking
 
                     if (SnapshotOutputUtils.ShouldSkip(Receiver, change))
                     {
-                        Buffer.WriteUnmanaged(StreamerSkipReason.Delta);
+                        MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.Delta, 2);
+                        Buffer.WriteByte(bitMask, marker);
                         continue;
                     }
 
-                    Buffer.WriteUnmanaged(StreamerSkipReason.NoSkip);
+                    MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoSkip, 2);
+                    Buffer.WriteByte(bitMask, marker);
+                    
                     States[entity].Write(ref Buffer, Receiver, Runtime);
                 }
             }
@@ -331,10 +369,18 @@ namespace StormiumShared.Core.Networking
 
             public void Execute()
             {
+                byte bitMask = 0;
                 for (var index = 0; index != EntityLength; index++)
                 {
+                    // 4 because 8 bits and 2 bits used per flag write
+                    var mod = (byte)(index % (sizeof(byte) * 4));
+                    if (mod == 0)
+                    {
+                        bitMask = Buffer.ReadValue<byte>();
+                    }
+
                     var worldEntity = Runtime.GetWorldEntityFromGlobal(index);
-                    var skip        = Buffer.ReadValue<StreamerSkipReason>();
+                    var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte)(mod * 2), 2);
 
                     if (skip != StreamerSkipReason.NoSkip)
                     {
@@ -440,16 +486,30 @@ namespace StormiumShared.Core.Networking
 
             public void Execute()
             {
+                DataBufferMarker marker = default;
+
+                byte bitMask = 0;
                 for (var i = 0; i != EntityLength; i++)
                 {
+                    var mod = (byte) (i % (sizeof(byte) * 8));
+                    if (mod == 0)
+                    {
+                        bitMask = 0;
+                        marker  = Buffer.WriteByte(0);
+                    }
+
                     var entity = Runtime.Entities[i].Source;
                     if (!Components.Exists(entity))
                     {
-                        Buffer.WriteUnmanaged(StreamerSkipReason.NoComponent);
+                        MainBit.SetBitAt(ref bitMask, mod, 1);
+
+                        Buffer.WriteByte(bitMask, marker);
                         continue;
                     }
 
-                    Buffer.WriteUnmanaged(StreamerSkipReason.NoSkip);
+                    MainBit.SetBitAt(ref bitMask, mod, 0);
+
+                    Buffer.WriteByte(bitMask, marker);
                 }
             }
         }
@@ -482,19 +542,23 @@ namespace StormiumShared.Core.Networking
 
             public void Execute()
             {
+                byte bitMask = 0;
                 for (var index = 0; index != EntityLength; index++)
                 {
+                    var mod = (byte)(index % (sizeof(byte) * 8));
+                    if (mod == 0)
+                    {
+                        bitMask = Buffer.ReadValue<byte>();
+                    }
+                    
                     var worldEntity = Runtime.GetWorldEntityFromGlobal(index);
-                    var skip        = Buffer.ReadValue<StreamerSkipReason>();
+                    var skip = MainBit.GetBitAt(bitMask, mod) == 1;
 
-                    if (skip != StreamerSkipReason.NoSkip)
+                    if (skip)
                     {
                         // If the component don't exist in the snapshot, also remove it from our world.
-                        if (skip == StreamerSkipReason.NoComponent
-                            && Components.Exists(worldEntity))
-                        {
+                        if (Components.Exists(worldEntity))
                             Ecb.RemoveComponent(worldEntity, ComponentType);
-                        }
 
                         continue; // skip
                     }

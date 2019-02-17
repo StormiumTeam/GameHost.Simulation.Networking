@@ -309,6 +309,16 @@ namespace StormiumShared.Core.Networking
             return new GenerateResult {Data = data, Runtime = runtime};
         }
 
+        private static ISnapshotManageForClient GetSystem(int id)
+        {
+            foreach (var system in AppEvent<ISnapshotManageForClient>.GetObjEvents())
+            {
+                if (system.GetSystemPattern() == id) return system;
+            }
+
+            return null;
+        }
+        
         public unsafe StSnapshotRuntime ApplySnapshotFromData(SnapshotSender sender, ref DataBufferReader data, ref StSnapshotRuntime previousRuntime, PatternBankExchange exchange)
         {
             // Terminate the function if the runtime is bad.
@@ -320,14 +330,6 @@ namespace StormiumShared.Core.Networking
             // --------------------------------------------------------------------------- //
             // Read Only Data...
             var allocator = previousRuntime.Allocator;
-
-            // --------------------------------------------------------------------------- //
-            // Local Functions
-            // --------------------------------------------------------------------------- //
-            ISnapshotManageForClient GetSystem(int id)
-            {
-                return AppEvent<ISnapshotManageForClient>.GetObjEvents().FirstOrDefault(system => system.GetSystemPattern() == id);
-            }
 
             // --------------------------------------------------------------------------- //
             // Actual code

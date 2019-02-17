@@ -62,7 +62,7 @@ namespace StormiumShared.Core.Networking
                     Debug.LogError($"Pattern ({pattern.InternalIdent.Name}) isn't correct ({pattern.Id} != {modelId})");
                 
                 Debug.LogError($"No Spawn Callbacks found for modelId={modelId} ({pattern.InternalIdent.Name})");
-            }
+            }    
             #endif
             
             var entity = m_SpawnCallbacks[modelId].Invoke(origin, snapshotRuntime);
