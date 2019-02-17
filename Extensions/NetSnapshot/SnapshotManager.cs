@@ -347,9 +347,13 @@ namespace StormiumShared.Core.Networking
                 // Full data
                 case 0:
                 {
+                    Profiler.BeginSample("ReadFullEntities");
                     ReadFullEntities(out var tempEntities, ref data, ref allocator, exchange);
+                    Profiler.EndSample();
+                    Profiler.BeginSample("UpdateFrom");
                     entitiesUpdateResult = SnapshotManageEntities.UpdateFrom(previousRuntime.Entities, tempEntities, allocator);
-
+                    Profiler.EndSample();
+                    
                     if (runtime.Entities.IsCreated)
                         runtime.Entities.Dispose();
                     runtime.Entities = tempEntities;
@@ -366,14 +370,19 @@ namespace StormiumShared.Core.Networking
                 }
             }
 
+            Profiler.BeginSample("CreateEntities");
             SnapshotManageEntities.CreateEntities(entitiesUpdateResult, World, ref runtime);
+            Profiler.EndSample();
+            Profiler.BeginSample("DestroyEntities");
             SnapshotManageEntities.DestroyEntities(entitiesUpdateResult, World, ref runtime, true);
-
+            Profiler.EndSample();
+            
             foreach (var obj in AppEvent<ISnapshotSubscribe>.GetObjEvents())
                 obj.SubscribeSystem();
 
             // Read System Data
             var systemLength = data.ReadValue<int>();
+            Profiler.BeginSample("Read System Data");
             for (var i = 0; i != systemLength; i++)
             {
                 data.ReadDynIntegerFromMask(out var uForeignSystemPattern, out var uLength);
@@ -388,6 +397,7 @@ namespace StormiumShared.Core.Networking
                 
                 data.CurrReadIndex += length;
             }
+            Profiler.EndSample();
 
             return runtime;
         }

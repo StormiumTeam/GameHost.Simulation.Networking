@@ -41,7 +41,7 @@ namespace StormiumShared.Core.Networking
                     var entity = runtime.Entities[i].Source;
                     if (!states.Exists(entity))
                     {
-                        buffer.WriteValue(StreamerSkipReason.NoComponent);
+                        buffer.WriteUnmanaged(StreamerSkipReason.NoComponent);
                         continue;
                     }
 
@@ -52,11 +52,11 @@ namespace StormiumShared.Core.Networking
 
                     if (SnapshotOutputUtils.ShouldSkip(receiver, change))
                     {
-                        buffer.WriteValue(StreamerSkipReason.Delta);
+                        buffer.WriteUnmanaged(StreamerSkipReason.Delta);
                         continue;
                     }
 
-                    buffer.WriteValue(StreamerSkipReason.NoSkip);
+                    buffer.WriteUnmanaged(StreamerSkipReason.NoSkip);
                     buffer.WriteRef(ref state);
                 }
             }

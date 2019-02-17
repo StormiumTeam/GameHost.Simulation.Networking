@@ -19,4 +19,10 @@ namespace StormiumShared.Core.Networking
 		where TState : struct, IComponentData
 	{
 	}
+
+	public interface ISerializableAsPayload
+	{
+		void Write(ref DataBufferWriter data, SnapshotReceiver receiver, StSnapshotRuntime runtime);
+		void Read(ref DataBufferReader data, SnapshotSender sender, StSnapshotRuntime runtime);
+	}
 }

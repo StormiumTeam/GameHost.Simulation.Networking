@@ -214,14 +214,14 @@ namespace package.stormiumteam.networking
 
                 var allPatterns = SourceBank.GetResults();
                 var writer      = new DataBufferWriter(SourceBank.Count * 2, Allocator.Temp);
-                writer.WriteValue(MessageType.RegisterPattern);
+                writer.WriteUnmanaged(MessageType.RegisterPattern);
                 writer.WriteDynamicInt((ulong) SourceBank.Count);
 
                 foreach (var result in allPatterns.Values)
                 {
                     writer.WriteDynamicInt((ulong) result.Id);
                     writer.WriteStaticString(result.InternalIdent.Name);
-                    writer.WriteValue<byte>(result.InternalIdent.Version);
+                    writer.WriteUnmanaged<byte>(result.InternalIdent.Version);
                 }
 
                 if (!data.Commands.Send(writer, new NetworkChannel(0), Delivery.Reliable))

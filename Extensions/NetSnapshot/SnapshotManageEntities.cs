@@ -1,7 +1,10 @@
 using package.stormiumteam.networking;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
 {
@@ -11,6 +14,61 @@ namespace StormiumShared.Core.Networking
         {
             public NativeArray<SnapshotEntityInformation> ToCreate;
             public NativeArray<SnapshotEntityInformation> ToDestroy;
+        }
+        
+        [BurstCompile]
+        public struct UpdateFromJob : IJob
+        {
+            public NativeList<SnapshotEntityInformation> toCreateList;
+            public NativeList<SnapshotEntityInformation> toDestroyList;
+
+            [ReadOnly]
+            public NativeArray<SnapshotEntityInformation> previousArray;
+            [ReadOnly]
+            public NativeArray<SnapshotEntityInformation> nextArray;
+
+            public void Execute()
+            {
+                for (var i = 0; i != nextArray.Length; i++)
+                {
+                    var next = nextArray[i];
+                    var ct   = false;
+                    for (var j = 0; j != previousArray.Length; j++)
+                    {
+                        var previous = previousArray[j];
+                        if (previous.Source == next.Source)
+                        {
+                            ct = true;
+                            break;
+                        }
+                    }
+
+                    if (ct)
+                        continue;
+
+                    toCreateList.Add(next);
+                }
+
+                for (var i = 0; i != previousArray.Length; i++)
+                {
+                    var previous = previousArray[i];
+                    var ct       = false;
+                    for (var j = 0; j != nextArray.Length; j++)
+                    {
+                        var next = nextArray[j];
+                        if (previous.Source == next.Source)
+                        {
+                            ct = true;
+                            break;
+                        }
+                    }
+
+                    if (ct)
+                        continue;
+
+                    toDestroyList.Add(previous);
+                }
+            }
         }
 
         public static UpdateResult UpdateFrom(NativeArray<SnapshotEntityInformation> previousArray, NativeArray<SnapshotEntityInformation> nextArray, Allocator allocator)
@@ -23,51 +81,23 @@ namespace StormiumShared.Core.Networking
                 };
             }
 
-            var result   = new UpdateResult();
-            var tempList = new NativeList<SnapshotEntityInformation>(nextArray.Length, allocator);
-            foreach (var next in nextArray)
+            using (NativeList<SnapshotEntityInformation> tempListCreate = new NativeList<SnapshotEntityInformation>(nextArray.Length, Allocator.TempJob),
+                                                         tempListDestroy = new NativeList<SnapshotEntityInformation>(nextArray.Length, Allocator.TempJob))
             {
-                var ct = false;
-                foreach (var previous in previousArray)
+                new UpdateFromJob
                 {
-                    if (previous.Source == next.Source)
-                    {
-                        ct = true;
-                        break;
-                    }
-                }
+                    toCreateList  = tempListCreate,
+                    toDestroyList = tempListDestroy,
+                    nextArray     = nextArray,
+                    previousArray = previousArray
+                }.Run();
 
-                if (ct)
-                    continue;
-
-                tempList.Add(next);
-            }
-
-            result.ToCreate = tempList.ToArray(allocator);
-            tempList.Clear();
-
-            foreach (var previous in previousArray)
-            {
-                var ct = false;
-                foreach (var next in nextArray)
+                return new UpdateResult
                 {
-                    if (previous.Source == next.Source)
-                    {
-                        ct = true;
-                        break;
-                    }
-                }
-
-                if (ct)
-                    continue;
-
-                tempList.Add(previous);
+                    ToCreate  = tempListCreate.ToArray(allocator),
+                    ToDestroy = tempListDestroy.ToArray(allocator)
+                };
             }
-
-            result.ToDestroy = tempList.ToArray(allocator);
-            tempList.Dispose();
-
-            return result;
         }
 
         public static void CreateEntities(UpdateResult result, World world, ref StSnapshotRuntime snapshotRuntime)
@@ -82,12 +112,14 @@ namespace StormiumShared.Core.Networking
                     continue;
                 }
                 
+                Profiler.BeginSample("SpawnEntity");
                 var worldEntity = modelMgr.SpawnEntity(e.ModelId, e.Source, snapshotRuntime);
-
+                Profiler.EndSample();
+                
                 PrivateSet(snapshotRuntime.SnapshotToWorld, e.Source, worldEntity);
                 PrivateSet(snapshotRuntime.WorldToSnapshot, worldEntity, e.Source);
                 
-                Debug.Log($"creation(w={worldEntity}, o={e.Source}) t={snapshotRuntime.Header.GameTime.Tick}");
+                //Debug.Log($"creation(w={worldEntity}, o={e.Source}) t={snapshotRuntime.Header.GameTime.Tick}");
             }
         }
 
@@ -117,9 +149,11 @@ namespace StormiumShared.Core.Networking
                     snapshotRuntime.WorldToSnapshot.Remove(worldEntity);
                 }
                 
-                Debug.Log($"destruction(w={worldEntity}, o={e.Source}) t={snapshotRuntime.Header.GameTime.Tick}");
+                //Debug.Log($"destruction(w={worldEntity}, o={e.Source}) t={snapshotRuntime.Header.GameTime.Tick}");
                 
+                Profiler.BeginSample("DestroyEntity");
                 modelMgr.DestroyEntity(worldEntity, e.ModelId);
+                Profiler.EndSample();
             }
         }
 

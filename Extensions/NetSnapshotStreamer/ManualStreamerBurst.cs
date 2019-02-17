@@ -35,6 +35,9 @@ namespace StormiumShared.Core.Networking
                                                   where Tw : struct, IWriteEntityDataPayload<T>
                                                   where Tr : struct, IReadEntityDataPayload<T>
         {
+            private static bool s_SameWriteType = typeof(T) == typeof(Tw);
+            private static bool s_SameReadType = typeof(T) == typeof(Tr);
+            
             public static CallWriteDataAsBurst WriteData()
             {
                 return BurstCompiler.CompileDelegate<CallWriteDataAsBurst>(InternalWriteData);

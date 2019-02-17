@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using package.stormiumteam.networking.runtime.lowlevel;
+using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
@@ -26,7 +28,7 @@ namespace StormiumShared.Core.Networking
             return default;
         }
 
-        protected override unsafe void OnCreateManager()
+        protected override void OnCreateManager()
         {
             base.OnCreateManager();
 
@@ -35,7 +37,7 @@ namespace StormiumShared.Core.Networking
 
             m_StateExistsBurst        = GetExistsCall<TState>();
             m_ChangedStateExistsBurst = GetExistsCall<DataChanged<TState>>();
-            
+
             World.GetOrCreateManager<DataChangedSystem<TState>>();
 
             m_EntityVersion = -1;
@@ -45,14 +47,17 @@ namespace StormiumShared.Core.Networking
             m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.Create<TState>(), ComponentType.Subtractive<DataChanged<TState>>());
         }
 
-        protected override void OnUpdate()
+        protected override JobHandle OnUpdate(JobHandle job)
         {
-            base.OnUpdate();
+            base.OnUpdate(job);
 
-            ForEach((Entity entity, ref TState state) =>
+            using (var entityArray = m_EntitiesWithoutDataChanged.ToEntityArray(Allocator.TempJob))
             {
-                PostUpdateCommands.AddComponent(entity, new DataChanged<TState> {IsDirty = 1});
-            }, m_EntitiesWithoutDataChanged);
+                for (var i = 0; i != entityArray.Length; i++)
+                    EntityManager.AddComponentData(entityArray[i], new DataChanged<TState> {IsDirty = 1});
+            }
+
+            return job;
         }
 
         protected ComponentDataFromEntityBurstExtensions.CallExistsAsBurst GetExistsCall<T>()
@@ -82,6 +87,23 @@ namespace StormiumShared.Core.Networking
             States  = GetComponentDataFromEntity<TState>();
             Changed = GetComponentDataFromEntity<DataChanged<TState>>();
             Profiler.EndSample();
+        }
+    }
+
+    public abstract class SnapshotEntityDataStreamerBufferBase<TState> : SnapshotDataStreamerBase
+        where TState : struct, IBufferElementData
+    {
+        private int m_EntityVersion;
+
+        public ComponentType StateType;
+
+        protected BufferFromEntity<TState> States;
+
+        protected override void OnCreateManager()
+        {
+            base.OnCreateManager();
+
+            StateType = ComponentType.Create<TState>();
         }
     }
 }

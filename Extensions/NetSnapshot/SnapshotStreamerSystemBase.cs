@@ -7,6 +7,7 @@ using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -16,7 +17,7 @@ namespace StormiumShared.Core.Networking
     {
     }
 
-    public abstract unsafe class SnapshotDataStreamerBase : ComponentSystem, ISnapshotSubscribe, ISnapshotManageForClient
+    public abstract unsafe class SnapshotDataStreamerBase : JobComponentSystem, ISnapshotSubscribe, ISnapshotManageForClient
     {
         private PatternResult m_PatternResult;
         
@@ -63,8 +64,9 @@ namespace StormiumShared.Core.Networking
             entityLength = runtime.Entities.Length;
         }
 
-        protected override void OnUpdate()
+        protected override JobHandle OnUpdate(JobHandle job)
         {
+            return job;
         }
     }
 }

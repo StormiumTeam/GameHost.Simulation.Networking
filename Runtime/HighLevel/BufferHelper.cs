@@ -9,7 +9,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 		{
 			var buffer = new DataBufferWriter(length, allocator);
 
-			buffer.WriteValue(MessageType.MessagePattern);
+			buffer.WriteUnmanaged(MessageType.MessagePattern);
 			buffer.WriteInt(patternId);
 
 			return buffer;

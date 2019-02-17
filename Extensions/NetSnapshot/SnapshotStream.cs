@@ -1,6 +1,8 @@
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace StormiumShared.Core.Networking
 {
@@ -12,6 +14,7 @@ namespace StormiumShared.Core.Networking
 
     public static class SnapshotOutputUtils
     {        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ShouldSkip(SnapshotReceiver receiver, SkipReason skipReason)
         {
             if ((receiver.Flags & SnapshotFlags.FullData) != 0) return false;
@@ -19,10 +22,11 @@ namespace StormiumShared.Core.Networking
             return skipReason != SkipReason.None;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ShouldSkip<T>(SnapshotReceiver receiver, DataChanged<T> changed)
             where T : struct, IComponentData
         {
-            return ShouldSkip(receiver, changed.IsDirty == 0 ? SkipReason.NoDeltaDifference : SkipReason.None);
+            return math.select(0, math.select(1, 0, changed.IsDirty == 1), (receiver.Flags & SnapshotFlags.FullData) == 0) == 1;
         }
     }
 
@@ -62,13 +66,15 @@ namespace StormiumShared.Core.Networking
             WorldToSnapshot = new NativeHashMap<Entity, Entity>(128, allocator);
         }
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity EntityToWorld(Entity snapshotEntity)
         {
             SnapshotToWorld.TryGetValue(snapshotEntity, out var worldEntity);
 
             return worldEntity;
         }
-
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity EntityToSnapshot(Entity worldEntity)
         {
             WorldToSnapshot.TryGetValue(worldEntity, out var snapshotEntity);
@@ -76,11 +82,13 @@ namespace StormiumShared.Core.Networking
             return snapshotEntity;
         }
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity GetWorldEntityFromCustom(NativeArray<Entity> entities, int systemIndex)
         {
             return EntityToWorld(entities[systemIndex]);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity GetWorldEntityFromGlobal(int index)
         {
             return EntityToWorld(Entities[index].Source);

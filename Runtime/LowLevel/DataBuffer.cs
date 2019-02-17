@@ -3,6 +3,7 @@ using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using StormiumShared.Core.Networking;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -151,10 +152,17 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public DataBufferMarker WriteValue<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
+        public DataBufferMarker WriteUnmanaged<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
             where T : unmanaged
         {
             return WriteDataSafe((byte*) &val, sizeof(T), marker);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public DataBufferMarker WriteValue<T>(T val, DataBufferMarker marker = default(DataBufferMarker))
+            where T : struct
+        {
+            return WriteDataSafe((byte*) UnsafeUtility.AddressOf(ref val), UnsafeUtility.SizeOf<T>(), marker);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -283,27 +291,27 @@ namespace package.stormiumteam.networking.runtime.lowlevel
         {
             if (integer == 0)
             {
-                WriteValue<byte>((byte) 0);
+                WriteUnmanaged<byte>((byte) 0);
             }
             else if (integer <= byte.MaxValue)
             {
                 WriteByte((byte) sizeof(byte));
-                WriteValue<byte>((byte) integer);
+                WriteUnmanaged<byte>((byte) integer);
             }
             else if (integer <= ushort.MaxValue)
             {
                 WriteByte((byte) sizeof(ushort));
-                WriteValue((ushort) integer);
+                WriteUnmanaged((ushort) integer);
             }
             else if (integer <= uint.MaxValue)
             {
                 WriteByte((byte) sizeof(uint));
-                WriteValue((uint) integer);
+                WriteUnmanaged((uint) integer);
             }
             else
             {
                 WriteByte((byte) sizeof(ulong));
-                WriteValue(integer);
+                WriteUnmanaged(integer);
             }
         }
         
@@ -313,23 +321,23 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             {
                 if (i <= byte.MaxValue)
                 {
-                    data.WriteValue((byte) i);
+                    data.WriteUnmanaged((byte) i);
                     return 0;
                 }
 
                 if (i <= ushort.MaxValue)
                 {
-                    data.WriteValue((ushort) i);
+                    data.WriteUnmanaged((ushort) i);
                     return 1;
                 }
 
                 if (i <= uint.MaxValue)
                 {
-                    data.WriteValue((uint) i);
+                    data.WriteUnmanaged((uint) i);
                     return 2;
                 }
 
-                data.WriteValue(i);
+                data.WriteUnmanaged(i);
                 return 3;
             }
 
@@ -346,23 +354,23 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             {
                 if (i <= byte.MaxValue)
                 {
-                    data.WriteValue((byte) i);
+                    data.WriteUnmanaged((byte) i);
                     return 0;
                 }
 
                 if (i <= ushort.MaxValue)
                 {
-                    data.WriteValue((ushort) i);
+                    data.WriteUnmanaged((ushort) i);
                     return 1;
                 }
 
                 if (i <= uint.MaxValue)
                 {
-                    data.WriteValue((uint) i);
+                    data.WriteUnmanaged((uint) i);
                     return 2;
                 }
 
-                data.WriteValue(i);
+                data.WriteUnmanaged(i);
                 return 3;
             }
 
@@ -380,23 +388,23 @@ namespace package.stormiumteam.networking.runtime.lowlevel
             {
                 if (i <= byte.MaxValue)
                 {
-                    data.WriteValue((byte) i);
+                    data.WriteUnmanaged((byte) i);
                     return 0;
                 }
 
                 if (i <= ushort.MaxValue)
                 {
-                    data.WriteValue((ushort) i);
+                    data.WriteUnmanaged((ushort) i);
                     return 1;
                 }
 
                 if (i <= uint.MaxValue)
                 {
-                    data.WriteValue((uint) i);
+                    data.WriteUnmanaged((uint) i);
                     return 2;
                 }
 
-                data.WriteValue(i);
+                data.WriteUnmanaged(i);
                 return 3;
             }
 
