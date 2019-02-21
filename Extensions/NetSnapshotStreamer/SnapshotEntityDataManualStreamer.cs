@@ -18,9 +18,6 @@ namespace StormiumShared.Core.Networking
         where TWriteEntityPayload : struct, IWriteEntityDataPayload<TState>
         where TReadEntityPayload : struct, IReadEntityDataPayload<TState>
     {
-        internal static SnapshotEntityDataManualStreamer<TState, TWriteEntityPayload, TReadEntityPayload> m_CurrentStreamer;
-        internal static IntPtr                                                                            m_WriteDataForEntityOptimizedPtr;
-
         internal TWriteEntityPayload m_CurrentWritePayload;
         internal TReadEntityPayload  m_CurrentReadPayload;
 
@@ -38,8 +35,16 @@ namespace StormiumShared.Core.Networking
             public StSnapshotRuntime                          Runtime;
             public int                                        EntityLength;
 
+            public int StateTypeIndex;
+
             public byte IsSameWriteType;
-            
+
+            [ReadOnly]
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
+
+            [ReadOnly]
+            public BufferFromEntity<BlockComponentSerialization> Blockeds;
+
             [ReadOnly]
             public ComponentDataFromEntity<TState>                 States;
             [ReadOnly]
@@ -57,17 +62,37 @@ namespace StormiumShared.Core.Networking
                 DataBufferMarker marker = default;
                 
                 byte bitMask = 0;
-                for (var i = 0; i != EntityLength; i++)
+                var index = 0;
+                for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
                 {
+                    var entity = Runtime.Entities[entityIndex].Source;
+                    if (Excludeds.Exists(entity))
+                        continue;
+                    if (Blockeds.Exists(entity))
+                    {
+                        var blockedComponents = Blockeds[entity];
+                        var ct                = false;
+                        for (var i = 0; i != blockedComponents.Length; i++)
+                        {
+                            if (blockedComponents[i].TypeIdx != StateTypeIndex) 
+                                continue;
+                        
+                            ct = true;
+                        }
+
+                        if (ct)
+                            continue;
+                    }
+                    
                     // 4 because 8 bits and 2 bits used per flag write
-                    var mod = (byte) (i % (sizeof(byte) * 4));
+                    var mod = (byte) (index % (sizeof(byte) * 4));
                     if (mod == 0)
                     {
                         bitMask = 0;
                         marker  = Buffer.WriteByte(0);
                     }
+                    index++;
 
-                    var entity = Runtime.Entities[i].Source;
                     if (!States.Exists(entity))
                     {
                         MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoComponent, 2);
@@ -96,7 +121,7 @@ namespace StormiumShared.Core.Networking
 
                     MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoSkip, 2);
                     Buffer.WriteByte(bitMask, marker);
-                    cp.Write(i, entity, States, Changes, Buffer, Receiver, Runtime);
+                    cp.Write(entityIndex, entity, States, Changes, Buffer, Receiver, Runtime);
                 }
             }
         }
@@ -176,11 +201,9 @@ namespace StormiumShared.Core.Networking
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
             UpdateComponentDataFromEntity();
 
-            m_CurrentStreamer = this;
             UpdatePayloadW(ref m_CurrentWritePayload);
 
             Profiler.BeginSample("CallWriteData (Bursted)");
-            //ManualStreamerBurst.CallWriteData(m_WriteDataBurst, buffer, receiver, runtime, entityLength, States, Changed, writeFunction, m_CurrentWritePayload);
             new WriteJob
             {
                 Buffer       = buffer,
@@ -190,6 +213,10 @@ namespace StormiumShared.Core.Networking
                 Receiver     = receiver,
                 Runtime      = runtime,
                 cp           = m_CurrentWritePayload,
+                
+                StateTypeIndex = StateType.TypeIndex,
+                Excludeds = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                Blockeds  = GetBufferFromEntity<BlockComponentSerialization>(),
                 
                 IsSameWriteType = Convert.ToByte(typeof(TState) == typeof(TWriteEntityPayload))
             }.Run();
@@ -205,16 +232,36 @@ namespace StormiumShared.Core.Networking
             UpdatePayloadR(ref m_CurrentReadPayload);
 
             byte bitMask = 0;
-            for (var index = 0; index != length; index++)
+            var index = 0;
+            for (var entityIndex = 0; entityIndex != length; entityIndex++)
             {
+                var worldEntity = runtime.GetWorldEntityFromGlobal(entityIndex);
+                if (EntityManager.HasComponent<ExcludeFromDataStreamer>(worldEntity))
+                    continue;
+                if (EntityManager.HasComponent<BlockComponentSerialization>(worldEntity))
+                {
+                    var blockedComponents = EntityManager.GetBuffer<BlockComponentSerialization>(worldEntity);
+                    var ct                = false;
+                    for (var i = 0; i != blockedComponents.Length; i++)
+                    {
+                        if (blockedComponents[i].TypeIdx != StateType.TypeIndex) 
+                            continue;
+                        
+                        ct = true;
+                    }
+
+                    if (ct)
+                        continue;
+                }
+
                 // 4 because 8 bits and 2 bits used per flag write
                 var mod = (byte) (index % (sizeof(byte) * 4));
                 if (mod == 0)
                 {
                     bitMask = sysData.ReadValue<byte>();
                 }
-
-                var worldEntity = runtime.GetWorldEntityFromGlobal(index);
+                index++;
+                
                 var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte) (mod * 2), 2);
 
                 if (skip != StreamerSkipReason.NoSkip)
@@ -242,7 +289,7 @@ namespace StormiumShared.Core.Networking
                     UpdateComponentDataFromEntity();
                 }
 
-                m_CurrentReadPayload.Read(index, worldEntity, States, ref sysData, sender, runtime);
+                m_CurrentReadPayload.Read(entityIndex, worldEntity, States, ref sysData, sender, runtime);
             }
         }
     }
@@ -286,6 +333,13 @@ namespace StormiumShared.Core.Networking
             public SnapshotReceiver  Receiver;
             public StSnapshotRuntime Runtime;
             public int               EntityLength;
+            public int StateTypeIndex;
+            
+            [ReadOnly]
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
+
+            [ReadOnly]
+            public BufferFromEntity<BlockComponentSerialization> Blockeds;
 
             [ReadOnly]
             public ComponentDataFromEntity<TState> States;
@@ -298,17 +352,37 @@ namespace StormiumShared.Core.Networking
                 DataBufferMarker marker = default;
                 
                 byte bitMask = 0;
-                for (var i = 0; i != EntityLength; i++)
+                var  index   = 0;
+                for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
                 {
+                    var entity = Runtime.Entities[entityIndex].Source;
+                    if (Excludeds.Exists(entity))
+                        continue;
+                    if (Blockeds.Exists(entity))
+                    {
+                        var blockedComponents = Blockeds[entity];
+                        var ct                = false;
+                        for (var i = 0; i != blockedComponents.Length; i++)
+                        {
+                            if (blockedComponents[i].TypeIdx != StateTypeIndex) 
+                                continue;
+                        
+                            ct = true;
+                        }
+
+                        if (ct)
+                            continue;
+                    }
+                    
                     // 4 because 8 bits and 2 bits used per flag write
-                    var mod = (byte) (i % (sizeof(byte) * 4));
+                    var mod = (byte) (index % (sizeof(byte) * 4));
                     if (mod == 0)
                     {
                         bitMask = 0;
                         marker  = Buffer.WriteByte(0);
                     }
+                    index++;
 
-                    var entity = Runtime.Entities[i].Source;
                     if (!States.Exists(entity))
                     {
                         MainBit.SetByteRangeAt(ref bitMask, (byte)(mod * 2), (byte) StreamerSkipReason.NoComponent, 2);
@@ -353,6 +427,12 @@ namespace StormiumShared.Core.Networking
             public SnapshotSender    Sender;
             public StSnapshotRuntime Runtime;
             public int               EntityLength;
+            
+            [ReadOnly]
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
+
+            [ReadOnly]
+            public BufferFromEntity<BlockComponentSerialization> Blockeds;
 
             public ComponentDataFromEntity<TState> States;
 
@@ -370,16 +450,36 @@ namespace StormiumShared.Core.Networking
             public void Execute()
             {
                 byte bitMask = 0;
-                for (var index = 0; index != EntityLength; index++)
+                var  index   = 0;
+                for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
                 {
+                    var worldEntity = Runtime.GetWorldEntityFromGlobal(index);
+                    if (Excludeds.Exists(worldEntity))
+                        continue;
+                    if (Blockeds.Exists(worldEntity))
+                    {
+                        var blockedComponents = Blockeds[worldEntity];
+                        var ct                = false;
+                        for (var i = 0; i != blockedComponents.Length; i++)
+                        {
+                            if (blockedComponents[i].TypeIdx != StateType.TypeIndex) 
+                                continue;
+                        
+                            ct = true;
+                        }
+
+                        if (ct)
+                            continue;
+                    }
+
                     // 4 because 8 bits and 2 bits used per flag write
-                    var mod = (byte)(index % (sizeof(byte) * 4));
+                    var mod = (byte) (index % (sizeof(byte) * 4));
                     if (mod == 0)
                     {
                         bitMask = Buffer.ReadValue<byte>();
                     }
-
-                    var worldEntity = Runtime.GetWorldEntityFromGlobal(index);
+                    index++;
+                    
                     var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte)(mod * 2), 2);
 
                     if (skip != StreamerSkipReason.NoSkip)
@@ -427,7 +527,11 @@ namespace StormiumShared.Core.Networking
                 States       = States,
                 EntityLength = entityLength,
                 Receiver     = receiver,
-                Runtime      = runtime
+                Runtime      = runtime,
+                
+                StateTypeIndex = StateType.TypeIndex,
+                Excludeds = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                Blockeds = GetBufferFromEntity<BlockComponentSerialization>()
             }.Run();
 
             return buffer;
@@ -454,6 +558,9 @@ namespace StormiumShared.Core.Networking
                     Sender               = sender,
                     Runtime              = runtime,
                     AddComponentRequests = addRequest,
+                    
+                    Excludeds      = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                    Blockeds       = GetBufferFromEntity<BlockComponentSerialization>(),
 
                     Ecb = ecb
                 }.Run();

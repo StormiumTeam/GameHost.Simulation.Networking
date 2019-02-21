@@ -133,6 +133,18 @@ namespace StormiumShared.Core.Networking
             SnapshotToWorld.Dispose();
             WorldToSnapshot.Dispose();
         }
+
+        public int GetIndex(Entity entity)
+        {
+            var l = Entities.Length;
+            for (var i = 0; i != l; i++)
+            {
+                if (Entities[i].Source == entity)
+                    return i;
+            }
+
+            return -1;
+        }
     }
 
     public struct StSnapshotHeader

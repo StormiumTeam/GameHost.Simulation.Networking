@@ -32,7 +32,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
 				return default;
 			}
 
-			patternId = exchange.GetOriginId(buffer.ReadValue<int>());
+			var pattern = buffer.ReadValue<int>();
+			if (!exchange.HasPatternOrigin(pattern))
+				patternId = 0;
+			else
+				patternId = exchange.GetOriginId(pattern);
 
 			return buffer;
 		}

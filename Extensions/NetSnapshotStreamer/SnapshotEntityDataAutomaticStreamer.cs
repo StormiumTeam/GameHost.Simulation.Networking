@@ -1,31 +1,220 @@
 using package.stormiumteam.networking.runtime.lowlevel;
+using package.stormiumteam.shared;
+using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
 {
-public abstract class SnapshotEntityDataAutomaticStreamer<TState> : SnapshotEntityDataStreamerBase<TState>
+    public abstract class SnapshotEntityDataAutomaticStreamer<TState> : SnapshotEntityDataStreamerBase<TState>
         where TState : struct, IComponentData
     {
-        private AutomaticStreamerBurst.CallWriteDataAsBurst m_WriteDataBurst;
-
-        protected override unsafe void OnCreateManager()
+        [BurstCompile]
+        private struct WriteJob : IJob
         {
-            base.OnCreateManager();
+            public DataBufferWriter  Buffer;
+            public SnapshotReceiver  Receiver;
+            public StSnapshotRuntime Runtime;
+            public int               EntityLength;
+            public int StateTypeIndex;
+            
+            [ReadOnly]
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
 
-            Debug.Log("Will start compiling...");
-            m_WriteDataBurst = AutomaticStreamerBurst.CreateCall<TState>.WriteData();
+            [ReadOnly]
+            public BufferFromEntity<BlockComponentSerialization> Blockeds;
+
+            [ReadOnly]
+            public ComponentDataFromEntity<TState> States;
+
+            [ReadOnly]
+            public ComponentDataFromEntity<DataChanged<TState>> Changes;
+
+            public void Execute()
+            {
+                DataBufferMarker marker = default;
+
+                byte bitMask = 0;
+                var  index   = 0;
+                for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
+                {
+                    var entity = Runtime.Entities[entityIndex].Source;
+                    if (Excludeds.Exists(entity))
+                        continue;
+                    if (Blockeds.Exists(entity))
+                    {
+                        var blockedComponents = Blockeds[entity];
+                        var ct                = false;
+                        for (var i = 0; i != blockedComponents.Length; i++)
+                        {
+                            if (blockedComponents[i].TypeIdx != StateTypeIndex) 
+                                continue;
+                        
+                            ct = true;
+                        }
+
+                        if (ct)
+                            continue;
+                    }
+                    
+                    // 4 because 8 bits and 2 bits used per flag write
+                    var mod = (byte) (index % (sizeof(byte) * 4));
+                    if (mod == 0)
+                    {
+                        bitMask = 0;
+                        marker  = Buffer.WriteByte(0);
+                    }
+                    index++;
+
+                    if (!States.Exists(entity))
+                    {
+                        MainBit.SetByteRangeAt(ref bitMask, (byte) (mod * 2), (byte) StreamerSkipReason.NoComponent, 2);
+                        Buffer.WriteByte(bitMask, marker);
+                        continue;
+                    }
+
+                    var change = default(DataChanged<TState>);
+                    change.IsDirty = 1;
+
+                    if (Changes.Exists(entity))
+                        change = Changes[entity];
+
+                    if (SnapshotOutputUtils.ShouldSkip(Receiver, change))
+                    {
+                        MainBit.SetByteRangeAt(ref bitMask, (byte) (mod * 2), (byte) StreamerSkipReason.Delta, 2);
+                        Buffer.WriteByte(bitMask, marker);
+                        continue;
+                    }
+
+                    MainBit.SetByteRangeAt(ref bitMask, (byte) (mod * 2), (byte) StreamerSkipReason.NoSkip, 2);
+                    Buffer.WriteByte(bitMask, marker);
+                    Buffer.WriteValue(States[entity]);
+                }
+            }
+        }
+
+        private struct AddRequest
+        {
+            public Entity entity;
+            public TState data;
+        }
+
+        [BurstCompile]
+        private struct ReadJob : IJob
+        {
+            public ComponentType StateType;
+            public ComponentType ChangedType;
+
+            public DataBufferReader  Buffer;
+            public SnapshotSender    Sender;
+            public StSnapshotRuntime Runtime;
+            public int               EntityLength;
+            
+            [ReadOnly]
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
+
+            [ReadOnly]
+            public BufferFromEntity<BlockComponentSerialization> Blockeds;
+
+            public ComponentDataFromEntity<TState> States;
+
+            [ReadOnly]
+            public ComponentDataFromEntity<DataChanged<TState>> Changes;
+
+            [WriteOnly]
+            public NativeArray<int> CurrReadDataCursor;
+
+            [WriteOnly]
+            public NativeList<AddRequest> AddComponentRequests;
+
+            public EntityCommandBuffer Ecb;
+
+            public void Execute()
+            {
+                byte bitMask = 0;
+                var  index   = 0;
+                for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
+                {
+                    var worldEntity = Runtime.GetWorldEntityFromGlobal(index);
+                    if (Excludeds.Exists(worldEntity))
+                        continue;
+                    if (Blockeds.Exists(worldEntity))
+                    {
+                        var blockedComponents = Blockeds[worldEntity];
+                        var ct                = false;
+                        for (var i = 0; i != blockedComponents.Length; i++)
+                        {
+                            if (blockedComponents[i].TypeIdx != StateType.TypeIndex) 
+                                continue;
+                        
+                            ct = true;
+                        }
+
+                        if (ct)
+                            continue;
+                    }
+
+                    // 4 because 8 bits and 2 bits used per flag write
+                    var mod = (byte) (index % (sizeof(byte) * 4));
+                    if (mod == 0)
+                    {
+                        bitMask = Buffer.ReadValue<byte>();
+                    }
+                    index++;
+
+                    var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte) (mod * 2), 2);
+                    if (skip != StreamerSkipReason.NoSkip)
+                    {
+                        // If the component don't exist in the snapshot, also remove it from our world.
+                        if (skip == StreamerSkipReason.NoComponent
+                            && States.Exists(worldEntity))
+                        {
+                            Ecb.RemoveComponent(worldEntity, StateType);
+                            // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
+                            if (Changes.Exists(worldEntity))
+                            {
+                                Ecb.RemoveComponent(worldEntity, ChangedType);
+                            }
+                        }
+
+                        continue; // skip
+                    }
+
+                    var newData = Buffer.ReadValue<TState>();
+                    if (!States.Exists(worldEntity))
+                    {
+                        AddComponentRequests.Add(new AddRequest {entity = worldEntity, data = newData});
+                        continue;
+                    }
+
+                    States[worldEntity] = newData;
+                }
+
+                CurrReadDataCursor[0] = Buffer.CurrReadIndex;
+            }
         }
 
         public override DataBufferWriter WriteData(SnapshotReceiver receiver, StSnapshotRuntime runtime)
         {
-            Profiler.BeginSample("Init Variables");
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
             UpdateComponentDataFromEntity();
-            Profiler.EndSample();
 
-            AutomaticStreamerBurst.CallWriteData(m_WriteDataBurst, buffer, receiver, runtime, entityLength, States, Changed);
+            new WriteJob
+            {
+                Buffer       = buffer,
+                Changes      = Changed,
+                States       = States,
+                EntityLength = entityLength,
+                Receiver     = receiver,
+                Runtime      = runtime,
+                
+                StateTypeIndex = StateType.TypeIndex,
+                Excludeds      = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                Blockeds       = GetBufferFromEntity<BlockComponentSerialization>()
+            }.Run();
 
             return buffer;
         }
@@ -35,38 +224,37 @@ public abstract class SnapshotEntityDataAutomaticStreamer<TState> : SnapshotEnti
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
 
-            for (var index = 0; index != length; index++)
+            using (var ecb = new EntityCommandBuffer(Allocator.TempJob))
+            using (var readCursor = new NativeArray<int>(1, Allocator.TempJob) {[0] = sysData.CurrReadIndex})
+            using (var addRequest = new NativeList<AddRequest>(length, Allocator.TempJob))
             {
-                var worldEntity = runtime.GetWorldEntityFromGlobal(index);
-                var skip        = sysData.ReadValue<StreamerSkipReason>();
-
-                if (skip != StreamerSkipReason.NoSkip)
+                new ReadJob
                 {
-                    // If the component don't exist in the snapshot, also remove it from our world.
-                    if (skip == StreamerSkipReason.NoComponent
-                        && StateExists(worldEntity))
-                    {
-                        EntityManager.RemoveComponent<TState>(worldEntity);
-                        // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
-                        if (ChangedStateExists(worldEntity))
-                        {
-                            EntityManager.RemoveComponent<DataChanged<TState>>(worldEntity);
-                        }
+                    Buffer               = sysData,
+                    CurrReadDataCursor   = readCursor,
+                    Changes              = Changed,
+                    States               = States,
+                    ChangedType          = ComponentType.Create<DataChanged<TState>>(),
+                    StateType            = ComponentType.Create<TState>(),
+                    EntityLength         = length,
+                    Sender               = sender,
+                    Runtime              = runtime,
+                    AddComponentRequests = addRequest,
+                    
+                    Excludeds = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                    Blockeds  = GetBufferFromEntity<BlockComponentSerialization>(),
 
-                        UpdateComponentDataFromEntity();
-                    }
+                    Ecb = ecb
+                }.Run();
 
-                    continue; // skip
+                sysData.CurrReadIndex = readCursor[0];
+
+                for (var i = 0; i != addRequest.Length; i++)
+                {
+                    ecb.AddComponent(addRequest[i].entity, addRequest[i].data);
                 }
 
-                if (!StateExists(worldEntity))
-                {
-                    EntityManager.AddComponent(worldEntity, typeof(TState));
-                    UpdateComponentDataFromEntity();
-                }
-
-                var state = sysData.ReadValue<TState>();
-                EntityManager.SetComponentData(worldEntity, state);
+                ecb.Playback(EntityManager);
             }
         }
     }

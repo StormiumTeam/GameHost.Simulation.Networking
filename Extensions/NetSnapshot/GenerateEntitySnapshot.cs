@@ -16,4 +16,9 @@ namespace StormiumShared.Core.Networking
     {
         
     }
+
+    public struct EntitySnapshotManualDestroy : IComponentData
+    {
+        
+    }
 }

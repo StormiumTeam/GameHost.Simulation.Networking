@@ -132,6 +132,9 @@ namespace StormiumShared.Core.Networking
             foreach (var e in entitiesUpdateResult.ToDestroy)
             {
                 var worldEntity = snapshotRuntime.EntityToWorld(e.Source);
+                if (entityMgr.HasComponent<EntitySnapshotManualDestroy>(worldEntity))
+                    continue;
+                
                 if (worldEntity == default || !entityMgr.Exists(worldEntity))
                 {
                     Debug.LogError($"Inconsistency when removing entity (w={worldEntity}, o={e.Source}) t={snapshotRuntime.Header.GameTime.Tick}");

@@ -385,6 +385,7 @@ namespace StormiumShared.Core.Networking
             // Read System Data
             var systemLength = data.ReadValue<int>();
             Profiler.BeginSample("Read System Data");
+
             for (var i = 0; i != systemLength; i++)
             {
                 data.ReadDynIntegerFromMask(out var uForeignSystemPattern, out var uLength);
@@ -396,11 +397,10 @@ namespace StormiumShared.Core.Networking
                 Profiler.BeginSample($"Read From System {system.GetSystemPattern().InternalIdent.Name} #" + system.GetSystemPattern().Id);
                 system.ReadData(sender, runtime, new DataBufferReader(data, data.CurrReadIndex, data.CurrReadIndex + length));
                 Profiler.EndSample();
-                
+
                 data.CurrReadIndex += length;
             }
             Profiler.EndSample();
-
             return runtime;
         }
 

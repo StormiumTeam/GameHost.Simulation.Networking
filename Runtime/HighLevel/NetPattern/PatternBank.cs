@@ -43,7 +43,7 @@ namespace package.stormiumteam.networking
 
         public void Set(int originId, int destinationId)
         {
-            Debug.Log($"Synced ({originId}, {destinationId})");
+            Debug.Log($"[o={Origin}, d={Destination}, id={Id}] Synced ({originId}, {destinationId})");
             
             OriginToDestination[originId]      = destinationId;
             DestinationToOrigin[destinationId] = originId;
@@ -52,6 +52,11 @@ namespace package.stormiumteam.networking
         public int GetOriginId(int destinationId)
         {
             return DestinationToOrigin[destinationId];
+        }
+
+        public bool HasPatternOrigin(int destinationId)
+        {
+            return DestinationToOrigin.ContainsKey(destinationId);
         }
 
         public int GetDestinationId(int originId)
@@ -97,6 +102,8 @@ namespace package.stormiumteam.networking
                     Id            = id,
                     InternalIdent = patternIdent
                 };
+                
+                Debug.Log($"(LocalBank) Register Pattern {patternIdent.Name} (id={id})");
 
                 m_ResultLink[patternIdent.Name] = patternResult;
                 PatternRegister?.Invoke(patternResult);
