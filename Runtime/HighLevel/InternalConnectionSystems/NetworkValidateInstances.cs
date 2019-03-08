@@ -22,7 +22,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
         
         protected override void OnCreateManager()
         {
-            m_Group = GetComponentGroup(typeof(NetworkInstanceData), typeof(QueryBuffer), ComponentType.Subtractive<ValidInstanceTag>());
+            m_Group = GetComponentGroup(typeof(NetworkInstanceData), typeof(QueryBuffer), ComponentType.Exclude<ValidInstanceTag>());
         }
 
         protected override void OnUpdate()

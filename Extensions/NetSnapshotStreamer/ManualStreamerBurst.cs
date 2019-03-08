@@ -6,7 +6,7 @@ using Unity.Mathematics;
 
 namespace StormiumShared.Core.Networking
 {
-    public unsafe class ManualStreamerBurst
+    /*public unsafe class ManualStreamerBurst
     {
         public struct WriteDataForEntityPayload
         {
@@ -128,5 +128,5 @@ namespace StormiumShared.Core.Networking
         public delegate void wdfe(void* payload);
 
         public delegate void WriteDataForEntityToBurst(void* payload, void* custom);
-    }
+    }*/
 }

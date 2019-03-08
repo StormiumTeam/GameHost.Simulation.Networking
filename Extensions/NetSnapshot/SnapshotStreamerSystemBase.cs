@@ -2,6 +2,8 @@ using System;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.IO;
+using System.Linq;
+using System.Text;
 using package.stormiumteam.networking;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
@@ -20,16 +22,19 @@ namespace StormiumShared.Core.Networking
     public abstract unsafe class SnapshotDataStreamerBase : JobComponentSystem, ISnapshotSubscribe, ISnapshotManageForClient
     {
         private PatternResult m_PatternResult;
-        
-        static string GetTypeName(Type type)
+
+        private static string GetTypeName(Type type)
         {
-            var codeDomProvider         = CodeDomProvider.CreateProvider("C#");
-            var typeReferenceExpression = new CodeTypeReferenceExpression(new CodeTypeReference(type));
-            using (var writer = new StringWriter())
-            {
-                codeDomProvider.GenerateCodeFromExpression(typeReferenceExpression, writer, new CodeGeneratorOptions());
-                return writer.GetStringBuilder().ToString();
-            } 
+            var sb   = new StringBuilder();
+            var name = type.Name;
+            if (!type.IsGenericType)
+                return name;
+
+            sb.Append(name.Substring(0, name.IndexOf('`')));
+            sb.Append("<");
+            sb.Append(string.Join(", ", type.GetGenericArguments().Select(GetTypeName)));
+            sb.Append(">");
+            return sb.ToString();
         }
 
         protected override void OnCreateManager()

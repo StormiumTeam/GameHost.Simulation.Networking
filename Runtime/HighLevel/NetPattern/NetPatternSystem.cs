@@ -40,8 +40,8 @@ namespace package.stormiumteam.networking
                 (
                     typeof(NetworkInstanceData),
                     typeof(QueryBuffer),
-                    ComponentType.Subtractive<ValidInstanceTag>(),
-                    ComponentType.Subtractive<NetworkInstanceHost>()
+                    ComponentType.Exclude<ValidInstanceTag>(),
+                    ComponentType.Exclude<NetworkInstanceHost>()
                 ),
                 GetComponentGroup
                 (

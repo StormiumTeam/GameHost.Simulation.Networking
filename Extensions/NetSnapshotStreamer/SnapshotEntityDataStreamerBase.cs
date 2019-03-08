@@ -44,7 +44,7 @@ namespace StormiumShared.Core.Networking
 
             UpdateComponentDataFromEntity();
 
-            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.Create<TState>(), ComponentType.Subtractive<DataChanged<TState>>());
+            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.Create<TState>(), ComponentType.Exclude<DataChanged<TState>>());
         }
 
         protected override JobHandle OnUpdate(JobHandle job)

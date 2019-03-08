@@ -14,37 +14,59 @@ namespace package.stormiumteam.networking.runtime.highlevel
     /// then NetworkValidateInstance
     /// then (IntEnd)
     /// </remarks>
-    public struct UpdateLoop
+    public class UpdateLoop : ComponentSystemGroup
     {
-        [UpdateInGroup(typeof(Update))]
-        public class IntNetworkManager : BarrierSystem
+        [UpdateInGroup(typeof(PresentationSystemGroup))]
+        public class IntNetworkManager : ComponentSystemGroup
         {
-
+            protected override void OnCreateManager()
+            {
+                base.OnCreateManager();
+                
+                AddSystemToUpdateList(World.GetOrCreateManager<NetworkManager>());
+            }
         }
 
         [UpdateAfter(typeof(IntNetworkManager))]
-        public class IntInit : BarrierSystem
+        public class IntInit : ComponentSystemGroup
         {
-
         }
 
         [UpdateAfter(typeof(IntInit))]
-        public class IntNetworkEventManager : BarrierSystem
+        public class IntNetworkEventManager : ComponentSystemGroup
         {
+            protected override void OnCreateManager()
+            {
+                base.OnCreateManager();
+                
+                AddSystemToUpdateList(World.GetOrCreateManager<NetworkEventManager>());
+            }
         }
 
         [UpdateAfter(typeof(IntNetworkEventManager))]
-        public class IntNetworkCreateIncomingInstance : BarrierSystem
+        public class IntNetworkCreateIncomingInstance : ComponentSystemGroup
         {
+            protected override void OnCreateManager()
+            {
+                base.OnCreateManager();
+                
+                AddSystemToUpdateList(World.GetOrCreateManager<NetworkCreateIncomingInstanceSystem>());
+            }
         }
 
         [UpdateAfter(typeof(IntNetworkCreateIncomingInstance))]
-        public class IntNetworkValidateInstance : BarrierSystem
+        public class IntNetworkValidateInstance : ComponentSystemGroup
         {
+            protected override void OnCreateManager()
+            {
+                base.OnCreateManager();
+                
+                AddSystemToUpdateList(World.GetOrCreateManager<IntNetworkValidateInstance>());
+            }
         }
 
         [UpdateAfter(typeof(IntNetworkValidateInstance))]
-        public class IntEnd : BarrierSystem
+        public class IntEnd : ComponentSystemGroup
         {
 
         }
