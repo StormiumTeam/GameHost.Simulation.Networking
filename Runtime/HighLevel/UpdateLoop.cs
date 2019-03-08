@@ -23,7 +23,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 base.OnCreateManager();
                 
-                AddSystemToUpdateList(World.GetOrCreateManager<NetworkManager>());
+               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkManager>());
             }
         }
 
@@ -39,7 +39,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 base.OnCreateManager();
                 
-                AddSystemToUpdateList(World.GetOrCreateManager<NetworkEventManager>());
+               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkEventManager>());
             }
         }
 
@@ -50,7 +50,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 base.OnCreateManager();
                 
-                AddSystemToUpdateList(World.GetOrCreateManager<NetworkCreateIncomingInstanceSystem>());
+               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkCreateIncomingInstanceSystem>());
             }
         }
 
@@ -61,7 +61,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 base.OnCreateManager();
                 
-                AddSystemToUpdateList(World.GetOrCreateManager<IntNetworkValidateInstance>());
+               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkValidateInstances>());
             }
         }
 
