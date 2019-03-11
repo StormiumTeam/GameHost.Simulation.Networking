@@ -1,4 +1,3 @@
-using package.stormiumteam.networking;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -100,7 +99,7 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        public static void CreateEntities(UpdateResult result, World world, ref StSnapshotRuntime snapshotRuntime)
+        public static void CreateEntities(UpdateResult result, World world, ref SnapshotRuntime snapshotRuntime)
         {
             var modelMgr  = world.GetExistingManager<EntityModelManager>();
 
@@ -123,7 +122,7 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        public static void DestroyEntities(UpdateResult entitiesUpdateResult, World world, ref StSnapshotRuntime snapshotRuntime, bool removeLinks = true)
+        public static void DestroyEntities(UpdateResult entitiesUpdateResult, World world, ref SnapshotRuntime snapshotRuntime, bool removeLinks = true)
         {
             var entityMgr = world.GetExistingManager<EntityManager>();
             var modelMgr = world.GetExistingManager<EntityModelManager>();

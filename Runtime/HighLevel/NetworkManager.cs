@@ -5,12 +5,10 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.RegularExpressions;
 using package.stormiumteam.networking.runtime.lowlevel;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
-using UnityEngine.Profiling;
 using Valve.Sockets;
 
 namespace package.stormiumteam.networking.runtime.highlevel
@@ -96,10 +94,10 @@ namespace package.stormiumteam.networking.runtime.highlevel
         
         protected override void OnCreateManager()
         {
-            DataType               = ComponentType.Create<NetworkInstanceData>();
-            DataHostType           = ComponentType.Create<NetworkInstanceHost>();
-            QueryBufferType        = ComponentType.Create<QueryBuffer>();
-            ConnectedBufferType    = ComponentType.Create<ConnectedInstance>();
+            DataType               = ComponentType.ReadWrite<NetworkInstanceData>();
+            DataHostType           = ComponentType.ReadWrite<NetworkInstanceHost>();
+            QueryBufferType        = ComponentType.ReadWrite<QueryBuffer>();
+            ConnectedBufferType    = ComponentType.ReadWrite<ConnectedInstance>();
             LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, DataHostType, QueryBufferType, ConnectedBufferType);
             ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, QueryBufferType, ConnectedBufferType);
 

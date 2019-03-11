@@ -26,11 +26,11 @@ namespace StormiumShared.Core.Networking
             public ComponentType[] Components;
         }
         
-        public delegate Entity SpawnEntityDelegate(Entity origin, StSnapshotRuntime snapshotRuntime);
+        public delegate Entity SpawnEntityDelegate(Entity origin, SnapshotRuntime snapshotRuntime);
         public delegate void DestroyEntityDelegate(Entity worldEntity);
         
-        public delegate void WriteModelArray(ref DataBufferWriter data, SnapshotReceiver receiver, StSnapshotRuntime runtime);
-        public delegate void ReadModelArray(ref DataBufferReader data, SnapshotSender sender, StSnapshotRuntime runtime);
+        public delegate void WriteModelArray(ref DataBufferWriter data, SnapshotReceiver receiver, SnapshotRuntime runtime);
+        public delegate void ReadModelArray(ref DataBufferReader data, SnapshotSender sender, SnapshotRuntime runtime);
         
         private PatternBank m_PatternBank;
         private readonly Dictionary<int, DValue> m_ModelsData = new Dictionary<int, DValue>();
@@ -90,7 +90,7 @@ namespace StormiumShared.Core.Networking
             return new ModelIdent(pattern.Id);
         }
 
-        public Entity SpawnEntity(int modelId, Entity origin, StSnapshotRuntime snapshotRuntime)
+        public Entity SpawnEntity(int modelId, Entity origin, SnapshotRuntime snapshotRuntime)
         {
             #if UNITY_EDITOR || DEBUG
             if (!m_ModelsData.ContainsKey(modelId))

@@ -1,9 +1,3 @@
-using package.stormiumteam.networking.runtime.lowlevel;
-using Unity.Burst;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
-using Unity.Mathematics;
-
 namespace StormiumShared.Core.Networking
 {
     /*public unsafe class ManualStreamerBurst

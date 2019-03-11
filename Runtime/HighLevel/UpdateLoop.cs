@@ -1,5 +1,4 @@
 ﻿using Unity.Entities;
-using UnityEngine.Experimental.PlayerLoop;
 
 namespace package.stormiumteam.networking.runtime.highlevel
 {

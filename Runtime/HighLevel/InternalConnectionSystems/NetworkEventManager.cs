@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared.utils;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;

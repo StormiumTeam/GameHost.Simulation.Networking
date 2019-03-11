@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using package.stormiumteam.networking.runtime.highlevel;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using UnityEngine;
 

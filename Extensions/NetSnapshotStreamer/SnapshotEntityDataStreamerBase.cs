@@ -32,8 +32,8 @@ namespace StormiumShared.Core.Networking
         {
             base.OnCreateManager();
 
-            StateType   = ComponentType.Create<TState>();
-            ChangedType = ComponentType.Create<DataChanged<TState>>();
+            StateType   = ComponentType.ReadWrite<TState>();
+            ChangedType = ComponentType.ReadWrite<DataChanged<TState>>();
 
             m_StateExistsBurst        = GetExistsCall<TState>();
             m_ChangedStateExistsBurst = GetExistsCall<DataChanged<TState>>();
@@ -44,7 +44,7 @@ namespace StormiumShared.Core.Networking
 
             UpdateComponentDataFromEntity();
 
-            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.Create<TState>(), ComponentType.Exclude<DataChanged<TState>>());
+            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.ReadWrite<TState>(), ComponentType.Exclude<DataChanged<TState>>());
         }
 
         protected override JobHandle OnUpdate(JobHandle job)
@@ -103,7 +103,7 @@ namespace StormiumShared.Core.Networking
         {
             base.OnCreateManager();
 
-            StateType = ComponentType.Create<TState>();
+            StateType = ComponentType.ReadWrite<TState>();
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
 using Unity.Burst;
@@ -8,7 +7,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
-using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
@@ -32,7 +30,7 @@ namespace StormiumShared.Core.Networking
         {
             public DataBufferWriter  Buffer;
             public SnapshotReceiver  Receiver;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             public int StateTypeIndex;
@@ -198,7 +196,7 @@ namespace StormiumShared.Core.Networking
             }
         }*/
 
-        public override DataBufferWriter WriteData(SnapshotReceiver receiver, StSnapshotRuntime runtime)
+        public override DataBufferWriter WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime)
         {
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
             UpdateComponentDataFromEntity();
@@ -227,7 +225,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, StSnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
@@ -334,7 +332,7 @@ namespace StormiumShared.Core.Networking
         {
             public DataBufferWriter  Buffer;
             public SnapshotReceiver  Receiver;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
             public int               StateTypeIndex;
 
@@ -429,7 +427,7 @@ namespace StormiumShared.Core.Networking
 
             public DataBufferReader  Buffer;
             public SnapshotSender    Sender;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             [ReadOnly]
@@ -520,7 +518,7 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        public override DataBufferWriter WriteData(SnapshotReceiver receiver, StSnapshotRuntime runtime)
+        public override DataBufferWriter WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime)
         {
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
             UpdateComponentDataFromEntity();
@@ -542,7 +540,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, StSnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
@@ -557,8 +555,8 @@ namespace StormiumShared.Core.Networking
                     CurrReadDataCursor   = readCursor,
                     Changes              = Changed,
                     States               = States,
-                    ChangedType          = ComponentType.Create<DataChanged<TState>>(),
-                    StateType            = ComponentType.Create<TState>(),
+                    ChangedType          = ComponentType.ReadWrite<DataChanged<TState>>(),
+                    StateType            = ComponentType.ReadWrite<TState>(),
                     EntityLength         = length,
                     Sender               = sender,
                     Runtime              = runtime,
@@ -590,7 +588,7 @@ namespace StormiumShared.Core.Networking
         {
             public DataBufferWriter  Buffer;
             public SnapshotReceiver  Receiver;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             [ReadOnly]
@@ -638,7 +636,7 @@ namespace StormiumShared.Core.Networking
 
             public DataBufferReader  Buffer;
             public SnapshotSender    Sender;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             [ReadOnly]
@@ -685,7 +683,7 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        public override DataBufferWriter WriteData(SnapshotReceiver receiver, StSnapshotRuntime runtime)
+        public override DataBufferWriter WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime)
         {
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
 
@@ -701,7 +699,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, StSnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
 
@@ -714,7 +712,7 @@ namespace StormiumShared.Core.Networking
                     Buffer               = sysData,
                     CurrReadDataCursor   = readCursor,
                     Components           = GetBufferFromEntity<TComponent>(),
-                    ComponentType        = ComponentType.Create<TComponent>(),
+                    ComponentType        = ComponentType.ReadWrite<TComponent>(),
                     EntityLength         = length,
                     Sender               = sender,
                     Runtime              = runtime,
@@ -743,7 +741,7 @@ namespace StormiumShared.Core.Networking
         {
             public DataBufferWriter  Buffer;
             public SnapshotReceiver  Receiver;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             [ReadOnly]
@@ -791,7 +789,7 @@ namespace StormiumShared.Core.Networking
 
             public DataBufferReader  Buffer;
             public SnapshotSender    Sender;
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public int               EntityLength;
 
             [ReadOnly]
@@ -838,7 +836,7 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        public override DataBufferWriter WriteData(SnapshotReceiver receiver, StSnapshotRuntime runtime)
+        public override DataBufferWriter WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime)
         {
             GetDataAndEntityLength(runtime, out var buffer, out var entityLength);
 
@@ -854,7 +852,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, StSnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
 
@@ -867,7 +865,7 @@ namespace StormiumShared.Core.Networking
                     Buffer               = sysData,
                     CurrReadDataCursor   = readCursor,
                     Components           = GetComponentDataFromEntity<TComponent>(),
-                    ComponentType        = ComponentType.Create<TComponent>(),
+                    ComponentType        = ComponentType.ReadWrite<TComponent>(),
                     EntityLength         = length,
                     Sender               = sender,
                     Runtime              = runtime,

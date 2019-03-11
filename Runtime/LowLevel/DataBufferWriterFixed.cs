@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;

@@ -30,7 +30,7 @@ namespace StormiumShared.Core.Networking
         }
     }
 
-    public struct StSnapshotRuntime
+    public struct SnapshotRuntime
     {
         public Allocator Allocator;
 
@@ -43,7 +43,7 @@ namespace StormiumShared.Core.Networking
         [ReadOnly]
         public NativeHashMap<Entity, Entity> WorldToSnapshot;
         
-        public StSnapshotRuntime(StSnapshotHeader header, StSnapshotRuntime previousRuntime, Allocator wantedAllocator)
+        public SnapshotRuntime(StSnapshotHeader header, SnapshotRuntime previousRuntime, Allocator wantedAllocator)
         {
             if (previousRuntime.Allocator != wantedAllocator) throw new Exception();
 
@@ -55,7 +55,7 @@ namespace StormiumShared.Core.Networking
             WorldToSnapshot = previousRuntime.WorldToSnapshot;
         }
         
-        public StSnapshotRuntime(StSnapshotHeader header, Allocator allocator)
+        public SnapshotRuntime(StSnapshotHeader header, Allocator allocator)
         {
             Allocator = allocator;
 

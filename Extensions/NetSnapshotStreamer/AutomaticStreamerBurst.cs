@@ -12,7 +12,7 @@ namespace StormiumShared.Core.Networking
         {
             public DataBufferWriter                        Buffer;
             public SnapshotReceiver                        Receiver;
-            public StSnapshotRuntime                       Runtime;
+            public SnapshotRuntime                       Runtime;
             public int                                     EntityLength;
             public ComponentDataFromEntity<T>              States;
             public ComponentDataFromEntity<DataChanged<T>> Changes;
@@ -63,7 +63,7 @@ namespace StormiumShared.Core.Networking
         }
 
         public static void CallWriteData<T>(CallWriteDataAsBurst                    call,
-                                            DataBufferWriter                        buffer, SnapshotReceiver receiver, StSnapshotRuntime runtime, int entityLength,
+                                            DataBufferWriter                        buffer, SnapshotReceiver receiver, SnapshotRuntime runtime, int entityLength,
                                             ComponentDataFromEntity<T>              states,
                                             ComponentDataFromEntity<DataChanged<T>> changes)
             where T : struct, IComponentData

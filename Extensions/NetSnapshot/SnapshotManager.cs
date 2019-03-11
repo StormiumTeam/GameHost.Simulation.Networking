@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using package.stormiumteam.networking;
 using package.stormiumteam.networking.runtime.lowlevel;
 using package.stormiumteam.shared;
@@ -17,7 +16,7 @@ namespace StormiumShared.Core.Networking
     {
         public struct GenerateResult
         {
-            public StSnapshotRuntime Runtime;
+            public SnapshotRuntime Runtime;
             public DataBufferWriter Data;
 
             public bool IsCreated => Data.GetSafePtr() != IntPtr.Zero;
@@ -106,7 +105,7 @@ namespace StormiumShared.Core.Networking
                                                     GameTime              gameTime,
                                                     Allocator             allocator,
                                                     ref DataBufferWriter  data,
-                                                    ref StSnapshotRuntime previousRuntime)
+                                                    ref SnapshotRuntime previousRuntime)
         {
             var entities = TransformEntityArray(nfEntities, allocator);
             var sender = new SnapshotSender(senderClient, SnapshotFlags.Local);
@@ -156,7 +155,7 @@ namespace StormiumShared.Core.Networking
             //if (entities.Length > 0) data.WriteDataSafe((byte*) entities.GetUnsafePtr(), entities.Length * sizeof(SnapshotEntityInformation), default);
         }
 
-        private unsafe void WriteIncrementalEntities(ref DataBufferWriter data, ref NativeArray<SnapshotEntityInformation> entities, ref StSnapshotRuntime previousRuntime)
+        private unsafe void WriteIncrementalEntities(ref DataBufferWriter data, ref NativeArray<SnapshotEntityInformation> entities, ref SnapshotRuntime previousRuntime)
         {
             WriteFullEntities(ref data, ref entities);
             return;
@@ -233,7 +232,7 @@ namespace StormiumShared.Core.Networking
                                                       NativeArray<SnapshotEntityInformation> entities,
                                                       Allocator                              allocator,
                                                       ref DataBufferWriter                   data,
-                                                      ref StSnapshotRuntime                  runtime)
+                                                      ref SnapshotRuntime                  runtime)
         {
             IntPtr previousEntityArrayPtr = default;
             Profiler.BeginSample("Create Header");
@@ -319,7 +318,7 @@ namespace StormiumShared.Core.Networking
             return null;
         }
         
-        public unsafe StSnapshotRuntime ApplySnapshotFromData(SnapshotSender sender, ref DataBufferReader data, ref StSnapshotRuntime previousRuntime, PatternBankExchange exchange)
+        public unsafe SnapshotRuntime ApplySnapshotFromData(SnapshotSender sender, ref DataBufferReader data, ref SnapshotRuntime previousRuntime, PatternBankExchange exchange)
         {
             // Terminate the function if the runtime is bad.
             if (previousRuntime.Allocator == Allocator.None || previousRuntime.Allocator == Allocator.Invalid)
@@ -338,7 +337,7 @@ namespace StormiumShared.Core.Networking
             var gameTime    = data.ReadValue<GameTime>();
 
             var header  = new StSnapshotHeader(gameTime, snapshotIdx, sender);
-            var runtime = new StSnapshotRuntime(header, previousRuntime, allocator);
+            var runtime = new SnapshotRuntime(header, previousRuntime, allocator);
 
             // Read Entity Data
             SnapshotManageEntities.UpdateResult entitiesUpdateResult = default;
