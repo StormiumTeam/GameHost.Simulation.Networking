@@ -47,7 +47,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                         continue;
 
                     var entity      = entityArray[i];
-                    var eventBuffer = EntityManager.GetBuffer<EventBuffer>(entity);
+                    var eventBuffer = new NativeArray<EventBuffer>(EntityManager.GetBuffer<EventBuffer>(entity).AsNativeArray(), Allocator.TempJob);
 
                     for (var j = 0; j != eventBuffer.Length; j++)
                     {
@@ -69,6 +69,8 @@ namespace package.stormiumteam.networking.runtime.highlevel
                             m_NetworkManager.Stop(m_NetworkManager.GetNetworkInstanceEntity(ev.Event.Invoker.Id), false);
                         }
                     }
+                    
+                    eventBuffer.Dispose();
                 }
             }
         }

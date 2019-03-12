@@ -273,6 +273,12 @@ namespace StormiumShared.Core.Networking
                 runtime.Entities.Dispose();
                 runtime.Entities = entities;
             }
+
+            if (!runtime.Entities.IsCreated)
+            {
+                Debug.LogWarning("What???");
+                runtime.Entities = entities;
+            }
             Profiler.EndSample();
 
             Profiler.BeginSample("SubscribeSystem()");

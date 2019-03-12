@@ -21,4 +21,27 @@ namespace StormiumShared.Core
             Value = value;
         }
     }
+
+    public struct SingletonGameTime : IComponentData
+    {
+        public int    Frame;
+        public int    Tick;
+        public int    DeltaTick;
+        public int    FixedTickPerSecond;
+        public double Time;
+        public float  DeltaTime;
+
+        public GameTime ToGameTime()
+        {
+            return new GameTime
+            {
+                Frame              = Frame,
+                Tick               = Tick,
+                DeltaTick          = DeltaTick,
+                FixedTickPerSecond = FixedTickPerSecond,
+                Time               = Time,
+                DeltaTime          = DeltaTime
+            };
+        }
+    }
 }

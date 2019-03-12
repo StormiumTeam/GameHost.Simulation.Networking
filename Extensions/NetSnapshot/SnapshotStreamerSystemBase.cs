@@ -1,4 +1,7 @@
 using System;
+using System.CodeDom;
+using System.CodeDom.Compiler;
+using System.IO;
 using System.Linq;
 using System.Text;
 using package.stormiumteam.networking;
@@ -8,6 +11,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace StormiumShared.Core.Networking
 {
@@ -21,16 +25,13 @@ namespace StormiumShared.Core.Networking
 
         private static string GetTypeName(Type type)
         {
-            var sb   = new StringBuilder();
-            var name = type.Name;
-            if (!type.IsGenericType)
-                return name;
-
-            sb.Append(name.Substring(0, name.IndexOf('`')));
-            sb.Append("<");
-            sb.Append(string.Join(", ", type.GetGenericArguments().Select(GetTypeName)));
-            sb.Append(">");
-            return sb.ToString();
+            var codeDomProvider         = CodeDomProvider.CreateProvider("C#");
+            var typeReferenceExpression = new CodeTypeReferenceExpression(new CodeTypeReference(type));
+            using (var writer = new StringWriter())
+            {
+                codeDomProvider.GenerateCodeFromExpression(typeReferenceExpression, writer, new CodeGeneratorOptions());
+                return writer.GetStringBuilder().ToString();
+            } 
         }
 
         protected override void OnCreateManager()
@@ -50,9 +51,28 @@ namespace StormiumShared.Core.Networking
         {
         }
 
+        DataBufferWriter ISnapshotManageForClient.WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime)
+        {
+            var buffer = new DataBufferWriter(sizeof(int), Allocator.TempJob);
+            var lengthMarker = buffer.WriteInt(0);
+            buffer.WriteBuffer(WriteData(receiver, runtime));
+            buffer.WriteInt(buffer.Length, lengthMarker);
+            return buffer;
+        }
+
+        void ISnapshotManageForClient.ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader dataBufferReader)
+        {
+            var length = dataBufferReader.ReadValue<int>();
+            ReadData(sender, runtime, ref dataBufferReader);
+            if (length != dataBufferReader.CurrReadIndex)
+            {
+                Debug.LogError($"{GetSystemPattern().InternalIdent.Name}.ReadData() -> Error! -> length({length}) != dataBufferReader.CurrReadIndex({dataBufferReader.CurrReadIndex})");
+            }
+        }
+
         public abstract DataBufferWriter WriteData(SnapshotReceiver receiver, SnapshotRuntime runtime);
 
-        public abstract void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData);
+        public abstract void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader dataBufferReader);
 
         protected void GetDataAndEntityLength(SnapshotRuntime runtime, out DataBufferWriter data, out int entityLength, int desiredDataLength = 0)
         {

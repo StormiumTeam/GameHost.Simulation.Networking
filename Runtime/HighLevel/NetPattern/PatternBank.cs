@@ -108,7 +108,11 @@ namespace package.stormiumteam.networking
                 m_ResultLink[patternIdent.Name] = patternResult;
                 PatternRegister?.Invoke(patternResult);
             }
-
+            else
+            {
+                Debug.LogWarning($"Some systems are trying to register an already existing pattern! (p={patternIdent.Name})");
+            }
+            
             m_StringLink[patternIdent.Name] = patternIdent;
 
             return GetPatternResult(patternIdent);

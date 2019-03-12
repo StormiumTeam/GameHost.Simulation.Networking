@@ -13,12 +13,12 @@ namespace StormiumShared.Core.Networking
         [BurstCompile]
         private struct WriteJob : IJob
         {
-            public DataBufferWriter  Buffer;
-            public SnapshotReceiver  Receiver;
-            public SnapshotRuntime Runtime;
-            public int               EntityLength;
-            public int StateTypeIndex;
-            
+            public DataBufferWriter Buffer;
+            public SnapshotReceiver Receiver;
+            public SnapshotRuntime  Runtime;
+            public int              EntityLength;
+            public int              StateTypeIndex;
+
             [ReadOnly]
             public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
 
@@ -48,16 +48,16 @@ namespace StormiumShared.Core.Networking
                         var ct                = false;
                         for (var i = 0; i != blockedComponents.Length; i++)
                         {
-                            if (blockedComponents[i].TypeIdx != StateTypeIndex) 
+                            if (blockedComponents[i].TypeIdx != StateTypeIndex)
                                 continue;
-                        
+
                             ct = true;
                         }
 
                         if (ct)
                             continue;
                     }
-                    
+
                     // 4 because 8 bits and 2 bits used per flag write
                     var mod = (byte) (index % (sizeof(byte) * 4));
                     if (mod == 0)
@@ -65,6 +65,7 @@ namespace StormiumShared.Core.Networking
                         bitMask = 0;
                         marker  = Buffer.WriteByte(0);
                     }
+
                     index++;
 
                     if (!States.Exists(entity))
@@ -106,11 +107,11 @@ namespace StormiumShared.Core.Networking
             public ComponentType StateType;
             public ComponentType ChangedType;
 
-            public DataBufferReader  Buffer;
-            public SnapshotSender    Sender;
-            public SnapshotRuntime Runtime;
-            public int               EntityLength;
-            
+            public UnsafeAllocation<DataBufferReader> BufferReference;
+            public SnapshotSender                     Sender;
+            public SnapshotRuntime                    Runtime;
+            public int                                EntityLength;
+
             [ReadOnly]
             public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
 
@@ -123,15 +124,14 @@ namespace StormiumShared.Core.Networking
             public ComponentDataFromEntity<DataChanged<TState>> Changes;
 
             [WriteOnly]
-            public NativeArray<int> CurrReadDataCursor;
-
-            [WriteOnly]
             public NativeList<AddRequest> AddComponentRequests;
 
             public EntityCommandBuffer Ecb;
 
             public void Execute()
             {
+                ref var buffer = ref BufferReference.AsRef();
+
                 byte bitMask = 0;
                 var  index   = 0;
                 for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
@@ -145,9 +145,9 @@ namespace StormiumShared.Core.Networking
                         var ct                = false;
                         for (var i = 0; i != blockedComponents.Length; i++)
                         {
-                            if (blockedComponents[i].TypeIdx != StateType.TypeIndex) 
+                            if (blockedComponents[i].TypeIdx != StateType.TypeIndex)
                                 continue;
-                        
+
                             ct = true;
                         }
 
@@ -159,11 +159,12 @@ namespace StormiumShared.Core.Networking
                     var mod = (byte) (index % (sizeof(byte) * 4));
                     if (mod == 0)
                     {
-                        bitMask = Buffer.ReadValue<byte>();
+                        bitMask = buffer.ReadValue<byte>();
                     }
+
                     index++;
 
-                    var skip        = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte) (mod * 2), 2);
+                    var skip = (StreamerSkipReason) MainBit.GetByteRangeAt(bitMask, (byte) (mod * 2), 2);
                     if (skip != StreamerSkipReason.NoSkip)
                     {
                         // If the component don't exist in the snapshot, also remove it from our world.
@@ -181,7 +182,7 @@ namespace StormiumShared.Core.Networking
                         continue; // skip
                     }
 
-                    var newData = Buffer.ReadValue<TState>();
+                    var newData = buffer.ReadValue<TState>();
                     if (!States.Exists(worldEntity))
                     {
                         AddComponentRequests.Add(new AddRequest {entity = worldEntity, data = newData});
@@ -190,8 +191,6 @@ namespace StormiumShared.Core.Networking
 
                     States[worldEntity] = newData;
                 }
-
-                CurrReadDataCursor[0] = Buffer.CurrReadIndex;
             }
         }
 
@@ -208,7 +207,7 @@ namespace StormiumShared.Core.Networking
                 EntityLength = entityLength,
                 Receiver     = receiver,
                 Runtime      = runtime,
-                
+
                 StateTypeIndex = StateType.TypeIndex,
                 Excludeds      = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
                 Blockeds       = GetBufferFromEntity<BlockComponentSerialization>()
@@ -217,35 +216,31 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
 
             using (var ecb = new EntityCommandBuffer(Allocator.TempJob))
-            using (var readCursor = new NativeArray<int>(1, Allocator.TempJob) {[0] = sysData.CurrReadIndex})
             using (var addRequest = new NativeList<AddRequest>(length, Allocator.TempJob))
             {
                 new ReadJob
                 {
-                    Buffer               = sysData,
-                    CurrReadDataCursor   = readCursor,
+                    BufferReference      = UnsafeAllocation.From(ref sysData),
                     Changes              = Changed,
                     States               = States,
                     ChangedType          = ComponentType.ReadWrite<DataChanged<TState>>(),
-                    StateType            = ComponentType.ReadWrite<TState>(),
+                    StateType            = StateType,
                     EntityLength         = length,
                     Sender               = sender,
                     Runtime              = runtime,
                     AddComponentRequests = addRequest,
-                    
+
                     Excludeds = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
                     Blockeds  = GetBufferFromEntity<BlockComponentSerialization>(),
 
                     Ecb = ecb
                 }.Run();
-
-                sysData.CurrReadIndex = readCursor[0];
 
                 for (var i = 0; i != addRequest.Length; i++)
                 {

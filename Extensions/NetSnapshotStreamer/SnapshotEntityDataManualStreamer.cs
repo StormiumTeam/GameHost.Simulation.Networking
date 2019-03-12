@@ -225,7 +225,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
@@ -272,6 +272,8 @@ namespace StormiumShared.Core.Networking
                         && StateExists(worldEntity))
                     {
                         EntityManager.RemoveComponent<TState>(worldEntity);
+                        UpdateComponentDataFromEntity();
+                        
                         // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
                         if (ChangedStateExists(worldEntity))
                         {
@@ -540,7 +542,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
             UpdateComponentDataFromEntity();
@@ -699,7 +701,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
 
@@ -852,7 +854,7 @@ namespace StormiumShared.Core.Networking
             return buffer;
         }
 
-        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, DataBufferReader sysData)
+        public override void ReadData(SnapshotSender sender, SnapshotRuntime runtime, ref DataBufferReader sysData)
         {
             GetEntityLength(runtime, out var length);
 
