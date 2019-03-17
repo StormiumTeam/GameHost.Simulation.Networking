@@ -54,7 +54,7 @@ namespace StormiumShared.Core.Networking
             using (var entityArray = m_EntitiesWithoutDataChanged.ToEntityArray(Allocator.TempJob))
             {
                 for (var i = 0; i != entityArray.Length; i++)
-                    EntityManager.AddComponentData(entityArray[i], new DataChanged<TState> {IsDirty = 1});
+                    EntityManager.AddComponentData(entityArray[i], new DataChanged<TState> {IsDirty = true});
             }
 
             return job;

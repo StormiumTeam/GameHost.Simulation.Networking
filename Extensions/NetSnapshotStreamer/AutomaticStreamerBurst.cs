@@ -46,7 +46,7 @@ namespace StormiumShared.Core.Networking
                     }
 
                     var state  = states[entity];
-                    var change = new DataChanged<T> {IsDirty = 1};
+                    var change = new DataChanged<T> {IsDirty = true};
                     if (changes.Exists(entity))
                         change = changes[entity];
 

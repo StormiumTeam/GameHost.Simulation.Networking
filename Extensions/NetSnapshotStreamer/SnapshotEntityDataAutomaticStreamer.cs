@@ -76,7 +76,7 @@ namespace StormiumShared.Core.Networking
                     }
 
                     var change = default(DataChanged<TState>);
-                    change.IsDirty = 1;
+                    change.IsDirty = true;
 
                     if (Changes.Exists(entity))
                         change = Changes[entity];

@@ -16,7 +16,7 @@ namespace package.stormiumteam.networking
 
 		public bool HasChange(Entity entity)
 		{
-			return m_ChangeFromEntity[entity].IsDirty == 1 || true; 
+			return m_ChangeFromEntity[entity].IsDirty || true; 
 		}
 
 		public T this[Entity entity]

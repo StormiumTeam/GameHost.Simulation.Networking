@@ -26,7 +26,7 @@ namespace StormiumShared.Core.Networking
         public static bool ShouldSkip<T>(SnapshotReceiver receiver, DataChanged<T> changed)
             where T : struct, IComponentData
         {
-            return math.select(0, math.select(1, 0, changed.IsDirty == 1), (receiver.Flags & SnapshotFlags.FullData) == 0) == 1;
+            return math.select(0, math.select(1, 0, changed.IsDirty), (receiver.Flags & SnapshotFlags.FullData) == 0) == 1;
         }
     }
 
