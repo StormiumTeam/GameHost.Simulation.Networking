@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using package.stormiumteam.networking.runtime.lowlevel;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -18,9 +19,6 @@ namespace StormiumShared.Core.Networking
         protected ComponentDataFromEntity<TState>              States;
         protected ComponentDataFromEntity<DataChanged<TState>> Changed;
 
-        private ComponentDataFromEntityBurstExtensions.CallExistsAsBurst m_StateExistsBurst;
-        private ComponentDataFromEntityBurstExtensions.CallExistsAsBurst m_ChangedStateExistsBurst;
-
         private ComponentGroup m_EntitiesWithoutDataChanged;
 
         static DataBufferMarker WriteDataSafe(ref DataBufferWriter writer, int val)
@@ -34,9 +32,6 @@ namespace StormiumShared.Core.Networking
 
             StateType   = ComponentType.ReadWrite<TState>();
             ChangedType = ComponentType.ReadWrite<DataChanged<TState>>();
-
-            m_StateExistsBurst        = GetExistsCall<TState>();
-            m_ChangedStateExistsBurst = GetExistsCall<DataChanged<TState>>();
 
             World.GetOrCreateManager<DataChangedSystem<TState>>();
 
@@ -60,22 +55,16 @@ namespace StormiumShared.Core.Networking
             return job;
         }
 
-        protected ComponentDataFromEntityBurstExtensions.CallExistsAsBurst GetExistsCall<T>()
-            where T : struct, IComponentData
-        {
-            return ComponentDataFromEntityBurstExtensions.CreateCall<T>.Exists();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [BurstCompile]
         protected bool StateExists(Entity entity)
         {
-            return States.CallExists(m_StateExistsBurst, entity);
+            return States.Exists(entity);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [BurstCompile]
         protected bool ChangedStateExists(Entity entity)
         {
-            return Changed.CallExists(m_ChangedStateExistsBurst, entity);
+            return Changed.Exists(entity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -7,7 +7,7 @@ namespace StormiumShared.Core.Networking
 {
     public static unsafe class ComponentDataFromEntityBurstExtensions
     {
-        public static class CreateCall<T> where T : struct, IComponentData
+        /*public static class CreateCall<T> where T : struct, IComponentData
         {
             public static CallExistsAsBurst Exists()
             {
@@ -29,6 +29,6 @@ namespace StormiumShared.Core.Networking
             return call(Unsafe.AsPointer(ref dataFromEntity), entity);
         }
 
-        public delegate bool CallExistsAsBurst(void* data, Entity entity);
+        public delegate bool CallExistsAsBurst(void* data, Entity entity);*/
     }
 }

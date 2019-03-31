@@ -7,7 +7,7 @@ namespace StormiumShared.Core.Networking
 {
     static unsafe class AutomaticStreamerBurst
     {
-        public struct WriteDataPayload<T>
+        /*public struct WriteDataPayload<T>
             where T : struct, IComponentData
         {
             public DataBufferWriter                        Buffer;
@@ -81,6 +81,6 @@ namespace StormiumShared.Core.Networking
             call(UnsafeUtility.AddressOf(ref payload));
         }
 
-        public delegate void CallWriteDataAsBurst(void* payload);
+        public delegate void CallWriteDataAsBurst(void* payload);*/
     }
 }

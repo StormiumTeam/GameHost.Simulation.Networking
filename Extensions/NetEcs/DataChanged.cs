@@ -59,9 +59,9 @@ namespace StormiumShared.Core.Networking
         [BurstCompile]
         private struct UpdateData : IJobChunk
         {
-            public uint                                        LastSystemVersion;
-            public ArchetypeChunkComponentType<T>              DataType;
-            public ArchetypeChunkComponentType<DataChanged<T>> ChangedType;
+            public            uint                                        LastSystemVersion;
+            [ReadOnly] public ArchetypeChunkComponentType<T>              DataType;
+            public            ArchetypeChunkComponentType<DataChanged<T>> ChangedType;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
