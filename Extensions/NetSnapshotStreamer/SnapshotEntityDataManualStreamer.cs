@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
@@ -108,6 +109,8 @@ namespace StormiumShared.Core.Networking
 
                     if (SnapshotOutputUtils.ShouldSkip(Receiver, change))
                     {
+                        Debug.Log($"Skip for {entity}");
+                        
                         MainBit.SetByteRangeAt(ref bitMask, (byte) (mod * 2), (byte) StreamerSkipReason.Delta, 2);
                         Buffer.WriteByte(bitMask, marker);
                         continue;

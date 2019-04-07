@@ -126,6 +126,8 @@ namespace StormiumShared.Core.Networking
                     if (!States.Exists(entity))
                     {
                         missingComponentMask[mod] = true;
+                        if (deltaMaskMarker.Valid)
+                            Buffer.WriteByte(deltaMask.Mask, deltaMaskMarker);
                         Buffer.WriteByte(missingComponentMask.Mask, missingComponentMaskMarker);
                         continue;
                     }
@@ -142,16 +144,16 @@ namespace StormiumShared.Core.Networking
                     var change = new DataChanged<TState> {IsDirty = true};
                     if (Changes.Exists(entity))
                         change = Changes[entity];
-
-                    if (change.IsDirty)
+                    
+                    if (!change.IsDirty)
                     {
                         deltaMask[mod] = true;
 
+                        Buffer.WriteByte(missingComponentMask.Mask, missingComponentMaskMarker);
                         Buffer.WriteByte(deltaMask.Mask, deltaMaskMarker);
                         continue;
                     }
 
-                    deltaMask[mod] = false;
                     Buffer.WriteByte(deltaMask.Mask, deltaMaskMarker);
                     Buffer.WriteByte(missingComponentMask.Mask, missingComponentMaskMarker);
                     Buffer.WriteValue(States[entity]);
@@ -163,11 +165,11 @@ namespace StormiumShared.Core.Networking
                 var skipDeltaCondition = (Receiver.Flags & SnapshotFlags.FullData) != 0;
                 if (skipDeltaCondition)
                 {
-                    WriteDelta();
+                    WriteFull();
                 }
                 else
                 {
-                    WriteFull();
+                    WriteDelta();
                 }
             }
         }
@@ -242,10 +244,14 @@ namespace StormiumShared.Core.Networking
                     index++;
 
                     var hasState = States.Exists(worldEntity);
-                    if (missingComponentMask[mod] && hasState) // skip?
+                    if (missingComponentMask[mod]) // skip?
                     {
                         // If the component don't exist in the snapshot, also remove it from our world.
-                        Ecb.RemoveComponent(worldEntity, StateType);
+                        if (hasState)
+                        {
+                            Ecb.RemoveComponent(worldEntity, StateType);
+                        }
+
                         // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
                         if (Changes.Exists(worldEntity))
                         {
@@ -307,6 +313,24 @@ namespace StormiumShared.Core.Networking
 
                     index++;
 
+                    var hasState = States.Exists(worldEntity);
+                    if (missingComponentMask[missingComponentMod]) // skip?
+                    {
+                        // If the component don't exist in the snapshot, also remove it from our world.
+                        if (hasState)
+                        {
+                            Ecb.RemoveComponent(worldEntity, StateType);
+                        }
+
+                        // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
+                        if (Changes.Exists(worldEntity))
+                        {
+                            Ecb.RemoveComponent(worldEntity, ChangedType);
+                        }
+
+                        continue; // skip
+                    }
+                    
                     var deltaMod = (byte) (existingIndex % (sizeof(byte) * 8));
                     if (deltaMod == 0)
                     {
@@ -317,20 +341,6 @@ namespace StormiumShared.Core.Networking
 
                     if (deltaMask[deltaMod]) // skip if there are no delta change... (that mean there is already the component on the entity)
                         continue;
-
-                    var hasState = States.Exists(worldEntity);
-                    if (missingComponentMask[missingComponentMod] && hasState) // skip?
-                    {
-                        // If the component don't exist in the snapshot, also remove it from our world.
-                        Ecb.RemoveComponent(worldEntity, StateType);
-                        // If for some weird reason, it also have the 'DataChanged<T>' component, removed it
-                        if (Changes.Exists(worldEntity))
-                        {
-                            Ecb.RemoveComponent(worldEntity, ChangedType);
-                        }
-
-                        continue; // skip
-                    }
 
                     var newData = new TState();
                     newData.Read(ref buffer, Sender, Runtime);
@@ -350,11 +360,11 @@ namespace StormiumShared.Core.Networking
                 var skipDeltaCondition = (Sender.Flags & SnapshotFlags.FullData) != 0;
                 if (skipDeltaCondition)
                 {
-                    ReadDelta();
+                    ReadFull();
                 }
                 else
                 {
-                    ReadFull();
+                    ReadDelta();
                 }
             }
         }

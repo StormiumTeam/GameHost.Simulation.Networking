@@ -9,8 +9,8 @@ namespace StormiumShared.Core.Networking
 
 		public bool this[int index]
 		{
-			get => MainBit.GetBitAt(Mask, Position) == 1;
-			set => MainBit.SetBitAt(ref Mask, Position, value ? (byte) 1 : (byte) 0);
+			get => MainBit.GetBitAt(Mask, (byte) index) == 1;
+			set => MainBit.SetBitAt(ref Mask, (byte) index, value ? (byte) 1 : (byte) 0);
 		}
 	}
 }

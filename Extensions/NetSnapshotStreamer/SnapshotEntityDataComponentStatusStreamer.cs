@@ -139,10 +139,13 @@ namespace StormiumShared.Core.Networking
                     index++;
 
                     var hasComponent = Components.Exists(worldEntity);
-                    if (missingComponentMask[mod] && hasComponent) // skip?
+                    if (missingComponentMask[mod]) // skip?
                     {
                         // If the component don't exist in the snapshot, also remove it from our world.
-                        Ecb.RemoveComponent(worldEntity, ComponentType);
+                        if (hasComponent)
+                        {
+                            Ecb.RemoveComponent(worldEntity, ComponentType);
+                        }
 
                         continue; // skip
                     }
@@ -338,10 +341,11 @@ namespace StormiumShared.Core.Networking
                     index++;
 
                     var hasComponent = Components.Exists(worldEntity);
-                    if (missingComponentMask[mod] && hasComponent) // skip?
+                    if (missingComponentMask[mod]) // skip?
                     {
                         // If the component don't exist in the snapshot, also remove it from our world.
-                        Ecb.RemoveComponent(worldEntity, ComponentType);
+                        if (hasComponent)
+                            Ecb.RemoveComponent(worldEntity, ComponentType);
 
                         continue; // skip
                     }

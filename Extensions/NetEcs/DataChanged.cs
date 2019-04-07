@@ -33,10 +33,15 @@ namespace StormiumShared.Core.Networking
         internal abstract void Update(ref JobHandle jobHandle);
     }
 
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class DataChangedSystemGroup : ComponentSystemGroup
     {
+        private int m_LastTypeCount;
+        
         protected override void OnUpdate()
         {
+            ScanForDataChangedComponents();
+            
             JobHandle jobHandle = default;
             // ReSharper disable PossibleInvalidCastExceptionInForeachLoop
             foreach (DataChangedSystemBase sys in m_systemsToUpdate)
@@ -48,6 +53,38 @@ namespace StormiumShared.Core.Networking
 
             jobHandle.Complete();
             // ReSharper restore PossibleInvalidCastExceptionInForeachLoop
+        }
+
+        private void ScanForDataChangedComponents()
+        {
+            if (TypeManager.GetTypeCount() == m_LastTypeCount)
+                return;
+
+            m_LastTypeCount = TypeManager.GetTypeCount();
+
+            foreach (var type in TypeManager.AllTypes)
+            {
+                var managed = type.Type;
+                if (managed == null)
+                    continue;
+                
+                if (managed.IsGenericType && managed.GetGenericTypeDefinition() == typeof(DataChanged<>))
+                {
+                    var genericArg = managed.GenericTypeArguments[0];
+                    var systemType = typeof(DataChangedSystem<>);
+                    var genericSystemType = systemType.MakeGenericType(genericArg);
+
+                    Debug.Log($"{genericArg} {genericSystemType}");
+                    
+                    var instance = World.GetOrCreateManager(genericSystemType);
+                    if (!m_systemsToUpdate.Contains((ComponentSystemBase) instance))
+                    {
+                        AddSystemToUpdateList((ComponentSystemBase) instance);
+                    }
+                }
+            }
+            
+            this.SortSystemUpdateList();
         }
     }
 
