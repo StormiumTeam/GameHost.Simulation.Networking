@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
@@ -127,6 +129,11 @@ namespace StormiumShared.Core.Networking
             }
         }
 
+        public EntityFilterModelEnumerator GetEntityFilterModelEnumerator(int modelId)
+        {
+            return new EntityFilterModelEnumerator(Entities, modelId);
+        }
+
         public void Dispose()
         {
             Entities.Dispose();
@@ -144,6 +151,53 @@ namespace StormiumShared.Core.Networking
             }
 
             return -1;
+        }
+    }
+
+    public struct EntityFilterModelEnumerator : IEnumerator<SnapshotEntityInformation>
+    {
+        private NativeArray<SnapshotEntityInformation> m_Entities;
+        private int m_CurrentIndex;
+        private int m_FilterIndex;
+        private int m_ModelId;
+        
+        public bool MoveNext()
+        {
+            while (m_Entities[m_CurrentIndex].ModelId != m_ModelId)
+            {
+                m_CurrentIndex++;
+                if (m_CurrentIndex >= m_Entities.Length)
+                    return false;
+            }
+
+            Current = m_Entities[m_CurrentIndex];
+            m_FilterIndex++;
+            return true;
+        }
+
+        public void Reset()
+        {
+            m_CurrentIndex = 0;
+        }
+
+        public SnapshotEntityInformation Current { get; private set; }
+        public int EntitiesIndex => m_CurrentIndex;
+        public int FilterIndex => m_FilterIndex;
+
+        object IEnumerator.Current => Current;
+
+        public void Dispose()
+        {
+        }
+
+        public EntityFilterModelEnumerator(NativeArray<SnapshotEntityInformation> entities, int modelId)
+        {
+            m_Entities = entities;
+            m_CurrentIndex = 0;
+            m_ModelId = modelId;
+            m_FilterIndex = -1;
+
+            Current = default;
         }
     }
 

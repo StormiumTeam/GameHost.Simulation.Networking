@@ -7,8 +7,8 @@ using Unity.Jobs;
 
 namespace StormiumShared.Core.Networking
 {
-    public abstract class SnapshotEntityDataAutomaticStreamer<TState> : SnapshotEntityDataStreamerBase<TState>
-        where TState : struct, IComponentData
+    public abstract class SnapshotEntityDataManualValueTypeStreamer<TState> : SnapshotEntityDataStreamerBase<TState>
+        where TState : struct, IComponentData, ISerializableAsPayload
     {
         [BurstCompile]
         private struct WriteJob : IJob
@@ -20,10 +20,10 @@ namespace StormiumShared.Core.Networking
             public int              StateTypeIndex;
 
             [ReadOnly]
-            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excludeds;
+            public ComponentDataFromEntity<ExcludeFromDataStreamer> Excluded;
 
             [ReadOnly]
-            public BufferFromEntity<BlockComponentSerialization> Blockeds;
+            public BufferFromEntity<BlockComponentSerialization> Blocked;
 
             [ReadOnly]
             public ComponentDataFromEntity<TState> States;
@@ -32,7 +32,7 @@ namespace StormiumShared.Core.Networking
             public ComponentDataFromEntity<DataChanged<TState>> Changes;
 
             // We will only write one bit mask (component existence mask)
-            public void WriteFull()
+            private void WriteFull()
             {
                 DataBufferMarker missingComponentMaskMarker = default;
 
@@ -43,11 +43,11 @@ namespace StormiumShared.Core.Networking
                 for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
                 {
                     var entity = Runtime.Entities[entityIndex].Source;
-                    if (Excludeds.Exists(entity))
+                    if (Excluded.Exists(entity))
                         continue;
-                    if (Blockeds.Exists(entity))
+                    if (Blocked.Exists(entity))
                     {
-                        var blockedComponents = Blockeds[entity];
+                        var blockedComponents = Blocked[entity];
                         var ct                = false;
                         for (var i = 0; i != blockedComponents.Length; i++)
                         {
@@ -77,13 +77,13 @@ namespace StormiumShared.Core.Networking
                         continue;
                     }
 
-                    Buffer.WriteByte(missingComponentMask.Mask, missingComponentMaskMarker);
                     Buffer.WriteValue(States[entity]);
+                    Buffer.WriteByte(missingComponentMask.Mask, missingComponentMaskMarker);
                 }
             }
 
             // We will write two bit mask (component existence mask and delta change mask)
-            public void WriteDelta()
+            private void WriteDelta()
             {
                 DataBufferMarker missingComponentMaskMarker = default, deltaMaskMarker = default;
 
@@ -96,11 +96,11 @@ namespace StormiumShared.Core.Networking
                 for (var entityIndex = 0; entityIndex != EntityLength; entityIndex++)
                 {
                     var entity = Runtime.Entities[entityIndex].Source;
-                    if (Excludeds.Exists(entity))
+                    if (Excluded.Exists(entity))
                         continue;
-                    if (Blockeds.Exists(entity))
+                    if (Blocked.Exists(entity))
                     {
-                        var blockedComponents = Blockeds[entity];
+                        var blockedComponents = Blocked[entity];
                         var ct                = false;
                         for (var i = 0; i != blockedComponents.Length; i++)
                         {
@@ -255,7 +255,9 @@ namespace StormiumShared.Core.Networking
                         continue; // skip
                     }
 
-                    var newData = buffer.ReadValue<TState>();
+                    var newData = new TState();
+                    newData.Read(ref buffer, Sender, Runtime);
+
                     if (!hasState)
                     {
                         Requests.Add(new AddRequest {Data = newData, Entity = worldEntity});
@@ -330,7 +332,9 @@ namespace StormiumShared.Core.Networking
                         continue; // skip
                     }
 
-                    var newData = buffer.ReadValue<TState>();
+                    var newData = new TState();
+                    newData.Read(ref buffer, Sender, Runtime);
+
                     if (!hasState)
                     {
                         Requests.Add(new AddRequest {Entity = worldEntity, Data = newData});
@@ -370,8 +374,8 @@ namespace StormiumShared.Core.Networking
                 Runtime      = runtime,
 
                 StateTypeIndex = StateType.TypeIndex,
-                Excludeds      = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
-                Blockeds       = GetBufferFromEntity<BlockComponentSerialization>()
+                Excluded       = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
+                Blocked        = GetBufferFromEntity<BlockComponentSerialization>()
             }.Run();
 
             return buffer;
@@ -399,12 +403,12 @@ namespace StormiumShared.Core.Networking
 
                     Excluded = GetComponentDataFromEntity<ExcludeFromDataStreamer>(),
                     Blocked  = GetBufferFromEntity<BlockComponentSerialization>(),
-                    
+
                     Ecb = ecb
                 }.Run();
-                
+
                 ecb.Playback(EntityManager);
-                
+
                 for (var i = 0; i != addRequest.Length; i++)
                 {
                     EntityManager.AddComponentData(addRequest[i].Entity, addRequest[i].Data);
