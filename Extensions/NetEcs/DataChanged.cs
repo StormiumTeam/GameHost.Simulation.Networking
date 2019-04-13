@@ -76,7 +76,7 @@ namespace StormiumShared.Core.Networking
 
                     Debug.Log($"{genericArg} {genericSystemType}");
                     
-                    var instance = World.GetOrCreateManager(genericSystemType);
+                    var instance = World.GetOrCreateSystem(genericSystemType);
                     if (!m_systemsToUpdate.Contains((ComponentSystemBase) instance))
                     {
                         AddSystemToUpdateList((ComponentSystemBase) instance);
@@ -119,11 +119,11 @@ namespace StormiumShared.Core.Networking
             }
         }
 
-        private ComponentGroup m_Group;
+        private EntityQuery m_Group;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
-            m_Group = GetComponentGroup(typeof(T), typeof(DataChanged<T>));
+            m_Group = GetEntityQuery(typeof(T), typeof(DataChanged<T>));
         }
 
         internal override void Update(ref JobHandle jobHandle)

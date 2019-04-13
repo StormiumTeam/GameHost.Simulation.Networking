@@ -19,27 +19,27 @@ namespace StormiumShared.Core.Networking
         protected ComponentDataFromEntity<TState>              States;
         protected ComponentDataFromEntity<DataChanged<TState>> Changed;
 
-        private ComponentGroup m_EntitiesWithoutDataChanged;
+        private EntityQuery m_EntitiesWithoutDataChanged;
 
         static DataBufferMarker WriteDataSafe(ref DataBufferWriter writer, int val)
         {
             return default;
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
-            base.OnCreateManager();
+            base.OnCreate();
 
             StateType   = ComponentType.ReadWrite<TState>();
             ChangedType = ComponentType.ReadWrite<DataChanged<TState>>();
 
-            World.GetOrCreateManager<DataChangedSystem<TState>>();
+            World.GetOrCreateSystem<DataChangedSystem<TState>>();
 
             m_EntityVersion = -1;
 
             UpdateComponentDataFromEntity();
 
-            m_EntitiesWithoutDataChanged = GetComponentGroup(ComponentType.ReadWrite<TState>(), ComponentType.Exclude<DataChanged<TState>>());
+            m_EntitiesWithoutDataChanged = GetEntityQuery(ComponentType.ReadWrite<TState>(), ComponentType.Exclude<DataChanged<TState>>());
         }
 
         protected override JobHandle OnUpdate(JobHandle job)
@@ -88,9 +88,9 @@ namespace StormiumShared.Core.Networking
 
         protected BufferFromEntity<TState> States;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
-            base.OnCreateManager();
+            base.OnCreate();
 
             StateType = ComponentType.ReadWrite<TState>();
         }

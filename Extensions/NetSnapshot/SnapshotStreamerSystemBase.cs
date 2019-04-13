@@ -34,10 +34,10 @@ namespace StormiumShared.Core.Networking
             } 
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
-            World.GetOrCreateManager<AppEventSystem>().SubscribeToAll(this);
-            m_PatternResult = World.GetOrCreateManager<NetPatternSystem>()
+            World.GetOrCreateSystem<AppEventSystem>().SubscribeToAll(this);
+            m_PatternResult = World.GetOrCreateSystem<NetPatternSystem>()
                                    .GetLocalBank()
                                    .Register(new PatternIdent($"auto." + GetTypeName(GetType())));
         }

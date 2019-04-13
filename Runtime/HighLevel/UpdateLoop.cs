@@ -18,11 +18,11 @@ namespace package.stormiumteam.networking.runtime.highlevel
         [UpdateInGroup(typeof(PresentationSystemGroup))]
         public class IntNetworkManager : ComponentSystemGroup
         {
-            protected override void OnCreateManager()
+            protected override void OnCreate()
             {
-                base.OnCreateManager();
+                base.OnCreate();
                 
-               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkManager>());
+               // AddSystemToUpdateList(World.GetOrCreateSystem<NetworkManager>());
             }
         }
 
@@ -34,33 +34,33 @@ namespace package.stormiumteam.networking.runtime.highlevel
         [UpdateAfter(typeof(IntInit))]
         public class IntNetworkEventManager : ComponentSystemGroup
         {
-            protected override void OnCreateManager()
+            protected override void OnCreate()
             {
-                base.OnCreateManager();
+                base.OnCreate();
                 
-               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkEventManager>());
+               // AddSystemToUpdateList(World.GetOrCreateSystem<NetworkEventManager>());
             }
         }
 
         [UpdateAfter(typeof(IntNetworkEventManager))]
         public class IntNetworkCreateIncomingInstance : ComponentSystemGroup
         {
-            protected override void OnCreateManager()
+            protected override void OnCreate()
             {
-                base.OnCreateManager();
+                base.OnCreate();
                 
-               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkCreateIncomingInstanceSystem>());
+               // AddSystemToUpdateList(World.GetOrCreateSystem<NetworkCreateIncomingInstanceSystem>());
             }
         }
 
         [UpdateAfter(typeof(IntNetworkCreateIncomingInstance))]
         public class IntNetworkValidateInstance : ComponentSystemGroup
         {
-            protected override void OnCreateManager()
+            protected override void OnCreate()
             {
-                base.OnCreateManager();
+                base.OnCreate();
                 
-               // AddSystemToUpdateList(World.GetOrCreateManager<NetworkValidateInstances>());
+               // AddSystemToUpdateList(World.GetOrCreateSystem<NetworkValidateInstances>());
             }
         }
 

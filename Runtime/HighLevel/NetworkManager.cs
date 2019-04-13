@@ -55,7 +55,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             public Entity InstanceEntity;
         }
 
-        private ReadOnlyCollection<ScriptBehaviourManager> m_WorldBehaviourManagers;
+        private ReadOnlyCollection<ComponentSystemBase> m_WorldBehaviourManagers;
         private Dictionary<int, Entity>                    m_InstanceToEntity;
         
         // Gns.Connection to NetworkConnection.Id
@@ -92,7 +92,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             Application.quitting += Library.Deinitialize;
         }
         
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             DataType               = ComponentType.ReadWrite<NetworkInstanceData>();
             DataHostType           = ComponentType.ReadWrite<NetworkInstanceHost>();
@@ -101,7 +101,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
             LocalEntityArchetype   = EntityManager.CreateArchetype(DataType, DataHostType, QueryBufferType, ConnectedBufferType);
             ForeignEntityArchetype = EntityManager.CreateArchetype(DataType, QueryBufferType, ConnectedBufferType);
 
-            m_WorldBehaviourManagers = (ReadOnlyCollection<ScriptBehaviourManager>) World.BehaviourManagers;
+            m_WorldBehaviourManagers = (ReadOnlyCollection<ComponentSystemBase>) World.Systems;
             m_InstanceToEntity       = new Dictionary<int, Entity>();
             UglyPendingServerConnections = new Dictionary<uint, NativeConnection>();
 
@@ -113,7 +113,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             StopAll();
             
@@ -399,9 +399,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
             {
                 var entitiesToDestroy = new NativeList<Entity>(Allocator.Temp);
                 
-                var foreignGroup = GetComponentGroup(DataType, QueryBufferType, ConnectedBufferType);
-                var entityArray  = foreignGroup.GetEntityArray();
-                var dataArray    = foreignGroup.GetComponentDataArray<NetworkInstanceData>();
+                var foreignGroup = GetEntityQuery(DataType, QueryBufferType, ConnectedBufferType);
+                var entityArray  = foreignGroup.ToEntityArray(Allocator.TempJob);
+                var dataArray    = foreignGroup.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob);
                 for (var i = 0; i != entityArray.Length; i++)
                 {
                     if (
@@ -431,7 +431,9 @@ namespace package.stormiumteam.networking.runtime.highlevel
                 
                 for (var i = 0; i != entitiesToDestroy.Length; i++)
                     EntityManager.DestroyEntity(entitiesToDestroy[i]);
-                
+             
+                entityArray.Dispose();
+                dataArray.Dispose();
                 entitiesToDestroy.Dispose();
             }
 

@@ -37,7 +37,7 @@ namespace StormiumShared.Core.Networking
 
         protected override void OnStartRunning()
         {
-            m_PatternBank = World.GetExistingManager<NetPatternSystem>().GetLocalBank();
+            m_PatternBank = World.GetExistingSystem<NetPatternSystem>().GetLocalBank();
             
             if (m_PatternBank == null)
                 Debug.LogError("The local bank is invalid.");

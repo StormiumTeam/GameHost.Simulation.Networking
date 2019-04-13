@@ -89,7 +89,7 @@ namespace StormiumShared.Core.Networking
             var entities      = TransformEntityArray(nfEntities, allocator);
             var localReceiver = new SnapshotReceiver(m_LocalClientGroup.GetEntityArray()[0], flags);
             var data          = new DataBufferWriter(allocator, true, 128 + entities.Length * 8);
-            var gameTime      = World.GetExistingManager<StGameTimeManager>().GetTimeFromSingleton();
+            var gameTime      = World.GetExistingSystem<StGameTimeManager>().GetTimeFromSingleton();
             var result        = GenerateSnapshot(localReceiver, gameTime, entities, allocator, ref data, ref previousResult.Runtime);
 
             result.Runtime.Entities = entities;

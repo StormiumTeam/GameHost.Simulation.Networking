@@ -101,7 +101,7 @@ namespace StormiumShared.Core.Networking
 
         public static void CreateEntities(UpdateResult result, World world, ref SnapshotRuntime snapshotRuntime)
         {
-            var modelMgr  = world.GetExistingManager<EntityModelManager>();
+            var modelMgr  = world.GetExistingSystem<EntityModelManager>();
 
             foreach (var e in result.ToCreate)
             {
@@ -124,8 +124,8 @@ namespace StormiumShared.Core.Networking
 
         public static void DestroyEntities(UpdateResult entitiesUpdateResult, World world, ref SnapshotRuntime snapshotRuntime, bool removeLinks = true)
         {
-            var entityMgr = world.GetExistingManager<EntityManager>();
-            var modelMgr = world.GetExistingManager<EntityModelManager>();
+            var entityMgr = world.EntityManager;
+            var modelMgr = world.GetExistingSystem<EntityModelManager>();
             
 
             foreach (var e in entitiesUpdateResult.ToDestroy)

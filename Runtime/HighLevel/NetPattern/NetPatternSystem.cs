@@ -15,33 +15,35 @@ namespace package.stormiumteam.networking
     [UpdateAfter(typeof(UpdateLoop.IntEnd))]
     public class NetPatternSystem : NetworkComponentSystem
     {
-        [Inject] private NetworkManager m_NetworkManager;
+        private NetworkManager m_NetworkManager;
 
-        private static PatternBank                  s_LocalBank;
-        private        Dictionary<int, PatternBank> m_ConnectionsBank;
-        private Dictionary<long, PatternBankExchange> m_Exchanges;
-        private        NetPatternImpl               m_Impl;
+        private static PatternBank                           s_LocalBank;
+        private        Dictionary<int, PatternBank>          m_ConnectionsBank;
+        private        Dictionary<long, PatternBankExchange> m_Exchanges;
+        private        NetPatternImpl                        m_Impl;
 
         static NetPatternSystem()
         {
             s_LocalBank = new PatternBank(0);
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
+            m_NetworkManager = World.GetOrCreateSystem<NetworkManager>();
+
             m_ConnectionsBank = new Dictionary<int, PatternBank>();
-            m_Exchanges = new Dictionary<long, PatternBankExchange>();
+            m_Exchanges       = new Dictionary<long, PatternBankExchange>();
             m_Impl = new NetPatternImpl
             (
                 EntityManager,
-                GetComponentGroup
+                GetEntityQuery
                 (
                     typeof(NetworkInstanceData),
                     typeof(QueryBuffer),
                     ComponentType.Exclude<ValidInstanceTag>(),
                     ComponentType.Exclude<NetworkInstanceHost>()
                 ),
-                GetComponentGroup
+                GetEntityQuery
                 (
                     typeof(NetworkInstanceData),
                     typeof(EventBuffer)
@@ -54,9 +56,9 @@ namespace package.stormiumteam.networking
         public override void OnNetworkInstanceAdded(int instanceId, Entity instanceEntity)
         {
             var exchangeId = StMath.DoubleIntToLong(0, instanceId);
-            
+
             m_ConnectionsBank[instanceId] = new PatternBank(instanceId);
-            m_Exchanges[exchangeId] = new PatternBankExchange(exchangeId);
+            m_Exchanges[exchangeId]       = new PatternBankExchange(exchangeId);
 
             var data = EntityManager.GetComponentData<NetworkInstanceData>(instanceEntity);
             // We only add queries on non local instances.
@@ -80,9 +82,9 @@ namespace package.stormiumteam.networking
             {
                 var incomingPattern = incomingPatterns[i];
                 var instanceBank    = GetBank(incomingPattern.InstanceId);
-                var localBank = GetLocalBank();
-                var exchange = GetLocalExchange(incomingPattern.InstanceId);
-                
+                var localBank       = GetLocalBank();
+                var exchange        = GetLocalExchange(incomingPattern.InstanceId);
+
                 instanceBank.ForeignForceLink(incomingPattern.PatternResult);
                 exchange.Set(localBank.GetPatternResult(incomingPattern.PatternResult.InternalIdent).Id, incomingPattern.PatternResult.Id);
             }
@@ -139,21 +141,21 @@ namespace package.stormiumteam.networking
             }
         }
 
-        public EntityManager  EntityManager;
-        public ComponentGroup InitInstanceGroup;
-        public ComponentGroup EventInstanceGroup;
-        public PatternBank    SourceBank;
+        public EntityManager EntityManager;
+        public EntityQuery   InitInstanceGroup;
+        public EntityQuery   EventInstanceGroup;
+        public PatternBank   SourceBank;
 
         public int SendInitialPatternsQueryId;
         public int InstanceValidQueryId;
 
         private List<NewPattern> m_NewPatterns;
 
-        public NetPatternImpl(EntityManager  entityManager,
-                              ComponentGroup initInstanceGroup,
-                              ComponentGroup eventInstanceGroup,
-                              PatternBank    sourceBank,
-                              int            instanceValidQueryId)
+        public NetPatternImpl(EntityManager entityManager,
+                              EntityQuery   initInstanceGroup,
+                              EntityQuery   eventInstanceGroup,
+                              PatternBank   sourceBank,
+                              int           instanceValidQueryId)
         {
             EntityManager              = entityManager;
             InitInstanceGroup          = initInstanceGroup;
@@ -193,14 +195,13 @@ namespace package.stormiumteam.networking
             var length = InitInstanceGroup.CalculateLength();
             if (length == 0) return;
 
-            var entityArray      = InitInstanceGroup.GetEntityArray();
-            var dataArray        = InitInstanceGroup.GetComponentDataArray<NetworkInstanceData>();
-            var queryBufferArray = InitInstanceGroup.GetBufferArray<QueryBuffer>();
+            var entityArray = InitInstanceGroup.ToEntityArray(Allocator.TempJob);
+            var dataArray   = InitInstanceGroup.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob);
             for (var i = 0; i != length; i++)
             {
                 var entity      = entityArray[i];
                 var data        = dataArray[i];
-                var queryBuffer = queryBufferArray[i];
+                var queryBuffer = EntityManager.GetBuffer<QueryBuffer>(entity);
 
                 var validator = new NativeValidatorManager(queryBuffer);
 
@@ -226,11 +227,14 @@ namespace package.stormiumteam.networking
                 {
                     Debug.LogError("Couldn't send data to " + data.InstanceType);
                 }
-                
+
                 writer.Dispose();
 
                 validator.Set(SendInitialPatternsQueryId, QueryStatus.Valid);
             }
+
+            entityArray.Dispose();
+            dataArray.Dispose();
         }
 
         public List<NewPattern> GetIncomingMessages()
@@ -240,12 +244,13 @@ namespace package.stormiumteam.networking
             var length = EventInstanceGroup.CalculateLength();
             if (length == 0) return default(List<NewPattern>);
 
-            var dataArray        = EventInstanceGroup.GetComponentDataArray<NetworkInstanceData>();
-            var eventBufferArray = EventInstanceGroup.GetBufferArray<EventBuffer>();
+            var entityArray = InitInstanceGroup.ToEntityArray(Allocator.TempJob);
+            var dataArray   = EventInstanceGroup.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob);
             for (var i = 0; i != length; i++)
             {
+                var entity      = entityArray[i];
                 var data        = dataArray[i];
-                var eventBuffer = eventBufferArray[i];
+                var eventBuffer = EntityManager.GetBuffer<EventBuffer>(entity);
 
                 // Process events
                 for (var evIndex = 0; evIndex != eventBuffer.Length; evIndex++)

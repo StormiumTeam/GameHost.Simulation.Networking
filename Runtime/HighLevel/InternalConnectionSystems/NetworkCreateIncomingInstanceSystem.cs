@@ -16,18 +16,20 @@ namespace package.stormiumteam.networking.runtime.highlevel
             public NetworkCommands     IncomingConnectionCmds;
         }
 
-        [Inject] private NetworkManager m_NetworkManager;
+        private NetworkManager m_NetworkManager;
 
-        private ComponentGroup             m_Group;
+        private EntityQuery             m_Group;
         private NativeList<CreateInstance> m_CreateInstanceList;
 
-        protected override void OnCreateManager()
-        { 
-            m_Group              = GetComponentGroup(typeof(NetworkInstanceData), typeof(EventBuffer));
+        protected override void OnCreate()
+        {
+            m_NetworkManager = World.GetOrCreateSystem<NetworkManager>();
+            
+            m_Group              = GetEntityQuery(typeof(NetworkInstanceData), typeof(EventBuffer));
             m_CreateInstanceList = new NativeList<CreateInstance>(Allocator.Persistent);
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_CreateInstanceList.Dispose();
         }

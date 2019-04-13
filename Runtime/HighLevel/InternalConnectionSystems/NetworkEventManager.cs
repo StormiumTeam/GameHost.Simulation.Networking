@@ -37,20 +37,21 @@ namespace package.stormiumteam.networking.runtime.highlevel
     [UpdateInGroup(typeof(UpdateLoop.IntNetworkEventManager))]
     public unsafe class NetworkEventManager : NetworkComponentSystem
     {
-        [Inject] private NetworkManager                m_NetworkMgr;
-        [Inject] private BufferFromEntity<EventBuffer> m_EventBufferFromEntity;
+        private NetworkManager                m_NetworkMgr;
 
         private NativeList<NewEventNotification> m_EventNotifications;
-        private ComponentGroup m_Group;
+        private EntityQuery m_Group;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
+            m_NetworkMgr = World.GetOrCreateSystem<NetworkManager>();
+            
             m_EventNotifications = new NativeList<NewEventNotification>(8, Allocator.Persistent);
             m_RunConnectionCallbacks = new List<StatusInfo>();
-            m_Group = GetComponentGroup(typeof(NetworkInstanceData), typeof(NetworkInstanceHost));
+            m_Group = GetEntityQuery(typeof(NetworkInstanceData), typeof(NetworkInstanceHost));
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_EventNotifications.Dispose();
             m_RunConnectionCallbacks.Clear();
@@ -103,8 +104,6 @@ namespace package.stormiumteam.networking.runtime.highlevel
         {
             m_EventNotifications.Clear();
             
-            var networkMgr = World.GetExistingManager<NetworkManager>();
-
             using (var entityArray = m_Group.ToEntityArray(Allocator.TempJob))
             using (var dataArray = m_Group.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob))
             using (var hostArray = m_Group.ToComponentDataArray<NetworkInstanceHost>(Allocator.TempJob))
@@ -114,7 +113,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
                     var entity = entityArray[i];
                     var data   = dataArray[i];
                     var host   = hostArray[i];
-                    var evBuffer = m_EventBufferFromEntity[entity];
+                    var evBuffer = EntityManager.GetBuffer<EventBuffer>(entity);
                     
                     var nativePtr = host.Host.NativePtr;
                     var execution = new GnsExecution(nativePtr, host.Host.Socket);
@@ -124,7 +123,7 @@ namespace package.stormiumteam.networking.runtime.highlevel
 
                     // This is seriously ugly and a big hack, but we need to do that
                     // as the GNS api will reset our peer at first connection (problematic for Client To Server relation).
-                    var pendingConnections = networkMgr.UglyPendingServerConnections;
+                    var pendingConnections = m_NetworkMgr.UglyPendingServerConnections;
 
                     // Clear previous data from buffer
                     for (var j = 0; j != evBuffer.Length; j++)
