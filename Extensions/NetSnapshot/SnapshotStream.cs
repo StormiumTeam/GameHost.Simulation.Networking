@@ -36,7 +36,7 @@ namespace StormiumShared.Core.Networking
     {
         public Allocator Allocator;
 
-        public StSnapshotHeader Header;
+        public SnapshotHeader Header;
 
         [ReadOnly]
         public NativeArray<SnapshotEntityInformation> Entities;
@@ -45,7 +45,7 @@ namespace StormiumShared.Core.Networking
         [ReadOnly]
         public NativeHashMap<Entity, Entity> WorldToSnapshot;
         
-        public SnapshotRuntime(StSnapshotHeader header, SnapshotRuntime previousRuntime, Allocator wantedAllocator)
+        public SnapshotRuntime(SnapshotHeader header, SnapshotRuntime previousRuntime, Allocator wantedAllocator)
         {
             if (previousRuntime.Allocator != wantedAllocator) throw new Exception();
 
@@ -57,7 +57,7 @@ namespace StormiumShared.Core.Networking
             WorldToSnapshot = previousRuntime.WorldToSnapshot;
         }
         
-        public SnapshotRuntime(StSnapshotHeader header, Allocator allocator)
+        public SnapshotRuntime(SnapshotHeader header, Allocator allocator)
         {
             Allocator = allocator;
 
@@ -201,13 +201,13 @@ namespace StormiumShared.Core.Networking
         }
     }
 
-    public struct StSnapshotHeader
+    public struct SnapshotHeader
     {
         public GameTime GameTime;
         public int SnapshotIdx;
         public SnapshotSender Sender;
 
-        public StSnapshotHeader(GameTime gameTime, int snapshotIdx, SnapshotSender sender)
+        public SnapshotHeader(GameTime gameTime, int snapshotIdx, SnapshotSender sender)
         {
             GameTime = gameTime;
             SnapshotIdx = snapshotIdx;

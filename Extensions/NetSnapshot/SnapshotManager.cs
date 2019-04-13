@@ -236,7 +236,7 @@ namespace StormiumShared.Core.Networking
         {
             IntPtr previousEntityArrayPtr = default;
             Profiler.BeginSample("Create Header");
-            var    header                 = new StSnapshotHeader(gt, snapshotIdx, sender);
+            var    header                 = new SnapshotHeader(gt, snapshotIdx, sender);
 
             runtime.Header = header;
             Profiler.EndSample();
@@ -342,7 +342,7 @@ namespace StormiumShared.Core.Networking
             var snapshotIdx = data.ReadValue<int>();
             var gameTime    = data.ReadValue<GameTime>();
 
-            var header  = new StSnapshotHeader(gameTime, snapshotIdx, sender);
+            var header  = new SnapshotHeader(gameTime, snapshotIdx, sender);
             var runtime = new SnapshotRuntime(header, previousRuntime, allocator);
 
             // Read Entity Data
