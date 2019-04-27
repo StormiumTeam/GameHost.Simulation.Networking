@@ -1,3 +1,4 @@
+using System;
 using JetBrains.Annotations;
 using Unity.Burst;
 using Unity.Collections;
@@ -6,6 +7,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace StormiumShared.Core.Networking
 {
@@ -26,6 +28,9 @@ namespace StormiumShared.Core.Networking
 
     public abstract class DataChangedSystemBase : ComponentSystem
     {
+        public virtual Type Type { get; }
+        public abstract string Name { get; }
+
         protected override void OnUpdate()
         {
         }
@@ -46,7 +51,9 @@ namespace StormiumShared.Core.Networking
             // ReSharper disable PossibleInvalidCastExceptionInForeachLoop
             foreach (DataChangedSystemBase sys in m_systemsToUpdate)
             {
+                Profiler.BeginSample(sys.Name);
                 sys.Update(ref jobHandle);
+                Profiler.EndSample();
                 if (World.QuitUpdate)
                     break;
             }
@@ -93,6 +100,11 @@ namespace StormiumShared.Core.Networking
     public unsafe class DataChangedSystem<T> : DataChangedSystemBase
         where T : struct, IComponentData
     {
+        private string m_Name = $"DataChangedSystem<{typeof(T).Name}>";
+        
+        public override Type Type => typeof(T);
+        public override string Name => m_Name;
+
         [BurstCompile]
         private struct UpdateData : IJobChunk
         {

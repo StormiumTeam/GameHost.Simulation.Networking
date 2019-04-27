@@ -244,7 +244,7 @@ namespace package.stormiumteam.networking
             var length = EventInstanceGroup.CalculateLength();
             if (length == 0) return default(List<NewPattern>);
 
-            var entityArray = InitInstanceGroup.ToEntityArray(Allocator.TempJob);
+            var entityArray = EventInstanceGroup.ToEntityArray(Allocator.TempJob);
             var dataArray   = EventInstanceGroup.ToComponentDataArray<NetworkInstanceData>(Allocator.TempJob);
             for (var i = 0; i != length; i++)
             {

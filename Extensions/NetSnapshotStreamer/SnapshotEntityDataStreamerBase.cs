@@ -55,13 +55,11 @@ namespace StormiumShared.Core.Networking
             return job;
         }
 
-        [BurstCompile]
         protected bool StateExists(Entity entity)
         {
             return States.Exists(entity);
         }
 
-        [BurstCompile]
         protected bool ChangedStateExists(Entity entity)
         {
             return Changed.Exists(entity);
