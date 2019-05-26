@@ -6,6 +6,7 @@
         "Unity.Entities.Hybrid",
         "Unity.Mathematics",
         "Unity.Collections",
+        "Unity.Networking.Transport",
         "Unity.Jobs",
         "Unity.Burst"
     ],
