@@ -81,8 +81,6 @@ namespace StormiumShared.Core.Networking
                     var systemType = typeof(DataChangedSystem<>);
                     var genericSystemType = systemType.MakeGenericType(genericArg);
 
-                    Debug.Log($"{genericArg} {genericSystemType}");
-                    
                     var instance = World.GetOrCreateSystem(genericSystemType);
                     if (!m_systemsToUpdate.Contains((ComponentSystemBase) instance))
                     {

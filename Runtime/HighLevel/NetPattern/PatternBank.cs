@@ -103,7 +103,7 @@ namespace package.stormiumteam.networking
                     InternalIdent = patternIdent
                 };
                 
-                Debug.Log($"(LocalBank) Register Pattern {patternIdent.Name} (id={id})");
+                //Debug.Log($"(LocalBank) Register Pattern {patternIdent.Name} (id={id})");
 
                 m_ResultLink[patternIdent.Name] = patternResult;
                 PatternRegister?.Invoke(patternResult);
