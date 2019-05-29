@@ -1,0 +1,22 @@
+{
+    "name": "package.stormiumteam.networking.editor",
+    "references": [
+        "package.stormiumteam.networking",
+        "package.guerro.shared",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Mathematics",
+        "Unity.Collections",
+        "Unity.Networking.Transport",
+        "Unity.Jobs",
+        "Unity.Burst"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": []
+}
