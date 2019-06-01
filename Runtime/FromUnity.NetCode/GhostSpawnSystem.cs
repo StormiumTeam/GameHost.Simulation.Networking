@@ -7,6 +7,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport.Utilities;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
@@ -53,7 +54,7 @@ namespace Unity.NetCode
     }
 
     [UpdateInGroup(typeof(GhostManageSerializerGroup))]
-    public abstract class BaseGhostManageSerializerSystem<T, TSerializer> : BaseGhostManageSerializerSystem
+    public abstract class BaseGhostManageSerializer<T, TSerializer> : BaseGhostManageSerializerSystem
         where TSerializer : struct, IGhostSerializer<T>
         where T : unmanaged, ISnapshotData<T>
     {
@@ -82,6 +83,7 @@ namespace Unity.NetCode
             }
         }
 
+        [BurstCompile]
         private struct CopyInitialStateJob : IJobParallelFor
         {
             public int SerializerId;
@@ -112,6 +114,7 @@ namespace Unity.NetCode
             }
         }
 
+        [BurstCompile]
         private struct ClearJob : IJob
         {
             [DeallocateOnJobCompletion] public NativeArray<GhostReceiveSystem.GhostEntity> entities;
@@ -132,10 +135,11 @@ namespace Unity.NetCode
 
             NewGhosts   = new ResizableList<T>(Allocator.Persistent, 16);
             NewGhostIds = new ResizableList<int>(Allocator.Persistent, 16);
+            
+            World.GetOrCreateSystem<GhostManageSerializerGroup>().AddSystemToUpdateList(this);
 
             if (!World.GetOrCreateSystem<GhostSerializerCollectionSystem>().TryAdd<TSerializer, T>(out var serializer))
             {
-                Debug.LogWarning($"{typeof(T)} already had a {typeof(TSerializer)} registered?");
             }
 
             m_SerializerId = serializer.Header.Id;
@@ -153,30 +157,41 @@ namespace Unity.NetCode
         {
             if (NewGhosts.Length <= 0)
                 return jobHandle;
-            
+
+            Profiler.BeginSample("InternalFinalPass()");
             jobHandle.Complete();
-            
+
             var entities = new NativeArray<GhostReceiveSystem.GhostEntity>(NewGhosts.Length, Allocator.TempJob);
             for (var i = 0; i != entities.Length; i++)
             {
                 entities[i] = ghostMap[NewGhostIds[i]];
-                EntityManager.AddComponents(entities[i].entity, GetComponents());
+
+                var components = GetComponents();
+                for (var j = 0; j != components.Length; j++)
+                {
+                    if (!EntityManager.HasComponent(entities[i].entity, components.GetComponentType(j)))
+                    {
+                        EntityManager.AddComponent(entities[i].entity, components.GetComponentType(j));
+                    }
+                }
             }
 
             jobHandle = new CopyInitialStateJob
             {
-                entities           = entities,
-                newGhosts          = NewGhosts,
-                snapshotFromEntity = GetBufferFromEntity<T>(),
+                SerializerId         = m_SerializerId,
+                entities             = entities,
+                newGhosts            = NewGhosts,
+                snapshotFromEntity   = GetBufferFromEntity<T>(),
                 serializerFromEntity = GetBufferFromEntity<ReplicatedEntitySerializer>()
             }.Schedule(NewGhosts.Length, 8, jobHandle);
             jobHandle = new ClearJob
             {
-                entities = entities,
-                newGhosts = NewGhosts,
+                entities    = entities,
+                newGhosts   = NewGhosts,
                 newGhostIds = NewGhostIds
             }.Schedule(jobHandle);
-            
+            Profiler.EndSample();
+
             return jobHandle;
         }
 
@@ -187,7 +202,12 @@ namespace Unity.NetCode
 
         internal override JobHandle InternalUpdateNewEntities(NativeArray<Entity> entities, NativeList<DelayedSpawnGhost> delayedGhost, NativeHashMap<int, GhostReceiveSystem.GhostEntity> ghostMap, JobHandle inputDeps)
         {
-            return inputDeps; // what to do with it?
+            return inputDeps;
+            
+            for (var i = 0; i != entities.Length; i++)
+            {
+               // if (NewGhosts.)
+            }
             
             inputDeps = new DelayedJob
             {
@@ -351,8 +371,13 @@ namespace Unity.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            EntityManager.DestroyEntity(m_InvalidGhosts);
-            m_InvalidGhosts.Clear();
+            if (m_InvalidGhosts.Length > 0)
+            {
+                EntityManager.DestroyEntity(m_InvalidGhosts);
+                m_InvalidGhosts.Clear();
+            }
+            
+            EntityManager.CompleteAllJobs();
 
             //inputDeps = JobHandle.CombineDependencies(inputDeps, World.GetExistingSystem<GhostReceiveSystem>().Dependency);
 
@@ -377,7 +402,7 @@ namespace Unity.NetCode
                 EntityManager.CreateEntity(m_InitialArchetype, delayedEntities);
                 for (var i = 0; i != NewGhostIds.Length; i++)
                 {
-                    EntityManager.GetBuffer<ReplicatedEntitySerializer>(delayedEntities[i]).ResizeUninitialized(8);
+                    EntityManager.GetBuffer<ReplicatedEntitySerializer>(delayedEntities[i]).Reserve(8);
                 }
             }
 
@@ -388,10 +413,11 @@ namespace Unity.NetCode
                 EntityManager.CreateEntity(m_InitialArchetype, entities);
                 for (var i = 0; i != NewGhostIds.Length; i++)
                 {
-                    EntityManager.GetBuffer<ReplicatedEntitySerializer>(entities[i]).ResizeUninitialized(8);
+                    EntityManager.GetBuffer<ReplicatedEntitySerializer>(entities[i]).Reserve(8);
                 }
             }
 
+            Profiler.BeginSample("Do Delayed");
             if (m_CurrentDelayedSpawnList.Length > 0)
             {
                 var delayedJob = new DelayedSpawnJob
@@ -403,7 +429,9 @@ namespace Unity.NetCode
                 inputDeps = delayedJob.Schedule(inputDeps);
                 inputDeps = m_GhostSerializerGroup.UpdateNewEntities(delayedEntities, m_CurrentDelayedSpawnList, m_GhostMap, inputDeps);
             }
+            Profiler.EndSample();
 
+            Profiler.BeginSample("Add to map");
             if (NewGhostIds.Length > 0)
             {
                 var job = new AddToGhostMapJob
@@ -415,9 +443,12 @@ namespace Unity.NetCode
                 };
                 inputDeps = job.Schedule(entities.Length, 8, inputDeps);
             }
+            Profiler.EndSample();
 
+            Profiler.BeginSample("FinalPass");
             inputDeps = m_GhostSerializerGroup.FinalPass(m_GhostMap, inputDeps);
-
+            Profiler.EndSample();
+            
             var clearJob = new ClearNewJob
             {
                 entities        = entities,
@@ -426,7 +457,9 @@ namespace Unity.NetCode
             };
             Dependency = clearJob.Schedule(inputDeps);
 
+            Profiler.BeginSample("Complete dependency");
             Dependency.Complete();
+            Profiler.EndSample();
             
             return Dependency;
         }

@@ -10,7 +10,14 @@ namespace DefaultNamespace
 	{
 		void Set(TSnapshot snapshot);
 	}
-	
+
+	public interface ISnapshotFromComponent<TSnapshotData, in TComponent> : ISnapshotData<TSnapshotData>
+		where TSnapshotData : unmanaged, ISnapshotData<TSnapshotData>
+		where TComponent : struct, IComponentData
+	{
+		void Set(TComponent component);
+	}
+
 	[UpdateInGroup(typeof(GhostReceiveSystemGroup))]
 	public abstract class BaseUpdateFromSnapshotSystem<TSnapshot, TComponent> : JobComponentSystem 
 		where TComponent : struct, IComponentFromSnapshot<TSnapshot>

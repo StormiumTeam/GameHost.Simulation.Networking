@@ -1,4 +1,5 @@
 using Unity.Entities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -7,9 +8,11 @@ namespace Unity.NetCode
 		public static bool HasSerializer(this DynamicBuffer<ReplicatedEntitySerializer> buffer, int target)
 		{
 			var length = buffer.Length;
+			var intArray = buffer.Reinterpret<int>();
+			
 			for (var i = 0; i != length; i++)
 			{
-				if (buffer[i].Index == target)
+				if (intArray[i] == target)
 					return true;
 			}
 
@@ -18,14 +21,7 @@ namespace Unity.NetCode
 
 		public static bool HasSerializer(this DynamicBuffer<ReplicatedEntitySerializer> buffer, uint target)
 		{
-			var length = buffer.Length;
-			for (var i = 0; i != length; i++)
-			{
-				if (buffer[i].Index == target)
-					return true;
-			}
-
-			return false;
+			return HasSerializer(buffer, (int) target);
 		}
 
 		public static void AddSerializer(this DynamicBuffer<ReplicatedEntitySerializer> buffer, int target)

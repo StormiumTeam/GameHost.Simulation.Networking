@@ -258,6 +258,8 @@ namespace Unity.NetCode
 			header.PredictDeltaFunc          = BurstCompiler.CompileFunctionPointer<d_PredictDelta>(Functions<TSerializer, TSnapshotData>.PredictDelta);
 			header.SnapshotFromEntity        = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<BufferFromEntity<TSnapshotData>>(), UnsafeUtility.AlignOf<BufferFromEntity<TSnapshotData>>(), Allocator.Persistent);
 
+			Debug.Log($"Added {typeof(TSnapshotData)} Serializer for id:{header.Id}");
+			
 			m_Headers.Add(header);
 			if (!m_TypeIndexToHeader.TryAdd(typeIndex, header.Id))
 			{

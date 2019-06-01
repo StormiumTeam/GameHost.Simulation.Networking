@@ -29,7 +29,7 @@ namespace Unity.NetCode
                 var capacity  = math.max(value, 8);
                 var newBuffer = (byte*) UnsafeUtility.Malloc(capacity * UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<byte>(), m_Allocator);
 
-                UnsafeUtility.MemCpy(newBuffer, m_Data->Buffer, m_Data->Length);
+                UnsafeUtility.MemCpy(newBuffer, m_Data->Buffer, m_Data->Length * UnsafeUtility.SizeOf<T>());
                 UnsafeUtility.Free(m_Data->Buffer, m_Allocator);
 
                 m_Data->Capacity = capacity;

@@ -224,7 +224,7 @@ namespace Unity.NetCode
 
                     var serializerBaseData = serializers[(int) targetArch];
                     var ptrCompressionModel = UnsafeUtility.AddressOf(ref compressionModel);
-
+                    
                     if (serializerFromEntity.Exists(gent.entity) && serializerFromEntity[gent.entity].HasSerializer(targetArch))
                     {
                         serializerBaseData.Value->Header.FullDeserializeEntityFunc.Invoke(ref serializerBaseData.AsRef(), gent.entity, serverTick, baselineTick, baselineTick2, baselineTick3,
@@ -234,16 +234,6 @@ namespace Unity.NetCode
                     {
                         serializerBaseData.Value->Header.SpawnFunc.Invoke(ref serializerBaseData.AsRef(), ghostId, serverTick, &dataStream, &readCtx, ptrCompressionModel);
                     }
-
-                    // unlike in GhostSendSystem where we directly use InvokeSerialize, we put InvokeSerialize in the serializer header (same for InvokeSpawn)
-                    /*
-                    if (gent.entity != default && serializerBaseData.Value->Header.HasComponentFunc.Invoke(ref serializerBaseData.AsRef(), gent.entity))
-                    {
-                    }
-                    else
-                    {
-                        serializerBaseData.Value->Header.SpawnFunc.Invoke(ref serializerBaseData.AsRef(), ghostId, serverTick, &dataStream, &readCtx, ptrCompressionModel);
-                    }*/
                 }
 
                 while (ghostEntityMap.Capacity < ghostEntityMap.Length + newGhosts)
