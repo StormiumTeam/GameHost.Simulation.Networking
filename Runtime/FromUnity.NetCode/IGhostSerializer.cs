@@ -16,13 +16,25 @@ namespace Unity.NetCode
 
 	public delegate void d_BeginSerialize(ref GhostSerializerBase serializer, GCHandle systemHandle);
 
-	public unsafe delegate void d_CopyToSnapshot(ref GhostSerializerBase serializer,  ArchetypeChunk chunk, int ent, uint currentTick, void* snapshot);
+	public delegate void d_BeginDeserialize(ref GhostSerializerBase serializer, GCHandle jobSystemHandle);
+
+	public unsafe delegate void d_Spawn(ref GhostSerializerBase serializer, int ghostId, uint tick, void* reader, void* readerCtx, void* compressionModel);
+
+	public unsafe delegate bool d_HasComponent(ref GhostSerializerBase serializer, Entity entity);
+
+	public unsafe delegate void d_CopyToSnapshot(ref GhostSerializerBase serializer, ArchetypeChunk chunk, int ent, uint currentTick, void* snapshot);
 
 	// ?????????????????????
 	// I originally wanted to put the real types for writer and compressionModel, but for some weird reason, I had a MarshalDirectiveException????????
-	public unsafe delegate void d_SerializeEntity(ref GhostSerializerBase serializer, void* snapshot,  void* baseline, void* writer, void* compressionModel);
+	public unsafe delegate void d_SerializeEntity(ref GhostSerializerBase serializer, void* snapshot, void* baseline, void* writer, void* compressionModel);
+
+	public unsafe delegate void d_DeserializeEntity(ref GhostSerializerBase serializer, void* snapshot, uint tick, void* baseline, void* reader, void* readerCtx, void* compressionModel);
+
+	public unsafe delegate void d_FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint tick, uint baselineTick, uint baselineTick2, uint baselineTick3, void* reader, void* readerCtx, void* compressionModel);
 
 	public unsafe delegate void d_PredictDelta(ref GhostSerializerBase serializer, uint tick, void* baseline, void* baseline1, void* baseline2);
+
+	public delegate void d_SetupDeserializing(ref GhostSerializerBase serializer, GCHandle jobSystemHandle);
 
 	public unsafe struct GhostSerializerBase
 	{
@@ -41,17 +53,26 @@ namespace Unity.NetCode
 
 		public bool WantsPredictionDelta;
 		public int  Importance;
-		public int SnapshotSize;
-		public int SnapshotAlign;
-		
+		public int  SnapshotSize;
+		public int  SnapshotAlign;
+
 		public int Size;
 		public int Align;
 
-		public FunctionPointer<d_CanSerialize>    CanSerializeFunc;
-		public FunctionPointer<d_BeginSerialize>  BeginSerializeFunc;
-		public FunctionPointer<d_CopyToSnapshot>  CopyToSnapshotFunc;
-		public FunctionPointer<d_SerializeEntity> SerializeEntityFunc;
-		public FunctionPointer<d_PredictDelta> PredictDeltaFunc;
+		public FunctionPointer<d_CanSerialize>          CanSerializeFunc;
+		public FunctionPointer<d_BeginSerialize>        BeginSerializeFunc;
+		public FunctionPointer<d_BeginDeserialize>      BeginDeserializeFunc;
+		public FunctionPointer<d_Spawn>                 SpawnFunc;
+		public FunctionPointer<d_HasComponent> HasComponentFunc;
+		public FunctionPointer<d_CopyToSnapshot>        CopyToSnapshotFunc;
+		public FunctionPointer<d_SerializeEntity>       SerializeEntityFunc;
+		public FunctionPointer<d_DeserializeEntity>     DeserializeEntityFunc;
+		public FunctionPointer<d_PredictDelta>          PredictDeltaFunc;
+		public FunctionPointer<d_FullDeserializeEntity> FullDeserializeEntityFunc;
+		public FunctionPointer<d_SetupDeserializing>    SetupDeserializingFunc;
+
+		public void* SnapshotFromEntity;
+		public int Id;
 
 		public bool IsValid => Flags != 0;
 
@@ -91,14 +112,16 @@ namespace Unity.NetCode
 
 	public interface IGhostSerializer
 	{
-		GhostSerializerHeader Header { get; }	
+		GhostSerializerHeader Header { get; }
 	}
-	
-	public interface IGhostSerializer<T> : IGhostSerializer 
+
+	public interface IGhostSerializer<T> : IGhostSerializer
 		where T : unmanaged, ISnapshotData<T>
 	{
-		void BeginSerialize(ComponentSystemBase system);
-		bool CanSerialize(EntityArchetype       arch);
-		void CopyToSnapshot(ArchetypeChunk      chunk, int ent, uint tick, ref T snapshot);
+		void BeginSerialize(ComponentSystemBase  system);
+		void BeginDeserialize(JobComponentSystem system);
+		void Spawn(int                           ghostId, T data);
+		bool CanSerialize(EntityArchetype        arch);
+		void CopyToSnapshot(ArchetypeChunk       chunk, int ent, uint tick, ref T snapshot);
 	}
 }

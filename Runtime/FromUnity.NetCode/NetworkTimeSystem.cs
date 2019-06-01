@@ -50,7 +50,7 @@ namespace Unity.NetCode
 
         protected override void OnUpdate()
         {
-            Debug.Log($"{interpolateTargetTick} {predictTargetTick}");
+            //Debug.Log($"{interpolateTargetTick} {predictTargetTick}");
             
             if (connectionGroup.IsEmptyIgnoreFilter)
                 return;

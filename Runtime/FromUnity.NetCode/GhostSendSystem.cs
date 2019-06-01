@@ -37,7 +37,11 @@ namespace Unity.NetCode
 
             public EntityArchetype Archetype;
 
-            public int Length => m_Data->Length;
+            public int Length
+            {
+                get => m_Data->Length;
+                set => m_Data->Length = value;
+            }
 
             public int Capacity
             {
@@ -45,7 +49,7 @@ namespace Unity.NetCode
                 set
                 {
                     var capacity = math.max(value, 8);
-                    var newBuffer = (byte*) UnsafeUtility.Malloc(capacity, UnsafeUtility.AlignOf<byte>(), m_Allocator);
+                    var newBuffer = (byte*) UnsafeUtility.Malloc(capacity * UnsafeUtility.SizeOf<SerializationState>(), UnsafeUtility.AlignOf<SerializationState>(), m_Allocator);
 
                     UnsafeUtility.MemCpy(newBuffer, m_Data->Buffer, m_Data->Length);
                     UnsafeUtility.Free(m_Data->Buffer, m_Allocator);
@@ -70,7 +74,7 @@ namespace Unity.NetCode
                 m_Data      = (Data*) UnsafeUtility.Malloc(UnsafeUtility.SizeOf<Data>(), UnsafeUtility.AlignOf<Data>(), m_Allocator);
 
                 var capacity  = math.max(size, 8);
-                var newBuffer = (byte*) UnsafeUtility.Malloc(capacity, UnsafeUtility.AlignOf<byte>(), m_Allocator);
+                var newBuffer = (byte*) UnsafeUtility.Malloc(capacity * UnsafeUtility.SizeOf<SerializationStateList>(), UnsafeUtility.AlignOf<byte>(), m_Allocator);
 
                 m_Data->Capacity = capacity;
                 m_Data->Buffer   = newBuffer;
@@ -83,8 +87,6 @@ namespace Unity.NetCode
             {
                 if (m_Data->Length >= m_Data->Capacity)
                     Capacity = m_Data->Length + m_Data->Capacity * 2;
-                
-                Debug.Log($"Add " + v.ghostType);
 
                 this[m_Data->Length++] = v;
             }
@@ -103,7 +105,7 @@ namespace Unity.NetCode
                 {
                     if (this[i].snapshotData == null)
                     {
-                        Debug.LogError("snapshotData was null before being freed!");
+                        // Debug.LogError("snapshotData was null before being freed!");
                         continue;
                     }
                     
@@ -401,8 +403,6 @@ namespace Unity.NetCode
                 {
                     var addNew = !chunkSerializationData.TryGetValue(ghostChunks[chunk], out var chunkStateList);
                     
-                    Debug.Log("chunk - " + addNew);
-                    
                     // FIXME: should be using chunk sequence number instead of this hack
                     if (!addNew && chunkStateList.Archetype != ghostChunks[chunk].Archetype)
                     {
@@ -416,7 +416,6 @@ namespace Unity.NetCode
                         chunkStateList = new SerializationStateList(Allocator.Persistent, ghostChunks[chunk].Count);
                         chunkStateList.Archetype = ghostChunks[chunk].Archetype;
                         
-                        Debug.Log("serialiers length:" + serializers.Length);
                         for (var i = 0; i != serializers.Length; i++)
                         {
                             ref var serializerBase = ref serializers[i].AsRef();
@@ -446,8 +445,6 @@ namespace Unity.NetCode
                     // FIXME: only if modified or force sync
                     for (var i = 0; i != chunkStateList.Length; i++)
                     {
-                        Debug.Log($"{serializers.Length} >=< {chunkStateList[i].ghostType}");
-                        
                         var pc = new PrioChunk();
                         pc.chunk = ghostChunks[chunk];
                         pc.ghostState = null;
@@ -794,7 +791,7 @@ namespace Unity.NetCode
             }
         }
 
-        public static unsafe int InvokeSerialize(ref GhostSerializerBase serializerBaseData,            int                          ghostType, ArchetypeChunk chunk, int startIndex, uint currentTick,
+        public static unsafe int  InvokeSerialize(ref GhostSerializerBase serializerBaseData,            int                          ghostType, ArchetypeChunk chunk, int startIndex, uint currentTick,
                                                                              Entity*                    currentSnapshotEntity, byte*               currentSnapshotData,
                                                                              GhostSystemStateComponent* ghosts,                NativeArray<Entity>          ghostEntities,
                                                                              NativeArray<int>           baselinePerEntity,     NativeList<SnapshotBaseline> availableBaselines,
@@ -881,6 +878,8 @@ namespace Unity.NetCode
                 serializerBaseData.Header.CopyToSnapshotFunc.Invoke(ref serializerBaseData, chunk, ent, currentTick, snapshot);
                 
                 var            baselineData = (byte*) UnsafeUtility.Malloc(serializerBaseData.Header.SnapshotSize, serializerBaseData.Header.SnapshotAlign, Allocator.TempJob);
+                UnsafeUtility.MemClear(baselineData, serializerBaseData.Header.SnapshotSize);
+                
                 byte* baseline     = baselineData;
                 if (baselineSnapshotData2 != null)
                 {
@@ -890,11 +889,11 @@ namespace Unity.NetCode
                 }
                 else if (baselineSnapshotData0 != null)
                 {
-                    baseline = baselineSnapshotData0;
+                    UnsafeUtility.MemCpy(baseline, baselineSnapshotData0, serializerBaseData.Header.SnapshotSize);
                 }
 
                 serializerBaseData.Header.SerializeEntityFunc.Invoke(ref serializerBaseData, snapshot, baseline, UnsafeUtility.AddressOf(ref dataStream), UnsafeUtility.AddressOf(ref compressionModel));
-
+                
                 if (currentSnapshotData != null)
                     currentSnapshotEntity[ent] = ghostEntities[ent];
                 

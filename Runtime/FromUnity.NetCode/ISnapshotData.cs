@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 
 namespace Unity.NetCode
@@ -37,7 +38,7 @@ namespace Unity.NetCode
 					afterTick = tick;
 				}
 			}
-
+			
 			if (beforeTick == 0)
 			{
 				snapshotData = default(T);
