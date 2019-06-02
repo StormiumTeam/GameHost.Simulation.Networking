@@ -67,15 +67,15 @@ namespace Unity.NetCode
             public uint   tick;
         }
 
-        public  NativeHashMap<int, GhostEntity>          GhostEntityMap => m_ghostEntityMap;
-        public JobHandle Dependency => m_Dependency;
-        
+        public NativeHashMap<int, GhostEntity> GhostEntityMap => m_ghostEntityMap;
+        public JobHandle                       Dependency     => m_Dependency;
+
         private NativeHashMap<int, GhostEntity>          m_ghostEntityMap;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
 
         private NativeQueue<DelayedDespawnGhost> m_DelayedDespawnQueue;
-        private JobHandle m_Dependency;
-        
+        private JobHandle                        m_Dependency;
+
         protected override void OnCreateManager()
         {
             m_ghostEntityMap = new NativeHashMap<int, GhostEntity>(2048, Allocator.Persistent);
@@ -85,8 +85,8 @@ namespace Unity.NetCode
                 ComponentType.ReadOnly<PlayerStateComponentData>(),
                 ComponentType.Exclude<NetworkStreamDisconnected>());
 
-            m_Barrier          = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
-            m_CompressionModel = new NetworkCompressionModel(Allocator.Persistent);
+            m_Barrier             = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
+            m_CompressionModel    = new NetworkCompressionModel(Allocator.Persistent);
             m_DelayedDespawnQueue = new NativeQueue<DelayedDespawnGhost>(Allocator.Persistent);
         }
 
@@ -125,15 +125,21 @@ namespace Unity.NetCode
             public                             EntityCommandBuffer                                         commandBuffer;
             [DeallocateOnJobCompletion] public NativeArray<Entity>                                         players;
             public                             BufferFromEntity<IncomingSnapshotDataStreamBufferComponent> snapshotFromEntity;
-            public BufferFromEntity<ReplicatedEntitySerializer> serializerFromEntity;
+            public                             BufferFromEntity<ReplicatedEntitySerializer>                serializerFromEntity;
             public                             ComponentDataFromEntity<NetworkSnapshotAck>                 snapshotAckFromEntity;
-            [NativeDisableContainerSafetyRestriction] public                             NativeHashMap<int, GhostEntity>                             ghostEntityMap;
-            public                             NetworkCompressionModel                                     compressionModel;
-            [DeallocateOnJobCompletion] public                             NativeArray<GhostSerializerReference> serializers;
-            public ComponentType                    replicatedEntityType;
-            public NativeQueue<DelayedDespawnGhost> delayedDespawnQueue;
-            [NativeDisableContainerSafetyRestriction] public NativeList<NewGhost> spawnGhosts;
-            public uint                             targetTick;
+
+            [NativeDisableContainerSafetyRestriction]
+            public NativeHashMap<int, GhostEntity> ghostEntityMap;
+
+            public                             NetworkCompressionModel               compressionModel;
+            [DeallocateOnJobCompletion] public NativeArray<GhostSerializerReference> serializers;
+            public                             ComponentType                         replicatedEntityType;
+            public                             NativeQueue<DelayedDespawnGhost>      delayedDespawnQueue;
+
+            [NativeDisableContainerSafetyRestriction]
+            public NativeList<NewGhost> spawnGhosts;
+
+            public uint targetTick;
 
             public unsafe void Execute()
             {
@@ -181,9 +187,11 @@ namespace Unity.NetCode
                     delayedDespawnQueue.Enqueue(new DelayedDespawnGhost {ghost = ent.entity, tick = serverTick});
                 }
 
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
                 AtomicSafetyHandle bufferSafetyHandle = AtomicSafetyHandle.Create();
+#endif
 
-                uint targetArch = 0;
+                uint targetArch    = 0;
                 uint targetArchLen = 0;
                 uint baselineTick  = 0;
                 uint baselineTick2 = 0;
@@ -223,21 +231,27 @@ namespace Unity.NetCode
                         });
                     }
 
-                    var serializerBaseData = serializers[(int) targetArch];
+                    var serializerBaseData  = serializers[(int) targetArch];
                     var ptrCompressionModel = UnsafeUtility.AddressOf(ref compressionModel);
-                    
+
                     if (gent.entity != default && serializerFromEntity[gent.entity].HasSerializer(targetArch))
                     {
                         serializerBaseData.Value->Header.FullDeserializeEntityFunc.Invoke(ref serializerBaseData.AsRef(), gent.entity, serverTick, baselineTick, baselineTick2, baselineTick3,
-                            &dataStream, &readCtx, bufferSafetyHandle, ptrCompressionModel);
+                            &dataStream, &readCtx,
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                            bufferSafetyHandle,
+#endif
+                            ptrCompressionModel);
                     }
                     else
                     {
                         serializerBaseData.Value->Header.SpawnFunc.Invoke(ref serializerBaseData.AsRef(), ghostId, serverTick, &dataStream, &readCtx, ptrCompressionModel);
                     }
                 }
-                
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
                 AtomicSafetyHandle.Release(bufferSafetyHandle);
+#endif
 
                 while (ghostEntityMap.Capacity < ghostEntityMap.Length + newGhosts)
                     ghostEntityMap.Capacity += 1024;
@@ -270,7 +284,7 @@ namespace Unity.NetCode
             }
 
             var serializers = World.GetExistingSystem<GhostSerializerCollectionSystem>().BeginDeserialize(this, Allocator.TempJob);
-            
+
             JobHandle playerHandle;
             var readJob = new ReadStreamJob
             {

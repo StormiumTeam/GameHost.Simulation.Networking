@@ -20,7 +20,7 @@ namespace Unity.NetCode
 		{
 			m_Allocator = allocator;
 			Value       = (GhostSerializerBase*) UnsafeUtility.Malloc(header.Size, header.Align, allocator);
-			
+
 			UnsafeUtility.MemCpy(Value, UnsafeUtility.AddressOf(ref header), header.Size);
 		}
 
@@ -120,26 +120,32 @@ namespace Unity.NetCode
 				managedBaseline.PredictDelta(tick, ref managedBaseline1, ref managedBaseline2);
 			}
 
-			public static unsafe void FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint snapshot, uint baseline, uint baseline2, uint baseline3, void* reader, void* readerCtx, AtomicSafetyHandle bufferSafetyHandle, void* compressionModel)
+			public static unsafe void FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint snapshot, uint baseline, uint baseline2, uint baseline3, void* reader, void* readerCtx,
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			                                                AtomicSafetyHandle bufferSafetyHandle,
+#endif
+			                                                void* compressionModel)
 			{
 				var r = UnsafeUtilityEx.AsRef<DataStreamReader>(reader);
 				var c = UnsafeUtilityEx.AsRef<NetworkCompressionModel>(compressionModel);
 
 				ref var header = ref serializer.Header;
 
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
 				UnsafeUtility.MemCpy(header.SnapshotFromEntity,
 					UnsafeUtility.AddressOf(ref bufferSafetyHandle),
 					UnsafeUtility.SizeOf<AtomicSafetyHandle>());
-				
-				UnsafeUtility.MemCpy((byte*)header.SnapshotFromEntity + UnsafeUtility.SizeOf<AtomicSafetyHandle>(),
+
+				UnsafeUtility.MemCpy((byte*) header.SnapshotFromEntity + UnsafeUtility.SizeOf<AtomicSafetyHandle>(),
 					UnsafeUtility.AddressOf(ref bufferSafetyHandle),
 					UnsafeUtility.SizeOf<AtomicSafetyHandle>());
-				
+#endif
+
 				ref var ctx                = ref UnsafeUtilityEx.AsRef<DataStreamReader.Context>(readerCtx);
 				ref var snapshotFromEntity = ref UnsafeUtilityEx.AsRef<BufferFromEntity<TSnapshotData>>(header.SnapshotFromEntity);
 
-				var snapshotArray = snapshotFromEntity[entity];
-				var baselineData  = default(TSnapshotData);
+				var snapshotArray  = snapshotFromEntity[entity];
+				var baselineData   = default(TSnapshotData);
 				var snapshotLength = snapshotArray.Length;
 				if (baseline != snapshot)
 				{
@@ -190,16 +196,16 @@ namespace Unity.NetCode
 
 				var snapshotData = default(TSnapshotData);
 				var baselineData = default(TSnapshotData);
-				
+
 				snapshotData.Deserialize(snapshot, ref baselineData, r, ref ctx, c);
-				
+
 				serializer.As<TSerializer>().Spawn(ghostId, snapshotData);
 			}
 
 			public static bool HasComponent(ref GhostSerializerBase serializer, Entity entity)
 			{
 				ref var snapshotFromEntity = ref UnsafeUtilityEx.AsRef<BufferFromEntity<TSnapshotData>>(serializer.Header.SnapshotFromEntity);
-				
+
 				return snapshotFromEntity.Exists(entity);
 			}
 		}
@@ -215,6 +221,17 @@ namespace Unity.NetCode
 		protected override JobHandle OnUpdate(JobHandle jobHandle)
 		{
 			return jobHandle;
+		}
+
+		public FunctionPointer<TDelegate> compile<TDelegate>(bool burst, TDelegate origin)
+			where TDelegate : Delegate
+		{
+			if (burst)
+			{
+				return BurstCompiler.CompileFunctionPointer(origin);
+			}
+
+			return new FunctionPointer<TDelegate>(Marshal.GetFunctionPointerForDelegate(origin));
 		}
 
 		public bool TryAdd<TSerializer, TSnapshotData>(out TSerializer serializer)
@@ -237,28 +254,49 @@ namespace Unity.NetCode
 			serializer = new TSerializer();
 			ref var header = ref GhostSerializerHeader.GetHeader(ref serializer);
 
-			header.Id = m_Headers.Length;
-			header.SnapshotSize              = UnsafeUtility.SizeOf<TSnapshotData>();
-			header.SnapshotAlign             = UnsafeUtility.AlignOf<TSnapshotData>();
-			header.Size                      = UnsafeUtility.SizeOf<TSerializer>();
-			header.Align                     = UnsafeUtility.AlignOf<TSerializer>();
-			header.CanSerializeFunc          = BurstCompiler.CompileFunctionPointer<d_CanSerialize>(Functions<TSerializer, TSnapshotData>.CanSerialize);
-			header.BeginSerializeFunc        = new FunctionPointer<d_BeginSerialize>(Marshal.GetFunctionPointerForDelegate<d_BeginSerialize>(Functions<TSerializer, TSnapshotData>.BeginSerialize));
-			header.BeginDeserializeFunc      = new FunctionPointer<d_BeginDeserialize>(Marshal.GetFunctionPointerForDelegate<d_BeginDeserialize>(Functions<TSerializer, TSnapshotData>.BeginDeserialize));
-			header.SpawnFunc                 = BurstCompiler.CompileFunctionPointer<d_Spawn>(Functions<TSerializer, TSnapshotData>.Spawn);
-			header.HasComponentFunc          = BurstCompiler.CompileFunctionPointer<d_HasComponent>(Functions<TSerializer, TSnapshotData>.HasComponent);
-			header.SetupDeserializingFunc    = new FunctionPointer<d_SetupDeserializing>(Marshal.GetFunctionPointerForDelegate<d_SetupDeserializing>(Functions<TSerializer, TSnapshotData>.SetupDeserializing));
-			header.CopyToSnapshotFunc        = BurstCompiler.CompileFunctionPointer<d_CopyToSnapshot>(Functions<TSerializer, TSnapshotData>.CopyToSnapshot);
-			header.SerializeEntityFunc       = BurstCompiler.CompileFunctionPointer<d_SerializeEntity>(Functions<TSerializer, TSnapshotData>.SerializeEntity);
-			header.DeserializeEntityFunc     = BurstCompiler.CompileFunctionPointer<d_DeserializeEntity>(Functions<TSerializer, TSnapshotData>.DeserializeEntity);
-			header.FullDeserializeEntityFunc = BurstCompiler.CompileFunctionPointer<d_FullDeserializeEntity>(Functions<TSerializer, TSnapshotData>.FullDeserializeEntity);
-			header.PredictDeltaFunc          = BurstCompiler.CompileFunctionPointer<d_PredictDelta>(Functions<TSerializer, TSnapshotData>.PredictDelta);
-			header.SnapshotFromEntity        = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<BufferFromEntity<TSnapshotData>>(), UnsafeUtility.AlignOf<BufferFromEntity<TSnapshotData>>(), Allocator.Persistent);
-			
+			header.Id            = m_Headers.Length;
+			header.SnapshotSize  = UnsafeUtility.SizeOf<TSnapshotData>();
+			header.SnapshotAlign = UnsafeUtility.AlignOf<TSnapshotData>();
+			header.Size          = UnsafeUtility.SizeOf<TSerializer>();
+			header.Align         = UnsafeUtility.AlignOf<TSerializer>();
+			try
+			{
+				header.CanSerializeFunc          = compile<d_CanSerialize>(true, Functions<TSerializer, TSnapshotData>.CanSerialize);
+				header.BeginSerializeFunc        = compile<d_BeginSerialize>(false, Functions<TSerializer, TSnapshotData>.BeginSerialize);
+				header.BeginDeserializeFunc      = compile<d_BeginDeserialize>(false, Functions<TSerializer, TSnapshotData>.BeginDeserialize);
+				header.SpawnFunc                 = compile<d_Spawn>(true, Functions<TSerializer, TSnapshotData>.Spawn);
+				header.HasComponentFunc          = compile<d_HasComponent>(true, Functions<TSerializer, TSnapshotData>.HasComponent);
+				header.SetupDeserializingFunc    = compile<d_SetupDeserializing>(false, Functions<TSerializer, TSnapshotData>.SetupDeserializing);
+				header.CopyToSnapshotFunc        = compile<d_CopyToSnapshot>(true, Functions<TSerializer, TSnapshotData>.CopyToSnapshot);
+				header.SerializeEntityFunc       = compile<d_SerializeEntity>(true, Functions<TSerializer, TSnapshotData>.SerializeEntity);
+				header.DeserializeEntityFunc     = compile<d_DeserializeEntity>(true, Functions<TSerializer, TSnapshotData>.DeserializeEntity);
+				header.FullDeserializeEntityFunc = compile<d_FullDeserializeEntity>(true, Functions<TSerializer, TSnapshotData>.FullDeserializeEntity);
+				header.PredictDeltaFunc          = compile<d_PredictDelta>(true, Functions<TSerializer, TSnapshotData>.PredictDelta);
+			}
+			catch (Exception ex)
+			{
+				Debug.LogError("Couldn't burst compile. Maybe burst is not present?");
+				Debug.LogException(ex);
+
+				header.CanSerializeFunc          = compile<d_CanSerialize>(false, Functions<TSerializer, TSnapshotData>.CanSerialize);
+				header.BeginSerializeFunc        = compile<d_BeginSerialize>(false, Functions<TSerializer, TSnapshotData>.BeginSerialize);
+				header.BeginDeserializeFunc      = compile<d_BeginDeserialize>(false, Functions<TSerializer, TSnapshotData>.BeginDeserialize);
+				header.SpawnFunc                 = compile<d_Spawn>(false, Functions<TSerializer, TSnapshotData>.Spawn);
+				header.HasComponentFunc          = compile<d_HasComponent>(false, Functions<TSerializer, TSnapshotData>.HasComponent);
+				header.SetupDeserializingFunc    = compile<d_SetupDeserializing>(false, Functions<TSerializer, TSnapshotData>.SetupDeserializing);
+				header.CopyToSnapshotFunc        = compile<d_CopyToSnapshot>(false, Functions<TSerializer, TSnapshotData>.CopyToSnapshot);
+				header.SerializeEntityFunc       = compile<d_SerializeEntity>(false, Functions<TSerializer, TSnapshotData>.SerializeEntity);
+				header.DeserializeEntityFunc     = compile<d_DeserializeEntity>(false, Functions<TSerializer, TSnapshotData>.DeserializeEntity);
+				header.FullDeserializeEntityFunc = compile<d_FullDeserializeEntity>(false, Functions<TSerializer, TSnapshotData>.FullDeserializeEntity);
+				header.PredictDeltaFunc          = compile<d_PredictDelta>(false, Functions<TSerializer, TSnapshotData>.PredictDelta);
+			}
+
+			header.SnapshotFromEntity = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<BufferFromEntity<TSnapshotData>>(), UnsafeUtility.AlignOf<BufferFromEntity<TSnapshotData>>(), Allocator.Persistent);
+
 			serializer.SetupHeader(this, ref header);
 
 			Debug.Log($"Added {typeof(TSnapshotData)} Serializer for id:{header.Id}");
-			
+
 			m_Headers.Add(header);
 			if (!m_TypeIndexToHeader.TryAdd(typeIndex, header.Id))
 			{
@@ -284,17 +322,18 @@ namespace Unity.NetCode
 		public NativeArray<GhostSerializerReference> BeginSerialize(ComponentSystemBase system, Allocator allocator)
 		{
 			var referenceArray = new NativeArray<GhostSerializerReference>(m_Headers.Length, allocator);
-			var systemHandle = GCHandle.Alloc(system, GCHandleType.Pinned);
+			var systemHandle   = GCHandle.Alloc(system, GCHandleType.Pinned);
 			for (var i = 0; i != m_Headers.Length; i++)
 			{
 				referenceArray[i] = new GhostSerializerReference(m_Headers[i], allocator);
 				m_Headers[i].BeginSerializeFunc.Invoke(ref referenceArray[i].AsRef(), systemHandle);
 			}
+
 			systemHandle.Free();
 
 			return referenceArray;
 		}
-		
+
 		public NativeArray<GhostSerializerReference> BeginDeserialize(JobComponentSystem system, Allocator allocator)
 		{
 			var referenceArray = new NativeArray<GhostSerializerReference>(m_Headers.Length, allocator);
@@ -306,6 +345,7 @@ namespace Unity.NetCode
 				m_Headers[i].SetupDeserializingFunc.Invoke(ref referenceArray[i].AsRef(), systemHandle);
 				m_Headers[i].BeginDeserializeFunc.Invoke(ref referenceArray[i].AsRef(), systemHandle);
 			}
+
 			systemHandle.Free();
 
 			return referenceArray;

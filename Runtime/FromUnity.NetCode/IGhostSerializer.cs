@@ -30,7 +30,11 @@ namespace Unity.NetCode
 
 	public unsafe delegate void d_DeserializeEntity(ref GhostSerializerBase serializer, void* snapshot, uint tick, void* baseline, void* reader, void* readerCtx, void* compressionModel);
 
-	public unsafe delegate void d_FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint tick, uint baselineTick, uint baselineTick2, uint baselineTick3, void* reader, void* readerCtx, AtomicSafetyHandle bufferSafetyHandle, void* compressionModel);
+	public unsafe delegate void d_FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint tick, uint baselineTick, uint baselineTick2, uint baselineTick3, void* reader, void* readerCtx,
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+	                                                    AtomicSafetyHandle bufferSafetyHandle,
+#endif
+	                                                    void* compressionModel);
 
 	public unsafe delegate void d_PredictDelta(ref GhostSerializerBase serializer, uint tick, void* baseline, void* baseline1, void* baseline2);
 
@@ -53,10 +57,10 @@ namespace Unity.NetCode
 
 		public bool WantsPredictionDelta;
 		public bool WantsSingleHistory;
-		
-		public int  Importance;
-		public int  SnapshotSize;
-		public int  SnapshotAlign;
+
+		public int Importance;
+		public int SnapshotSize;
+		public int SnapshotAlign;
 
 		public int Size;
 		public int Align;
@@ -65,7 +69,7 @@ namespace Unity.NetCode
 		public FunctionPointer<d_BeginSerialize>        BeginSerializeFunc;
 		public FunctionPointer<d_BeginDeserialize>      BeginDeserializeFunc;
 		public FunctionPointer<d_Spawn>                 SpawnFunc;
-		public FunctionPointer<d_HasComponent> HasComponentFunc;
+		public FunctionPointer<d_HasComponent>          HasComponentFunc;
 		public FunctionPointer<d_CopyToSnapshot>        CopyToSnapshotFunc;
 		public FunctionPointer<d_SerializeEntity>       SerializeEntityFunc;
 		public FunctionPointer<d_DeserializeEntity>     DeserializeEntityFunc;
@@ -74,7 +78,7 @@ namespace Unity.NetCode
 		public FunctionPointer<d_SetupDeserializing>    SetupDeserializingFunc;
 
 		public void* SnapshotFromEntity;
-		public int Id;
+		public int   Id;
 
 		public bool IsValid => Flags != 0;
 
@@ -121,7 +125,7 @@ namespace Unity.NetCode
 		where T : unmanaged, ISnapshotData<T>
 	{
 		void SetupHeader(ComponentSystemBase system, ref GhostSerializerHeader header);
-		
+
 		void BeginSerialize(ComponentSystemBase  system);
 		void BeginDeserialize(JobComponentSystem system);
 		void Spawn(int                           ghostId, T data);
