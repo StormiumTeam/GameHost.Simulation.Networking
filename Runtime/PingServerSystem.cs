@@ -9,16 +9,17 @@ using UnityEngine;
 
 namespace DefaultNamespace
 {
-	public struct RpcPing : IRpcBase<RpcPing>
+	/*public struct RpcPing : IRpcBase<RpcPing>
 	{
 		public RpcBase.Header Header { get; set; }
 
-		public void SetupHeader(out rpc_Serialize<RpcPing> serialize, out rpc_Deserialize<RpcPing> deserialize)
+		public void SetupHeader(out rpc_Serialize<RpcPing> serialize, out rpc_Deserialize<RpcPing> deserialize, out rpc_Execute<RpcPing> execute)
 		{
 			serialize   = (ref RpcPing p, DataStreamWriter d) => { };
 			deserialize = (ref RpcPing p, DataStreamReader d, ref DataStreamReader.Context c) => { };
+			execute = (ref RpcPing ping, Entity connection, EntityCommandBuffer.Concurrent buffer, int index) => { };
 		}
-	}
+	}*/
 
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
 	public class PingServerSystem : JobComponentSystem

@@ -48,6 +48,7 @@ namespace Unity.NetCode
             if (buffer.Length == 0)
                 writer.Write((byte) NetworkStreamProtocol.Rpc);
             writer.Write(rpcType);
+            writer.Write(Header.Id);
             Header.Serialize(ref data, writer);
             var prevLen = buffer.Length;
             buffer.ResizeUninitialized(buffer.Length + writer.Length);
@@ -92,6 +93,8 @@ namespace Unity.NetCode
             [ReadOnly] public ArchetypeChunkEntityType                                       entityType;
             public            ArchetypeChunkBufferType<IncomingRpcDataStreamBufferComponent> bufferType;
 
+            [ReadOnly] public NativeList<RpcBase.Header> headers;
+            
             public unsafe void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 var entities     = chunk.GetNativeArray(entityType);
@@ -115,10 +118,19 @@ namespace Unity.NetCode
                             }
                             case 1: // custom
                             {
-                                var header = default(RpcBase.Header);
-                                var ptr    = UnsafeUtility.AddressOf(ref header);
-
-                                //header.DeserializeFunction.Invoke(ptr, 0, reader, ref ctx);
+                                var customType = reader.ReadInt(ref ctx);
+                                var header = headers[customType];
+                                var ptr = UnsafeUtility.Malloc(header.Size, header.Align, Allocator.TempJob);
+                                UnsafeUtility.MemCpy(ptr, UnsafeUtility.AddressOf(ref header), UnsafeUtility.SizeOf<RpcBase.Header>());
+                                Debug.Log("copied");
+                                
+                                header.DeserializeFunction.Invoke(ptr, header.Size, (void*) &reader, ref ctx);
+                                Debug.Log("deserialized");
+                                header.ExecuteFunction.Invoke(ptr, header.Size, entities[i], commandBuffer, chunkIndex);
+                                
+                                Debug.Log("ok");
+                                
+                                UnsafeUtility.Free(ptr, Allocator.TempJob);
                                 
                                 commandBuffer.AddComponent(chunkIndex, entities[i], new PlayerStateComponentData());
                                 break;
@@ -139,7 +151,10 @@ namespace Unity.NetCode
             execJob.commandBuffer = m_Barrier.CreateCommandBuffer().ToConcurrent();
             execJob.entityType    = GetArchetypeChunkEntityType();
             execJob.bufferType    = GetArchetypeChunkBufferType<IncomingRpcDataStreamBufferComponent>();
+            execJob.headers = RpcBase.GetAllHeaders(Allocator.TempJob);
             var handle = execJob.Schedule(m_RpcBufferGroup, inputDeps);
+            handle = execJob.headers.Dispose(handle);
+            
             m_Barrier.AddJobHandleForProducer(handle);
             return handle;
         }
