@@ -789,7 +789,7 @@ namespace Unity.NetCode
             public int CompareTo(PrioChunk other)
             {
                 // Reverse priority for sorting
-                return other.priority - priority;
+                return other.ghostType - ghostType + other.priority - priority;
             }
         }
 
@@ -801,7 +801,8 @@ namespace Unity.NetCode
         {
             int ent;
             int sameBaselineCount = 0;
-            
+
+            var start = dataStream.Length;
             for (ent = startIndex; ent < chunk.Count && dataStream.Length < TargetPacketSize; ++ent)
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -903,7 +904,7 @@ namespace Unity.NetCode
                 UnsafeUtility.Free(snapshotData, Allocator.TempJob);
                 UnsafeUtility.Free(baselineData, Allocator.TempJob);
             }
-
+            
             return ent;
         }
     }

@@ -198,16 +198,20 @@ namespace Unity.NetCode
                 uint baselineTick3 = 0;
                 uint baselineLen   = 0;
                 int  newGhosts     = 0;
+
+                GhostSerializerReference serializerBaseData = default;
                 for (var i = 0; i < updateLen; ++i)
                 {
                     if (targetArchLen == 0)
                     {
                         targetArch    = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                         targetArchLen = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
+                        
+                        serializerBaseData = serializers[(int) targetArch];
                     }
 
                     --targetArchLen;
-
+ 
                     if (baselineLen == 0)
                     {
                         baselineTick  = serverTick - dataStream.ReadPackedUInt(ref readCtx, compressionModel);
@@ -231,7 +235,6 @@ namespace Unity.NetCode
                         });
                     }
 
-                    var serializerBaseData  = serializers[(int) targetArch];
                     var ptrCompressionModel = UnsafeUtility.AddressOf(ref compressionModel);
 
                     if (gent.entity != default && serializerFromEntity[gent.entity].HasSerializer(targetArch))
@@ -302,7 +305,7 @@ namespace Unity.NetCode
                 serializerFromEntity = GetBufferFromEntity<ReplicatedEntitySerializer>(),
                 targetTick           = NetworkTimeSystem.interpolateTargetTick
             };
-            inputDeps = readJob.Schedule(JobHandle.CombineDependencies(inputDeps, World.GetExistingSystem<GhostSpawnSystem>().Dependency, playerHandle));
+            inputDeps = readJob.Schedule(JobHandle.CombineDependencies(inputDeps, playerHandle));
 
             m_Dependency = inputDeps;
             m_Barrier.AddJobHandleForProducer(inputDeps);

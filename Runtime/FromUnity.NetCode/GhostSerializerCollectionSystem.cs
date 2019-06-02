@@ -8,6 +8,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
@@ -343,8 +344,10 @@ namespace Unity.NetCode
 			{
 				referenceArray[i] = new GhostSerializerReference(m_Headers[i], allocator);
 
+				Profiler.BeginSample("Call func");
 				m_Headers[i].SetupDeserializingFunc.Invoke(ref referenceArray[i].AsRef(), systemHandle);
 				m_Headers[i].BeginDeserializeFunc.Invoke(ref referenceArray[i].AsRef(), systemHandle);
+				Profiler.EndSample();
 			}
 
 			systemHandle.Free();
