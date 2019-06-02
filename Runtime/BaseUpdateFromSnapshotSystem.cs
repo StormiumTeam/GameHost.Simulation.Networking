@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -23,6 +24,7 @@ namespace DefaultNamespace
 		where TComponent : struct, IComponentFromSnapshot<TSnapshot>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>
 	{
+		[BurstCompile]
 		struct UpdateJob : IJobForEachWithEntity<TComponent>
 		{
 			[ReadOnly] public BufferFromEntity<TSnapshot> SnapshotFromEntity;

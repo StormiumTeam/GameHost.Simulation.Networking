@@ -30,7 +30,7 @@ namespace Unity.NetCode
 
 	public unsafe delegate void d_DeserializeEntity(ref GhostSerializerBase serializer, void* snapshot, uint tick, void* baseline, void* reader, void* readerCtx, void* compressionModel);
 
-	public unsafe delegate void d_FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint tick, uint baselineTick, uint baselineTick2, uint baselineTick3, void* reader, void* readerCtx, void* compressionModel);
+	public unsafe delegate void d_FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint tick, uint baselineTick, uint baselineTick2, uint baselineTick3, void* reader, void* readerCtx, AtomicSafetyHandle bufferSafetyHandle, void* compressionModel);
 
 	public unsafe delegate void d_PredictDelta(ref GhostSerializerBase serializer, uint tick, void* baseline, void* baseline1, void* baseline2);
 
@@ -52,6 +52,8 @@ namespace Unity.NetCode
 		public byte Flags;
 
 		public bool WantsPredictionDelta;
+		public bool WantsSingleHistory;
+		
 		public int  Importance;
 		public int  SnapshotSize;
 		public int  SnapshotAlign;
@@ -118,6 +120,8 @@ namespace Unity.NetCode
 	public interface IGhostSerializer<T> : IGhostSerializer
 		where T : unmanaged, ISnapshotData<T>
 	{
+		void SetupHeader(ComponentSystemBase system, ref GhostSerializerHeader header);
+		
 		void BeginSerialize(ComponentSystemBase  system);
 		void BeginDeserialize(JobComponentSystem system);
 		void Spawn(int                           ghostId, T data);

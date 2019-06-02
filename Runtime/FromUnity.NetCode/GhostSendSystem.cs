@@ -51,7 +51,7 @@ namespace Unity.NetCode
                     var capacity = math.max(value, 8);
                     var newBuffer = (byte*) UnsafeUtility.Malloc(capacity * UnsafeUtility.SizeOf<SerializationState>(), UnsafeUtility.AlignOf<SerializationState>(), m_Allocator);
 
-                    UnsafeUtility.MemCpy(newBuffer, m_Data->Buffer, m_Data->Length);
+                    UnsafeUtility.MemCpy(newBuffer, m_Data->Buffer, m_Data->Length * UnsafeUtility.SizeOf<SerializationState>());
                     UnsafeUtility.Free(m_Data->Buffer, m_Allocator);
 
                     m_Data->Capacity = capacity;
@@ -596,6 +596,8 @@ namespace Unity.NetCode
                                 chunkState.startIndex = ent;
                             }
                         }
+
+                        chunkStateList[i] = chunkState;
                     }
                     
                     chunkSerializationData.Remove(chunk);
@@ -799,6 +801,7 @@ namespace Unity.NetCode
         {
             int ent;
             int sameBaselineCount = 0;
+            
             for (ent = startIndex; ent < chunk.Count && dataStream.Length < TargetPacketSize; ++ent)
             {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS

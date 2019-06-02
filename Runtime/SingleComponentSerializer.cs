@@ -11,12 +11,17 @@ namespace DefaultNamespace
 	{
 		public int SerializerId { get; private set; }
 
+		public virtual bool WantsPredictionDelta => false;
+		public virtual bool WantsSingleHistory         => false;
+		public virtual int Importance => 1;
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			World.GetOrCreateSystem<SingleComponentSerializer<TComponent,TSnapshot>.SystemGhostSerializer>();
+			World.GetOrCreateSystem<SingleComponentSerializer<TComponent, TSnapshot>.SystemGhostSerializer>();
 			World.GetOrCreateSystem<GhostSerializerCollectionSystem>().TryAdd<SingleComponentSerializer<TComponent, TSnapshot>, TSnapshot>(out var serializer);
+			
 			SerializerId = serializer.Header.Id;
 		}
 
@@ -24,7 +29,7 @@ namespace DefaultNamespace
 		{
 		}
 	}
-	
+
 	public struct SingleComponentSerializer<TComponent, TSnapshot> : IGhostSerializer<TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSnapshot : unmanaged, ISnapshotFromComponent<TSnapshot, TComponent>
@@ -33,6 +38,15 @@ namespace DefaultNamespace
 
 
 		public ArchetypeChunkComponentType<TComponent> ghostTestType;
+
+		public void SetupHeader(ComponentSystemBase system, ref GhostSerializerHeader header)
+		{
+			var serializerSystem = system.World.GetExistingSystem<AddSingleComponentSerializer<TComponent, TSnapshot>>();
+
+			header.WantsPredictionDelta = serializerSystem.WantsPredictionDelta;
+			header.WantsSingleHistory = serializerSystem.WantsSingleHistory;
+			header.Importance = serializerSystem.Importance;
+		}
 
 		public void BeginSerialize(ComponentSystemBase system)
 		{

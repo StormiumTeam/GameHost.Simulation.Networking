@@ -127,12 +127,12 @@ namespace Unity.NetCode
             public                             BufferFromEntity<IncomingSnapshotDataStreamBufferComponent> snapshotFromEntity;
             public BufferFromEntity<ReplicatedEntitySerializer> serializerFromEntity;
             public                             ComponentDataFromEntity<NetworkSnapshotAck>                 snapshotAckFromEntity;
-            public                             NativeHashMap<int, GhostEntity>                             ghostEntityMap;
+            [NativeDisableContainerSafetyRestriction] public                             NativeHashMap<int, GhostEntity>                             ghostEntityMap;
             public                             NetworkCompressionModel                                     compressionModel;
             [DeallocateOnJobCompletion] public                             NativeArray<GhostSerializerReference> serializers;
             public ComponentType                    replicatedEntityType;
             public NativeQueue<DelayedDespawnGhost> delayedDespawnQueue;
-            public NativeList<NewGhost> spawnGhosts;
+            [NativeDisableContainerSafetyRestriction] public NativeList<NewGhost> spawnGhosts;
             public uint                             targetTick;
 
             public unsafe void Execute()
@@ -181,6 +181,7 @@ namespace Unity.NetCode
                     delayedDespawnQueue.Enqueue(new DelayedDespawnGhost {ghost = ent.entity, tick = serverTick});
                 }
 
+                AtomicSafetyHandle bufferSafetyHandle = AtomicSafetyHandle.Create();
 
                 uint targetArch = 0;
                 uint targetArchLen = 0;
@@ -225,16 +226,18 @@ namespace Unity.NetCode
                     var serializerBaseData = serializers[(int) targetArch];
                     var ptrCompressionModel = UnsafeUtility.AddressOf(ref compressionModel);
                     
-                    if (serializerFromEntity.Exists(gent.entity) && serializerFromEntity[gent.entity].HasSerializer(targetArch))
+                    if (gent.entity != default && serializerFromEntity[gent.entity].HasSerializer(targetArch))
                     {
                         serializerBaseData.Value->Header.FullDeserializeEntityFunc.Invoke(ref serializerBaseData.AsRef(), gent.entity, serverTick, baselineTick, baselineTick2, baselineTick3,
-                            &dataStream, &readCtx, ptrCompressionModel);   
+                            &dataStream, &readCtx, bufferSafetyHandle, ptrCompressionModel);
                     }
                     else
                     {
                         serializerBaseData.Value->Header.SpawnFunc.Invoke(ref serializerBaseData.AsRef(), ghostId, serverTick, &dataStream, &readCtx, ptrCompressionModel);
                     }
                 }
+                
+                AtomicSafetyHandle.Release(bufferSafetyHandle);
 
                 while (ghostEntityMap.Capacity < ghostEntityMap.Length + newGhosts)
                     ghostEntityMap.Capacity += 1024;

@@ -120,30 +120,30 @@ namespace Unity.NetCode
 				managedBaseline.PredictDelta(tick, ref managedBaseline1, ref managedBaseline2);
 			}
 
-			public static unsafe void FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint snapshot, uint baseline, uint baseline2, uint baseline3, void* reader, void* readerCtx, void* compressionModel)
+			public static unsafe void FullDeserializeEntity(ref GhostSerializerBase serializer, Entity entity, uint snapshot, uint baseline, uint baseline2, uint baseline3, void* reader, void* readerCtx, AtomicSafetyHandle bufferSafetyHandle, void* compressionModel)
 			{
-				UnsafeUtility.CopyPtrToStructure(reader, out DataStreamReader r);
-				UnsafeUtility.CopyPtrToStructure(compressionModel, out NetworkCompressionModel c);
+				var r = UnsafeUtilityEx.AsRef<DataStreamReader>(reader);
+				var c = UnsafeUtilityEx.AsRef<NetworkCompressionModel>(compressionModel);
 
-				var bfeSafetyHandle = AtomicSafetyHandle.Create(); // super wrong!
-				var arraySafetyHandle = AtomicSafetyHandle.Create(); // super wrong!
-				
-				UnsafeUtility.MemCpy(serializer.Header.SnapshotFromEntity,
-					UnsafeUtility.AddressOf(ref bfeSafetyHandle),
+				ref var header = ref serializer.Header;
+
+				UnsafeUtility.MemCpy(header.SnapshotFromEntity,
+					UnsafeUtility.AddressOf(ref bufferSafetyHandle),
 					UnsafeUtility.SizeOf<AtomicSafetyHandle>());
 				
-				UnsafeUtility.MemCpy((byte*)serializer.Header.SnapshotFromEntity + UnsafeUtility.SizeOf<AtomicSafetyHandle>(),
-					UnsafeUtility.AddressOf(ref arraySafetyHandle),
+				UnsafeUtility.MemCpy((byte*)header.SnapshotFromEntity + UnsafeUtility.SizeOf<AtomicSafetyHandle>(),
+					UnsafeUtility.AddressOf(ref bufferSafetyHandle),
 					UnsafeUtility.SizeOf<AtomicSafetyHandle>());
 				
 				ref var ctx                = ref UnsafeUtilityEx.AsRef<DataStreamReader.Context>(readerCtx);
-				ref var snapshotFromEntity = ref UnsafeUtilityEx.AsRef<BufferFromEntity<TSnapshotData>>(serializer.Header.SnapshotFromEntity);
+				ref var snapshotFromEntity = ref UnsafeUtilityEx.AsRef<BufferFromEntity<TSnapshotData>>(header.SnapshotFromEntity);
 
 				var snapshotArray = snapshotFromEntity[entity];
 				var baselineData  = default(TSnapshotData);
+				var snapshotLength = snapshotArray.Length;
 				if (baseline != snapshot)
 				{
-					for (int i = 0; i < snapshotArray.Length; ++i)
+					for (int i = 0; i < snapshotLength; ++i)
 					{
 						if (snapshotArray[i].Tick == baseline)
 						{
@@ -157,7 +157,7 @@ namespace Unity.NetCode
 				{
 					var baselineData2 = default(TSnapshotData);
 					var baselineData3 = default(TSnapshotData);
-					for (int i = 0; i < snapshotArray.Length; ++i)
+					for (int i = 0; i < snapshotLength; ++i)
 					{
 						if (snapshotArray[i].Tick == baseline2)
 						{
@@ -176,12 +176,9 @@ namespace Unity.NetCode
 				var data = default(TSnapshotData);
 				data.Deserialize(snapshot, ref baselineData, r, ref ctx, c);
 				// Replace the oldest snapshot, or add a new one
-				if (snapshotArray.Length == GhostSendSystem.SnapshotHistorySize)
+				if (snapshotLength == GhostSendSystem.SnapshotHistorySize || (snapshotLength == 1 && header.WantsSingleHistory))
 					snapshotArray.RemoveAt(0);
 				snapshotArray.Add(data);
-				
-				AtomicSafetyHandle.Release(bfeSafetyHandle);
-				AtomicSafetyHandle.Release(arraySafetyHandle);
 			}
 
 			public static void Spawn(ref GhostSerializerBase serializer, int ghostId, uint snapshot, void* reader, void* readerCtx, void* compressionModel)
@@ -257,6 +254,8 @@ namespace Unity.NetCode
 			header.FullDeserializeEntityFunc = BurstCompiler.CompileFunctionPointer<d_FullDeserializeEntity>(Functions<TSerializer, TSnapshotData>.FullDeserializeEntity);
 			header.PredictDeltaFunc          = BurstCompiler.CompileFunctionPointer<d_PredictDelta>(Functions<TSerializer, TSnapshotData>.PredictDelta);
 			header.SnapshotFromEntity        = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<BufferFromEntity<TSnapshotData>>(), UnsafeUtility.AlignOf<BufferFromEntity<TSnapshotData>>(), Allocator.Persistent);
+			
+			serializer.SetupHeader(this, ref header);
 
 			Debug.Log($"Added {typeof(TSnapshotData)} Serializer for id:{header.Id}");
 			
