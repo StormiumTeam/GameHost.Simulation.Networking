@@ -4,33 +4,17 @@ using UnityEngine;
 
 namespace DefaultNamespace
 {
-	[UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
-	public abstract class AddSingleComponentSerializer<TComponent, TSnapshot> : ComponentSystem
+	public abstract class AddComponentSerializer<TComponent, TSnapshot> : AddSerializer<ComponentSerializer<TComponent, TSnapshot>, TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSnapshot : unmanaged, ISnapshotFromComponent<TSnapshot, TComponent>
 	{
-		public int SerializerId { get; private set; }
-
-		public virtual bool WantsPredictionDelta => false;
-		public virtual bool WantsSingleHistory         => false;
-		public virtual int Importance => 1;
-
-		protected override void OnCreate()
+		public override ComponentTypes GetComponents()
 		{
-			base.OnCreate();
-
-			World.GetOrCreateSystem<SingleComponentSerializer<TComponent, TSnapshot>.SystemGhostSerializer>();
-			World.GetOrCreateSystem<GhostSerializerCollectionSystem>().TryAdd<SingleComponentSerializer<TComponent, TSnapshot>, TSnapshot>(out var serializer);
-			
-			SerializerId = serializer.Header.Id;
-		}
-
-		protected override void OnUpdate()
-		{
+			return new ComponentTypes(typeof(TComponent), typeof(TSnapshot));
 		}
 	}
 
-	public struct SingleComponentSerializer<TComponent, TSnapshot> : IGhostSerializer<TSnapshot>
+	public struct ComponentSerializer<TComponent, TSnapshot> : IGhostSerializer<TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSnapshot : unmanaged, ISnapshotFromComponent<TSnapshot, TComponent>
 	{
@@ -41,11 +25,11 @@ namespace DefaultNamespace
 
 		public void SetupHeader(ComponentSystemBase system, ref GhostSerializerHeader header)
 		{
-			var serializerSystem = system.World.GetExistingSystem<AddSingleComponentSerializer<TComponent, TSnapshot>>();
+			var serializerSystem = system.World.GetExistingSystem<AddComponentSerializer<TComponent, TSnapshot>>();
 
 			header.WantsPredictionDelta = serializerSystem.WantsPredictionDelta;
-			header.WantsSingleHistory = serializerSystem.WantsSingleHistory;
-			header.Importance = serializerSystem.Importance;
+			header.WantsSingleHistory   = serializerSystem.WantsSingleHistory;
+			header.Importance           = serializerSystem.Importance;
 		}
 
 		public void BeginSerialize(ComponentSystemBase system)
@@ -57,8 +41,10 @@ namespace DefaultNamespace
 
 		public void BeginDeserialize(JobComponentSystem system)
 		{
-			NewGhosts   = system.World.GetExistingSystem<SystemGhostSerializer>().NewGhosts;
-			NewGhostIds = system.World.GetExistingSystem<SystemGhostSerializer>().NewGhostIds;
+			var s = system.World.GetExistingSystem<AddComponentSerializer<TComponent, TSnapshot>.SystemGhostSerializer>();
+			
+			NewGhosts   = s.NewGhosts;
+			NewGhostIds = s.NewGhostIds;
 		}
 
 		public void Spawn(int ghostId, TSnapshot data)
@@ -88,14 +74,6 @@ namespace DefaultNamespace
 			var components = chunk.GetNativeArray(ghostTestType);
 
 			snapshot.Set(components[ent]);
-		}
-
-		public class SystemGhostSerializer : BaseGhostManageSerializer<TSnapshot, SingleComponentSerializer<TComponent, TSnapshot>>
-		{
-			public override ComponentTypes GetComponents()
-			{
-				return new ComponentTypes(typeof(TComponent), typeof(TSnapshot));
-			}
 		}
 	}
 }
