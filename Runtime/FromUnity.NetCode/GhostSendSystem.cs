@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using StormiumTeam.Networking;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -12,7 +13,7 @@ using Unity.Networking.Transport.Utilities;
 using UnityEngine;
 
 namespace Unity.NetCode
-{
+{   
     [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
     [UpdateBefore(typeof(NetworkStreamSendSystem))]
     [AlwaysUpdateSystem]
@@ -26,7 +27,27 @@ namespace Unity.NetCode
             public uint despawnTick;
         }
 
-        unsafe struct SerializationStateList : IDisposable
+        public unsafe struct InvokeData
+        {
+            public int serializer;
+            public ArchetypeChunk chunk;
+            public int startIndex;
+            public uint currentTick;
+
+            public Entity* currentSnapshotEntity;
+            public void* currentSnapshotData;
+
+            public GhostSendSystem.GhostSystemStateComponent* ghosts;
+            public NativeArray<Entity> ghostEntities;
+
+            public NativeArray<int> baselinePerEntity;
+            public NativeList<GhostSendSystem.SnapshotBaseline> availableBaselines;
+
+            public DataStreamWriter dataStream;
+            public NetworkCompressionModel compressionModel;
+        }
+
+        public unsafe struct SerializationStateList : IDisposable
         {
             private struct Data
             {
@@ -129,7 +150,7 @@ namespace Unity.NetCode
             }
         }
 
-        unsafe struct SerializationState
+        public unsafe struct SerializationState
         {
             public EntityArchetype arch;
             public uint            lastUpdate;
@@ -144,7 +165,7 @@ namespace Unity.NetCode
             public byte* snapshotData;
         }
 
-        unsafe struct ConnectionStateData : IDisposable
+        public unsafe struct ConnectionStateData : IDisposable
         {
             public unsafe void Dispose()
             {
@@ -176,7 +197,7 @@ namespace Unity.NetCode
 
         private NativeList<PrioChunk> m_SerialSpawnChunks;
 
-        private const int TargetPacketSize    = 1200;
+        public const int TargetPacketSize    = 1200;
         public const  int SnapshotHistorySize = 32;
 
         private ServerSimulationSystemGroup              m_ServerSimulation;
@@ -274,347 +295,6 @@ namespace Unity.NetCode
             }
         }
 
-        // Not burst compiled due to commandBuffer.SetComponent
-        struct SpawnGhostJob : IJob
-        {
-            [ReadOnly] public NativeArray<ArchetypeChunk>           spawnChunks;
-            public            NativeList<PrioChunk>                 serialSpawnChunks;
-            [ReadOnly] public ArchetypeChunkEntityType              entityType;
-            public            NativeArray<GhostSerializerReference> serializers;
-            public            NativeQueue<int>                      freeGhostIds;
-            public            NativeArray<int>                      allocatedGhostIds;
-            public            EntityCommandBuffer                   commandBuffer;
-
-            public unsafe void Execute()
-            {
-                for (int chunk = 0; chunk < spawnChunks.Length; ++chunk)
-                {
-                    var entities = spawnChunks[chunk].GetNativeArray(entityType);
-                    var ghostState = (GhostSystemStateComponent*) UnsafeUtility.Malloc(
-                        UnsafeUtility.SizeOf<GhostSystemStateComponent>() * entities.Length,
-                        UnsafeUtility.AlignOf<GhostSystemStateComponent>(), Allocator.TempJob);
-
-                    for (var i = 0; i != serializers.Length; i++)
-                    {
-                        ref var serializerBase   = ref serializers[i].AsRef();
-                        ref var serializerHeader = ref serializerBase.Header;
-
-                        if (!serializerHeader.CanSerializeFunc.Invoke(ref serializerBase, spawnChunks[chunk].Archetype))
-                            continue;
-
-                        var pc = new PrioChunk
-                        {
-                            chunk      = spawnChunks[chunk],
-                            ghostState = ghostState,
-                            priority   = serializerHeader.Importance,
-                            startIndex = 0,
-                            ghostType  = i
-                        };
-                        serialSpawnChunks.Add(pc);
-                    }
-
-                    for (var ent = 0; ent < entities.Length; ++ent)
-                    {
-                        int newId;
-                        if (!freeGhostIds.TryDequeue(out newId))
-                        {
-                            newId                = allocatedGhostIds[0];
-                            allocatedGhostIds[0] = newId + 1;
-                        }
-
-                        ghostState[ent] = new GhostSystemStateComponent {ghostId = newId, despawnTick = 0};
-
-                        // This runs after simulation. If an entity is created in the begin barrier and destroyed before this
-                        // runs there can be errors. To get around those we add the ghost system state component before everything
-                        // using the begin barrier, and set the value here
-                        commandBuffer.SetComponent(entities[ent], ghostState[ent]);
-                    }
-                }
-            }
-        }
-
-        [BurstCompile]
-        struct SerializeJob : IJob
-        {
-            [ReadOnly] public NativeArray<ArchetypeChunk> despawnChunks;
-            [ReadOnly] public NativeArray<ArchetypeChunk> ghostChunks;
-
-            public            Entity                                            connectionEntity;
-            public            NativeHashMap<ArchetypeChunk, SerializationStateList> chunkSerializationData;
-            [ReadOnly] public ComponentDataFromEntity<NetworkSnapshotAck>       ackFromEntity;
-
-            [NativeDisableContainerSafetyRestriction]
-            public BufferFromEntity<OutgoingSnapshotDataStreamBufferComponent> bufferFromEntity;
-
-            [ReadOnly] public NativeList<PrioChunk> serialSpawnChunks;
-
-            [ReadOnly] public ArchetypeChunkEntityType                               entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<GhostSystemStateComponent> ghostSystemStateType;
-
-            [ReadOnly] public NativeArray<GhostSerializerReference> serializers;
-            [ReadOnly] public NetworkCompressionModel   compressionModel;
-
-
-            public uint currentTick;
-            public uint localTime;
-
-            public unsafe void Execute()
-            {
-                var snapshotAck = ackFromEntity[connectionEntity];
-                var ackTick     = snapshotAck.LastReceivedSnapshotByRemote;
-
-                DataStreamWriter dataStream = new DataStreamWriter(2048, Allocator.Temp);
-                dataStream.Clear();
-                dataStream.Write((byte) NetworkStreamProtocol.Snapshot);
-
-                dataStream.Write(localTime);
-                dataStream.Write(snapshotAck.LastReceivedRemoteTime - (localTime - snapshotAck.LastReceiveTimestamp));
-
-                dataStream.Write(currentTick);
-
-                int entitySize = UnsafeUtility.SizeOf<Entity>();
-
-                var  despawnLenWriter = dataStream.Write((uint) 0);
-                var  updateLenWriter  = dataStream.Write((uint) 0);
-                uint despawnLen       = 0;
-                // TODO: if not all despawns fit, sort them based on age and maybe time since last send
-                // TODO: only resend despawn on nack
-                // FIXME: the TargetPacketSize cannot be used since CleanupGhostJob relies on all ghosts being sent every frame
-                for (var chunk = 0; chunk < despawnChunks.Length /*&& dataStream.Length < TargetPacketSize*/; ++chunk)
-                {
-                    var entities = despawnChunks[chunk].GetNativeArray(entityType);
-                    var ghosts   = despawnChunks[chunk].GetNativeArray(ghostSystemStateType);
-                    for (var ent = 0; ent < entities.Length /*&& dataStream.Length < TargetPacketSize*/; ++ent)
-                    {
-                        if (ackTick == 0 || SequenceHelpers.IsNewer(ghosts[ent].despawnTick, ackTick))
-                        {
-                            dataStream.WritePackedUInt((uint) ghosts[ent].ghostId, compressionModel);
-                            ++despawnLen;
-                        }
-                    }
-                }
-
-                uint updateLen    = 0;
-                var  serialChunks = new NativeList<PrioChunk>(ghostChunks.Length + serialSpawnChunks.Length, Allocator.Temp);
-                serialChunks.AddRange(serialSpawnChunks);
-                var existingChunks = new NativeHashMap<ArchetypeChunk, int>(ghostChunks.Length, Allocator.Temp);
-                int maxCount       = 0;
-                for (int chunk = 0; chunk < ghostChunks.Length; ++chunk)
-                {
-                    var addNew = !chunkSerializationData.TryGetValue(ghostChunks[chunk], out var chunkStateList);
-                    
-                    // FIXME: should be using chunk sequence number instead of this hack
-                    if (!addNew && chunkStateList.Archetype != ghostChunks[chunk].Archetype)
-                    {
-                        chunkStateList.Dispose();
-                        chunkSerializationData.Remove(ghostChunks[chunk]);
-                        addNew = true;
-                    }
-
-                    if (addNew)
-                    {
-                        chunkStateList = new SerializationStateList(Allocator.Persistent, ghostChunks[chunk].Count);
-                        chunkStateList.Archetype = ghostChunks[chunk].Archetype;
-                        
-                        for (var i = 0; i != serializers.Length; i++)
-                        {
-                            ref var serializerBase = ref serializers[i].AsRef();
-                            if (!serializerBase.Header.CanSerializeFunc.Invoke(ref serializerBase, ghostChunks[chunk].Archetype))
-                                continue;
-
-                            var serializerDataSize = serializerBase.Header.SnapshotSize;
-
-                            chunkStateList.Add(new SerializationState
-                            {
-                                lastUpdate = currentTick - 1,
-                                startIndex = 0,
-                                ghostType  = i,
-                                arch = ghostChunks[chunk].Archetype,
-                                
-                                snapshotWriteIndex = 0,
-                                snapshotData = (byte*) UnsafeUtility.Malloc(UnsafeUtility.SizeOf<int>() * SnapshotHistorySize + SnapshotHistorySize * ghostChunks[chunk].Capacity * (entitySize + serializerDataSize), 16, Allocator.Persistent)
-                            });
-                            
-                            UnsafeUtility.MemClear(chunkStateList[chunkStateList.Length - 1].snapshotData, UnsafeUtility.SizeOf<int>() * SnapshotHistorySize);
-                        }
-
-                        chunkSerializationData.TryAdd(ghostChunks[chunk], chunkStateList);
-                    }
-
-                    existingChunks.TryAdd(ghostChunks[chunk], 1);
-                    // FIXME: only if modified or force sync
-                    for (var i = 0; i != chunkStateList.Length; i++)
-                    {
-                        var pc = new PrioChunk();
-                        pc.chunk = ghostChunks[chunk];
-                        pc.ghostState = null;
-                        pc.priority = serializers[chunkStateList[i].ghostType].Value->Header.Importance * (int) (currentTick - chunkStateList[i].lastUpdate);
-                        pc.startIndex = chunkStateList[i].startIndex;
-                        pc.ghostType = chunkStateList[i].ghostType;
-
-                        serialChunks.Add(pc);
-                    }
-
-                    if (ghostChunks[chunk].Count > maxCount)
-                        maxCount = ghostChunks[chunk].Count;
-                }
-
-                var oldChunks = chunkSerializationData.GetKeyArray(Allocator.Temp);
-                for (int i = 0; i < oldChunks.Length; ++i)
-                {
-                    int val;
-                    if (!existingChunks.TryGetValue(oldChunks[i], out val))
-                    {
-                        chunkSerializationData.TryGetValue(oldChunks[i], out var chunkStateList);
-                        chunkStateList.Dispose();
-                        chunkSerializationData.Remove(oldChunks[i]);
-                    }
-                }
-
-                NativeArray<PrioChunk> serialChunkArray = serialChunks;
-                serialChunkArray.Sort();
-                var availableBaselines = new NativeList<SnapshotBaseline>(SnapshotHistorySize, Allocator.Temp);
-                var baselinePerEntity  = new NativeArray<int>(maxCount * 3, Allocator.Temp);
-                for (int pc = 0; pc < serialChunks.Length && dataStream.Length < TargetPacketSize; ++pc) // serialChunks can have the same chunks present
-                {
-                    var chunk     = serialChunks[pc].chunk;
-                    var ghostType = serialChunks[pc].ghostType;
-
-                    Entity*            currentSnapshotEntity = null;
-                    byte*              currentSnapshotData   = null;
-                    availableBaselines.Clear();
-                    if (chunkSerializationData.TryGetValue(chunk, out var chunkStateList))
-                    {
-                        for (var i = 0; i != chunkStateList.Length; i++)
-                        {
-                            var chunkState = chunkStateList[i];
-                            var serializer = serializers[chunkState.ghostType];
-                            var dataSize = serializer.Value->Header.SnapshotSize;
-
-                            uint* snapshotIndex = (uint*) chunkState.snapshotData;
-                            snapshotIndex[chunkState.snapshotWriteIndex] = currentTick;
-                            int baseline = (SnapshotHistorySize + chunkState.snapshotWriteIndex - 1) % SnapshotHistorySize;
-                            while (baseline != chunkState.snapshotWriteIndex)
-                            {
-                                if (snapshotAck.IsReceivedByRemote(snapshotIndex[baseline]))
-                                {
-                                    byte* dataBase = chunkState.snapshotData +
-                                                     UnsafeUtility.SizeOf<int>() * SnapshotHistorySize +
-                                                     baseline * (dataSize + entitySize) * chunk.Capacity;
-                                    availableBaselines.Add(new SnapshotBaseline
-                                    {
-                                        tick     = snapshotIndex[baseline],
-                                        snapshot = dataBase + entitySize * chunk.Capacity,
-                                        entity   = (Entity*) (dataBase)
-                                    });
-                                }
-
-                                baseline = (SnapshotHistorySize + baseline - 1) % SnapshotHistorySize;
-                            }
-
-                            // Find the acked snapshot to delta against, setup pointer to current and previous entity* and data*
-                            // Remember to bump writeIndex when done
-                            currentSnapshotData   =  chunkState.snapshotData + UnsafeUtility.SizeOf<int>() * SnapshotHistorySize;
-                            currentSnapshotData   += chunkState.snapshotWriteIndex * (dataSize + entitySize) * chunk.Capacity;
-                            currentSnapshotEntity =  (Entity*) currentSnapshotData;
-                            currentSnapshotData   += entitySize * chunk.Capacity;
-                        }
-                    }
-
-                    var ghosts = serialChunks[pc].ghostState;
-                    if (ghosts == null)
-                    {
-                        ghosts = (GhostSystemStateComponent*) chunk.GetNativeArray(ghostSystemStateType).GetUnsafeReadOnlyPtr();
-                    }
-
-                    var ghostEntities = chunk.GetNativeArray(entityType);
-                    int ent;
-                    if (serialChunks[pc].startIndex < chunk.Count)
-                    {
-                        dataStream.WritePackedUInt((uint) ghostType, compressionModel);
-                        dataStream.WritePackedUInt((uint) (chunk.Count - serialChunks[pc].startIndex), compressionModel);
-                    }
-
-                    // First figure out the baselines to use per entity so they can be sent as baseline + maxCount instead of one per entity
-                    int targetBaselines = serializers[ghostType].Value->Header.WantsPredictionDelta ? 3 : 1;
-                    for (ent = serialChunks[pc].startIndex; ent < chunk.Count; ++ent)
-                    {
-                        int foundBaselines = 0;
-                        for (int baseline = 0; baseline < availableBaselines.Length; ++baseline)
-                        {
-                            if (availableBaselines[baseline].entity[ent] == ghostEntities[ent])
-                            {
-                                baselinePerEntity[ent * 3 + foundBaselines] = baseline;
-                                ++foundBaselines;
-                                if (foundBaselines == targetBaselines)
-                                    break;
-                            }
-                            // Only way an entity can be missing from a snapshot but be available in an older is if last snapshot was partial
-                            else if (availableBaselines[baseline].entity[ent] != Entity.Null)
-                                break;
-                        }
-
-                        if (foundBaselines == 2)
-                            foundBaselines = 1;
-                        while (foundBaselines < 3)
-                        {
-                            baselinePerEntity[ent * 3 + foundBaselines] = -1;
-                            ++foundBaselines;
-                        }
-                    }
-
-                    ent = GhostSendSystem.InvokeSerialize(ref serializers[ghostType].AsRef(), ghostType, chunk, serialChunks[pc].startIndex, currentTick,
-                        currentSnapshotEntity, currentSnapshotData, ghosts, ghostEntities,
-                        baselinePerEntity, availableBaselines, dataStream, compressionModel);
-                    updateLen += (uint) (ent - serialChunks[pc].startIndex);
-
-                    // Spawn chunks are temporary and should not be added to the state data cache
-                    for (var i = 0; i != chunkStateList.Length; i++)
-                    {
-                        var chunkState = chunkStateList[i];
-                        if (serialChunks[pc].ghostState == null)
-                        {
-                            // Only append chunks which contain data
-                            if (ent > serialChunks[pc].startIndex)
-                            {
-                                if (serialChunks[pc].startIndex > 0)
-                                    UnsafeUtility.MemClear(currentSnapshotEntity, entitySize * serialChunks[pc].startIndex);
-                                if (ent < chunk.Capacity)
-                                    UnsafeUtility.MemClear(currentSnapshotEntity + ent, entitySize * (chunk.Capacity - ent));
-                                chunkState.snapshotWriteIndex = (chunkState.snapshotWriteIndex + 1) % SnapshotHistorySize;
-                            }
-
-                            if (ent >= chunk.Count)
-                            {
-                                chunkState.lastUpdate = currentTick;
-                                chunkState.startIndex = 0;
-                            }
-                            else
-                            {
-                                // TODO: should this always be run or should partial chunks only be allowed for the highest priority chunk?
-                                //if (pc == 0)
-                                chunkState.startIndex = ent;
-                            }
-                        }
-
-                        chunkStateList[i] = chunkState;
-                    }
-                    
-                    chunkSerializationData.Remove(chunk);
-                    chunkSerializationData.TryAdd(chunk, chunkStateList);
-                }
-
-                dataStream.Flush();
-                despawnLenWriter.Update(despawnLen);
-                updateLenWriter.Update(updateLen);
-
-                var snapshot = bufferFromEntity[connectionEntity];
-                snapshot.ResizeUninitialized(dataStream.Length);
-                UnsafeUtility.MemCpy(snapshot.GetUnsafePtr(), dataStream.GetUnsafePtr(), dataStream.Length);
-
-            }
-        }
-
         public unsafe struct SnapshotBaseline
         {
             public uint    tick;
@@ -622,31 +302,14 @@ namespace Unity.NetCode
             public Entity* entity;
         }
 
-        [BurstCompile]
-        struct CleanupJob : IJob
-        {
-            [DeallocateOnJobCompletion] public NativeArray<ArchetypeChunk>           despawnChunks;
-            [DeallocateOnJobCompletion] public NativeArray<ArchetypeChunk>           spawnChunks;
-            [DeallocateOnJobCompletion] public NativeArray<ArchetypeChunk>           ghostChunks;
-            [DeallocateOnJobCompletion] public NativeArray<GhostSerializerReference> serializers;
-            public                             NativeList<PrioChunk>                 serialSpawnChunks;
-
-            public unsafe void Execute()
-            {
-                for (int i = 0; i != serializers.Length; i++)
-                {
-                    serializers[i].Dispose();
-                }
-                
-                for (int i = 0; i < serialSpawnChunks.Length; ++i)
-                {
-                    UnsafeUtility.Free(serialSpawnChunks[i].ghostState, Allocator.TempJob);
-                }
-            }
-        }
-
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
+            var serializerCollectionSystem = World.GetExistingSystem<GhostSerializerCollectionSystem>();
+            if (serializerCollectionSystem.CollectionSystem == null)
+            {
+                serializerCollectionSystem.CollectionSystem = new DynamicGhostCollectionSystem();
+            }
+
             m_SerialSpawnChunks.Clear();
             // Make sure the list of connections and connection state is up to date
             var connections = connectionGroup.ToEntityArray(Allocator.TempJob);
@@ -708,77 +371,20 @@ namespace Unity.NetCode
             };
             inputDeps = ghostCleanupJob.Schedule(this, inputDeps);
 
-
-            var entityType           = GetArchetypeChunkEntityType();
-            var ghostSystemStateType = GetArchetypeChunkComponentType<GhostSystemStateComponent>();
-            var serializerSystem = World.GetExistingSystem<GhostSerializerCollectionSystem>();
-            var serializers = serializerSystem.BeginSerialize(this, Allocator.TempJob);
-
-            // Extract all newly spawned ghosts and set their ghost ids
-            JobHandle spawnChunkHandle;
-            var       spawnChunks = ghostSpawnGroup.CreateArchetypeChunkArray(Allocator.TempJob, out spawnChunkHandle);
-            var spawnJob = new SpawnGhostJob
-            {
-                spawnChunks       = spawnChunks,
-                serialSpawnChunks = m_SerialSpawnChunks,
-                entityType        = entityType,
-                serializers       = serializers,
-                freeGhostIds      = m_FreeGhostIds,
-                allocatedGhostIds = m_AllocatedGhostIds,
-                commandBuffer     = commandBuffer
-            };
-            inputDeps = spawnJob.Schedule(JobHandle.CombineDependencies(inputDeps, spawnChunkHandle));
-            // This was the last job using the commandBuffer
-            m_Barrier.AddJobHandleForProducer(inputDeps);
-
-            JobHandle despawnChunksHandle, ghostChunksHandle;
-            var       despawnChunks = ghostDespawnGroup.CreateArchetypeChunkArray(Allocator.TempJob, out despawnChunksHandle);
-            var       ghostChunks   = ghostGroup.CreateArchetypeChunkArray(Allocator.TempJob, out ghostChunksHandle);
-            inputDeps = JobHandle.CombineDependencies(inputDeps, despawnChunksHandle, ghostChunksHandle);
-
-            var serialDep = new NativeArray<JobHandle>(m_ConnectionStates.Count + 1, Allocator.Temp);
-            // In case there are 0 connections
-            serialDep[0] = inputDeps;
-            for (int con = 0; con < m_ConnectionStates.Count; ++con)
-            {
-                var connectionEntity       = m_ConnectionStates[con].Entity;
-                var chunkSerializationData = m_ConnectionStates[con].SerializationState;
-                var serializeJob = new SerializeJob
-                {
-                    despawnChunks          = despawnChunks,
-                    ghostChunks            = ghostChunks,
-                    connectionEntity       = connectionEntity,
-                    chunkSerializationData = chunkSerializationData,
-                    ackFromEntity          = GetComponentDataFromEntity<NetworkSnapshotAck>(true),
-                    bufferFromEntity       = GetBufferFromEntity<OutgoingSnapshotDataStreamBufferComponent>(),
-                    serialSpawnChunks      = m_SerialSpawnChunks,
-                    entityType             = entityType,
-                    ghostSystemStateType   = ghostSystemStateType,
-                    serializers            = serializers,
-                    compressionModel       = m_CompressionModel,
-                    currentTick            = currentTick,
-                    localTime              = NetworkTimeSystem.TimestampMS
-                };
-                // FIXME: disable safety for BufferFromEntity is not working
-                serialDep[con + 1] = serializeJob.Schedule(serialDep[con]);
-            }
-
-            inputDeps = JobHandle.CombineDependencies(serialDep);
-
-            var cleanupJob = new CleanupJob
-            {
-                despawnChunks     = despawnChunks,
-                spawnChunks       = spawnChunks,
-                ghostChunks       = ghostChunks,
-                serialSpawnChunks = m_SerialSpawnChunks,
-                serializers       = serializers
-            };
-            inputDeps = cleanupJob.Schedule(inputDeps);
+            inputDeps = serializerCollectionSystem.CollectionSystem.ExecuteSend(this, m_ConnectionStates,
+                ghostSpawnGroup, ghostDespawnGroup, ghostGroup,
+                m_SerialSpawnChunks,
+                m_FreeGhostIds, m_AllocatedGhostIds,
+                commandBuffer,
+                m_Barrier,
+                m_CompressionModel,
+                currentTick,
+                inputDeps);
 
             return inputDeps;
         }
 
-        unsafe struct PrioChunk : IComparable<PrioChunk>
+        public unsafe struct PrioChunk : IComparable<PrioChunk>
         {
             public ArchetypeChunk             chunk;
             public GhostSystemStateComponent* ghostState;
@@ -793,6 +399,119 @@ namespace Unity.NetCode
             }
         }
 
+        public static unsafe int InvokeSerialize<TSerializer, TSnapshotData>(TSerializer serializer, InvokeData invokeData)
+            where TSnapshotData : unmanaged, ISnapshotData<TSnapshotData>
+            where TSerializer : struct, IGhostSerializer<TSnapshotData>
+        {
+            return InvokeSerialize(serializer, invokeData.chunk, invokeData.startIndex, invokeData.currentTick,
+                invokeData.currentSnapshotEntity, (TSnapshotData*) invokeData.currentSnapshotData,
+                invokeData.ghosts, invokeData.ghostEntities,
+                invokeData.baselinePerEntity, invokeData.availableBaselines,
+                invokeData.dataStream, invokeData.compressionModel);
+        }
+
+        public static unsafe int InvokeSerialize<TSerializer, TSnapshotData>(TSerializer serializer, ArchetypeChunk chunk, int startIndex, uint currentTick,
+                                                 Entity*                    currentSnapshotEntity, TSnapshotData*                        currentSnapshotData,
+                                                 GhostSystemStateComponent* ghosts,                NativeArray<Entity>          ghostEntities,
+                                                 NativeArray<int>           baselinePerEntity,     NativeList<SnapshotBaseline> availableBaselines,
+                                                 DataStreamWriter           dataStream,            NetworkCompressionModel      compressionModel)
+            where TSnapshotData : unmanaged, ISnapshotData<TSnapshotData>
+            where TSerializer : struct, IGhostSerializer<TSnapshotData>
+        {
+            int ent;
+            int sameBaselineCount = 0;
+
+            for (ent = startIndex; ent < chunk.Count && dataStream.Length < TargetPacketSize; ++ent)
+            {
+                int baseline0 = baselinePerEntity[ent * 3];
+                int baseline1 = baselinePerEntity[ent * 3 + 1];
+                int baseline2 = baselinePerEntity[ent * 3 + 2];
+                if (sameBaselineCount == 0)
+                {
+                    // Count how many entities will use the same baselines as this one, send baselines + count
+                    uint baselineTick0 = currentTick;
+                    uint baselineTick1 = currentTick;
+                    uint baselineTick2 = currentTick;
+                    if (baseline0 >= 0)
+                    {
+                        baselineTick0 = availableBaselines[baseline0].tick;
+                    }
+
+                    if (baseline1 >= 0)
+                    {
+                        baselineTick1 = availableBaselines[baseline1].tick;
+                    }
+
+                    if (baseline2 >= 0)
+                    {
+                        baselineTick2 = availableBaselines[baseline2].tick;
+                    }
+
+                    for (sameBaselineCount = 1; ent + sameBaselineCount < chunk.Count; ++sameBaselineCount)
+                    {
+                        if (baselinePerEntity[(ent + sameBaselineCount) * 3] != baseline0 ||
+                            baselinePerEntity[(ent + sameBaselineCount) * 3 + 1] != baseline1 ||
+                            baselinePerEntity[(ent + sameBaselineCount) * 3 + 2] != baseline2)
+                            break;
+                    }
+
+                    uint baseDiff0 = currentTick - baselineTick0;
+                    uint baseDiff1 = currentTick - baselineTick1;
+                    uint baseDiff2 = currentTick - baselineTick2;
+                    dataStream.WritePackedUInt(baseDiff0, compressionModel);
+                    dataStream.WritePackedUInt(baseDiff1, compressionModel);
+                    dataStream.WritePackedUInt(baseDiff2, compressionModel);
+                    dataStream.WritePackedUInt((uint) sameBaselineCount, compressionModel);
+                }
+
+                --sameBaselineCount;
+                TSnapshotData* baselineSnapshotData0 = null;
+                if (baseline0 >= 0)
+                {
+                    baselineSnapshotData0 = ((TSnapshotData*) availableBaselines[baseline0].snapshot) + ent;
+                }
+
+                TSnapshotData* baselineSnapshotData1 = null;
+                TSnapshotData* baselineSnapshotData2 = null;
+                if (baseline2 >= 0)
+                {
+                    baselineSnapshotData1 = ((TSnapshotData*) availableBaselines[baseline1].snapshot) + ent;
+                    baselineSnapshotData2 = ((TSnapshotData*) availableBaselines[baseline2].snapshot) + ent;
+                }
+
+                dataStream.WritePackedUInt((uint) ghosts[ent].ghostId, compressionModel);
+
+                TSnapshotData* snapshot;
+                var   snapshotData = default(TSnapshotData);
+                if (currentSnapshotData == null)
+                    snapshot = &snapshotData;
+                else
+                    snapshot = currentSnapshotData + ent;
+
+                serializer.CopyToSnapshot(chunk, ent, currentTick, ref *snapshot);
+
+                var baselineData = default(TSnapshotData);
+
+                TSnapshotData* baseline = &baselineData;
+                if (baselineSnapshotData2 != null)
+                {
+                    baselineData = *baselineSnapshotData0;
+                    baselineData.PredictDelta(currentTick, ref *baselineSnapshotData1, ref *baselineSnapshotData2);
+                }
+                else if (baselineSnapshotData0 != null)
+                {
+                    baseline = baselineSnapshotData0;
+                }
+
+               snapshot->Serialize(ref *baseline, dataStream, compressionModel);
+
+                if (currentSnapshotData != null)
+                    currentSnapshotEntity[ent] = ghostEntities[ent];
+            }
+
+            return ent;
+        }
+
         public static unsafe int  InvokeSerialize(ref GhostSerializerBase serializerBaseData,            int                          ghostType, ArchetypeChunk chunk, int startIndex, uint currentTick,
                                                                              Entity*                    currentSnapshotEntity, byte*               currentSnapshotData,
                                                                              GhostSystemStateComponent* ghosts,                NativeArray<Entity>          ghostEntities,
@@ -802,17 +521,8 @@ namespace Unity.NetCode
             int ent;
             int sameBaselineCount = 0;
 
-            var start = dataStream.Length;
             for (ent = startIndex; ent < chunk.Count && dataStream.Length < TargetPacketSize; ++ent)
             {
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                /*if (ghosts[ent].ghostTypeIndex != ghostType)
-                {
-                    // FIXME: what needs to happen to support this case? Should it be treated as a respawn?
-                    throw new InvalidOperationException("A ghost changed type, ghost must keep the same serializer type throughout their lifetime");
-                }*/
-#endif
-
                 int baseline0 = baselinePerEntity[ent * 3];
                 int baseline1 = baselinePerEntity[ent * 3 + 1];
                 int baseline2 = baselinePerEntity[ent * 3 + 2];
@@ -868,7 +578,6 @@ namespace Unity.NetCode
                     baselineSnapshotData1 = (availableBaselines[baseline1].snapshot) + ent;
                     baselineSnapshotData2 = (availableBaselines[baseline2].snapshot) + ent;
                 }
-
 
                 dataStream.WritePackedUInt((uint) ghosts[ent].ghostId, compressionModel);
 

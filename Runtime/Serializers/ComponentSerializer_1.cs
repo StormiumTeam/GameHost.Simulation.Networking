@@ -1,3 +1,4 @@
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
@@ -20,7 +21,7 @@ namespace DefaultNamespace
 	{
 		public GhostSerializerHeader Header { get; }
 
-
+		[NativeDisableContainerSafetyRestriction]
 		public ArchetypeChunkComponentType<TComponent> ghostTestType;
 
 		public void SetupHeader(ComponentSystemBase system, ref GhostSerializerHeader header)

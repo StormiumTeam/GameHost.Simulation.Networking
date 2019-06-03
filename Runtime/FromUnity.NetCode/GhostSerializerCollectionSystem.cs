@@ -42,6 +42,23 @@ namespace Unity.NetCode
 	{
 		private NativeList<GhostSerializerHeader> m_Headers;
 		private NativeHashMap<int, int>           m_TypeIndexToHeader;
+		
+		private BaseGhostCollectionSystem m_CollectionSystem;
+		
+		public BaseGhostCollectionSystem CollectionSystem
+		{
+			get => m_CollectionSystem;
+			set
+			{
+				if (m_CollectionSystem == null)
+				{
+					m_CollectionSystem = value;
+					return;
+				}
+
+				throw new Exception($"A collection system ({m_CollectionSystem.GetType().Name}) was already added!");
+			}
+		}
 
 		private static class Functions<TSerializer, TSnapshotData>
 			where TSerializer : struct, IGhostSerializer<TSnapshotData>

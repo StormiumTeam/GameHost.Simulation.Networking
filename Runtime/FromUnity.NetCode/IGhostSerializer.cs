@@ -77,7 +77,7 @@ namespace Unity.NetCode
 		public FunctionPointer<d_FullDeserializeEntity> FullDeserializeEntityFunc;
 		public FunctionPointer<d_SetupDeserializing>    SetupDeserializingFunc;
 
-		public void* SnapshotFromEntity;
+		[NativeDisableUnsafePtrRestriction] public void* SnapshotFromEntity;
 		public int   Id;
 
 		public bool IsValid => Flags != 0;

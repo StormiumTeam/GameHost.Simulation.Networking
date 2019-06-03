@@ -10,8 +10,15 @@ namespace DefaultNamespace
 		where TSerializer : struct, IGhostSerializer<TSnapshot>
 		where TSnapshot : unmanaged, ISnapshotData<TSnapshot>
 	{
+		private TSerializer m_Serializer;
+		
 		[PublicAPI]
 		public int SerializerId { get; private set; }
+		
+		public TSerializer GetSerializer()
+		{
+			return m_Serializer;
+		}
 
 		public virtual bool WantsPredictionDelta => false;
 		public virtual bool WantsSingleHistory   => false;
@@ -25,9 +32,9 @@ namespace DefaultNamespace
 			base.OnCreate();
 
 			World.GetOrCreateSystem<SystemGhostSerializer>();
-			World.GetOrCreateSystem<GhostSerializerCollectionSystem>().TryAdd<TSerializer, TSnapshot>(out var serializer);
+			World.GetOrCreateSystem<GhostSerializerCollectionSystem>().TryAdd<TSerializer, TSnapshot>(out m_Serializer);
 			
-			SerializerId = serializer.Header.Id;
+			SerializerId = m_Serializer.Header.Id;
 		}
 
 		protected override void OnUpdate()

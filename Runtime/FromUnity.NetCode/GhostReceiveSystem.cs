@@ -1,4 +1,5 @@
 using System;
+using StormiumTeam.Networking;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -56,12 +57,36 @@ namespace Unity.NetCode
     {
         private EntityQuery playerGroup;
 
+        public unsafe struct InvokeSpawnData
+        {
+            public int ghostId;
+            
+            public int serializer;
+            public uint snapshot;
+            public DataStreamReader          reader;
+            public DataStreamReader.Context* context;
+            public NetworkCompressionModel   compressionModel;
+        }
+        
+        public unsafe struct InvokeDeserializeData
+        {
+            public int                       serializer;
+            public Entity                    entity;
+            public uint                      snapshot;
+            public uint                      baseline;
+            public uint                      baseline2;
+            public uint                      baseline3;
+            public DataStreamReader          reader;
+            public DataStreamReader.Context* context;
+            public NetworkCompressionModel   compressionModel;
+        }
+
         public struct GhostEntity
         {
             public Entity entity;
         }
 
-        struct DelayedDespawnGhost
+        public struct DelayedDespawnGhost
         {
             public Entity ghost;
             public uint   tick;
@@ -119,155 +144,14 @@ namespace Unity.NetCode
             }
         }
 
-        [BurstCompile]
-        struct ReadStreamJob : IJob
-        {
-            public                             EntityCommandBuffer                                         commandBuffer;
-            [DeallocateOnJobCompletion] public NativeArray<Entity>                                         players;
-            public                             BufferFromEntity<IncomingSnapshotDataStreamBufferComponent> snapshotFromEntity;
-            public                             BufferFromEntity<ReplicatedEntitySerializer>                serializerFromEntity;
-            public                             ComponentDataFromEntity<NetworkSnapshotAck>                 snapshotAckFromEntity;
-
-            [NativeDisableContainerSafetyRestriction]
-            public NativeHashMap<int, GhostEntity> ghostEntityMap;
-
-            public                             NetworkCompressionModel               compressionModel;
-            [DeallocateOnJobCompletion] public NativeArray<GhostSerializerReference> serializers;
-            public                             ComponentType                         replicatedEntityType;
-            public                             NativeQueue<DelayedDespawnGhost>      delayedDespawnQueue;
-
-            [NativeDisableContainerSafetyRestriction]
-            public NativeList<NewGhost> spawnGhosts;
-
-            public uint targetTick;
-
-            public unsafe void Execute()
-            {
-                // FIXME: should handle any number of connections with individual ghost mappings for each
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                if (players.Length > 1)
-                    throw new InvalidOperationException("Ghost receive system only supports a single connection");
-#endif
-                while (delayedDespawnQueue.Count > 0 &&
-                       !SequenceHelpers.IsNewer(delayedDespawnQueue.Peek().tick, targetTick))
-                {
-                    commandBuffer.RemoveComponent(delayedDespawnQueue.Dequeue().ghost, replicatedEntityType);
-                }
-
-                var snapshot = snapshotFromEntity[players[0]];
-                if (snapshot.Length == 0)
-                    return;
-
-                var dataStream =
-                    DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) snapshot.GetUnsafePtr(), snapshot.Length);
-                // Read the ghost stream
-                // find entities to spawn or destroy
-                var readCtx    = new DataStreamReader.Context();
-                var serverTick = dataStream.ReadUInt(ref readCtx);
-                var ack        = snapshotAckFromEntity[players[0]];
-                if (ack.LastReceivedSnapshotByLocal != 0 && !SequenceHelpers.IsNewer(serverTick, ack.LastReceivedSnapshotByLocal))
-                    return;
-                if (ack.LastReceivedSnapshotByLocal != 0)
-                    ack.ReceivedSnapshotByLocalMask <<= (int) (serverTick - ack.LastReceivedSnapshotByLocal);
-                ack.ReceivedSnapshotByLocalMask   |= 1;
-                ack.LastReceivedSnapshotByLocal   =  serverTick;
-                snapshotAckFromEntity[players[0]] =  ack;
-
-                uint despawnLen = dataStream.ReadUInt(ref readCtx);
-                uint updateLen  = dataStream.ReadUInt(ref readCtx);
-
-                for (var i = 0; i < despawnLen; ++i)
-                {
-                    int         ghostId = (int) dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                    GhostEntity ent;
-                    if (!ghostEntityMap.TryGetValue(ghostId, out ent))
-                        continue;
-
-                    ghostEntityMap.Remove(ghostId);
-                    delayedDespawnQueue.Enqueue(new DelayedDespawnGhost {ghost = ent.entity, tick = serverTick});
-                }
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle bufferSafetyHandle = AtomicSafetyHandle.Create();
-#endif
-
-                uint targetArch    = 0;
-                uint targetArchLen = 0;
-                uint baselineTick  = 0;
-                uint baselineTick2 = 0;
-                uint baselineTick3 = 0;
-                uint baselineLen   = 0;
-                int  newGhosts     = 0;
-
-                GhostSerializerReference serializerBaseData = default;
-                for (var i = 0; i < updateLen; ++i)
-                {
-                    if (targetArchLen == 0)
-                    {
-                        targetArch    = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                        targetArchLen = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                        
-                        serializerBaseData = serializers[(int) targetArch];
-                    }
-
-                    --targetArchLen;
- 
-                    if (baselineLen == 0)
-                    {
-                        baselineTick  = serverTick - dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                        baselineTick2 = serverTick - dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                        baselineTick3 = serverTick - dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                        baselineLen   = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                    }
-
-                    --baselineLen;
-
-                    int         ghostId = (int) dataStream.ReadPackedUInt(ref readCtx, compressionModel);
-                    GhostEntity gent;
-                    if (!ghostEntityMap.TryGetValue(ghostId, out gent) && !spawnGhosts.Contains(new NewGhost {id = ghostId}))
-                    {
-                        ++newGhosts;
-
-                        spawnGhosts.Add(new NewGhost
-                        {
-                            id   = ghostId,
-                            tick = serverTick
-                        });
-                    }
-
-                    var ptrCompressionModel = UnsafeUtility.AddressOf(ref compressionModel);
-
-                    if (gent.entity != default && serializerFromEntity[gent.entity].HasSerializer(targetArch))
-                    {
-                        serializerBaseData.Value->Header.FullDeserializeEntityFunc.Invoke(ref serializerBaseData.AsRef(), gent.entity, serverTick, baselineTick, baselineTick2, baselineTick3,
-                            &dataStream, &readCtx,
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                            bufferSafetyHandle,
-#endif
-                            ptrCompressionModel);
-                    }
-                    else
-                    {
-                        serializerBaseData.Value->Header.SpawnFunc.Invoke(ref serializerBaseData.AsRef(), ghostId, serverTick, &dataStream, &readCtx, ptrCompressionModel);
-                    }
-                }
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-                AtomicSafetyHandle.Release(bufferSafetyHandle);
-#endif
-
-                while (ghostEntityMap.Capacity < ghostEntityMap.Length + newGhosts)
-                    ghostEntityMap.Capacity += 1024;
-
-                for (var i = 0; i != serializers.Length; i++)
-                {
-                    serializers[i].Dispose();
-                }
-            }
-        }
-
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
+            var serializerCollectionSystem = World.GetExistingSystem<GhostSerializerCollectionSystem>();
+            if (serializerCollectionSystem.CollectionSystem == null)
+            {
+                serializerCollectionSystem.CollectionSystem = new DynamicGhostCollectionSystem();
+            }
+
             var commandBuffer = m_Barrier.CreateCommandBuffer();
             if (playerGroup.IsEmptyIgnoreFilter)
             {
@@ -286,30 +170,82 @@ namespace Unity.NetCode
                 return JobHandle.CombineDependencies(inputDeps, clearHandle);
             }
 
-            var serializers = World.GetExistingSystem<GhostSerializerCollectionSystem>().BeginDeserialize(this, Allocator.TempJob);
+            return serializerCollectionSystem.CollectionSystem.ExecuteReceive(this,
+                playerGroup,
+                m_ghostEntityMap, m_DelayedDespawnQueue,
+                m_CompressionModel,
+                commandBuffer, m_Barrier,
+                ref m_Dependency, inputDeps);
+        }
 
-            JobHandle playerHandle;
-            var readJob = new ReadStreamJob
+        public static unsafe T InvokeSpawn<T>(InvokeSpawnData invokeData)
+            where T : struct, ISnapshotData<T>
+        {
+            return InvokeSpawn<T>(invokeData.snapshot,
+                invokeData.reader, ref UnsafeUtilityEx.AsRef<DataStreamReader.Context>(invokeData.context), invokeData.compressionModel);
+        }
+
+        public static T InvokeSpawn<T>(uint             snapshot,
+                                       DataStreamReader reader, ref DataStreamReader.Context ctx, NetworkCompressionModel compressionModel)
+            where T : struct, ISnapshotData<T>
+        {
+            var snapshotData = default(T);
+            var baselineData = default(T);
+            snapshotData.Deserialize(snapshot, ref baselineData, reader, ref ctx, compressionModel);
+            return snapshotData;
+        }
+
+
+        public static unsafe void InvokeDeserialize<T>(BufferFromEntity<T> snapshotFromEntity, InvokeDeserializeData invokeData)
+            where T : struct, ISnapshotData<T>
+        {
+            InvokeDeserialize(snapshotFromEntity,
+                invokeData.entity, invokeData.snapshot, invokeData.baseline, invokeData.baseline2, invokeData.baseline3,
+                invokeData.reader, ref UnsafeUtilityEx.AsRef<DataStreamReader.Context>(invokeData.context), invokeData.compressionModel);
+        }
+
+        public static void InvokeDeserialize<T>(BufferFromEntity<T> snapshotFromEntity,
+                                                Entity              entity, uint                         snapshot, uint                    baseline, uint baseline2, uint baseline3,
+                                                DataStreamReader    reader, ref DataStreamReader.Context ctx,      NetworkCompressionModel compressionModel)
+            where T: struct, ISnapshotData<T>
+        {
+            DynamicBuffer<T> snapshotArray = snapshotFromEntity[entity];
+            var              baselineData  = default(T);
+            if (baseline != snapshot)
             {
-                commandBuffer         = commandBuffer,
-                players               = playerGroup.ToEntityArray(Allocator.TempJob, out playerHandle),
-                snapshotFromEntity    = GetBufferFromEntity<IncomingSnapshotDataStreamBufferComponent>(),
-                snapshotAckFromEntity = GetComponentDataFromEntity<NetworkSnapshotAck>(),
-                ghostEntityMap        = m_ghostEntityMap,
-                compressionModel      = m_CompressionModel,
-                serializers           = serializers,
+                for (int i = 0; i < snapshotArray.Length; ++i)
+                {
+                    if (snapshotArray[i].Tick == baseline)
+                    {
+                        baselineData = snapshotArray[i];
+                        break;
+                    }
+                }
+            }
+            if (baseline3 != snapshot)
+            {
+                var baselineData2 = default(T);
+                var baselineData3 = default(T);
+                for (int i = 0; i < snapshotArray.Length; ++i)
+                {
+                    if (snapshotArray[i].Tick == baseline2)
+                    {
+                        baselineData2 = snapshotArray[i];
+                    }
+                    if (snapshotArray[i].Tick == baseline3)
+                    {
+                        baselineData3 = snapshotArray[i];
+                    }
+                }
 
-                replicatedEntityType = ComponentType.ReadWrite<ReplicatedEntity>(),
-                delayedDespawnQueue  = m_DelayedDespawnQueue,
-                spawnGhosts          = World.GetExistingSystem<GhostSpawnSystem>().NewGhostIds,
-                serializerFromEntity = GetBufferFromEntity<ReplicatedEntitySerializer>(),
-                targetTick           = NetworkTimeSystem.interpolateTargetTick
-            };
-            inputDeps = readJob.Schedule(JobHandle.CombineDependencies(inputDeps, playerHandle));
-
-            m_Dependency = inputDeps;
-            m_Barrier.AddJobHandleForProducer(inputDeps);
-            return inputDeps;
+                baselineData.PredictDelta(snapshot, ref baselineData2, ref baselineData3);
+            }
+            var data = default(T);
+            data.Deserialize(snapshot, ref baselineData, reader, ref ctx, compressionModel);
+            // Replace the oldest snapshot, or add a new one
+            if (snapshotArray.Length == GhostSendSystem.SnapshotHistorySize)
+                snapshotArray.RemoveAt(0);
+            snapshotArray.Add(data);
         }
     }
 }
