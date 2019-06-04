@@ -21,7 +21,7 @@ namespace Unity.NetCode
     }
 
     [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
-    public abstract class AddRpc<TRpc> : ComponentSystem
+    public abstract class RegisterRpc<TRpc> : ComponentSystem
         where TRpc : struct, IRpcBase<TRpc>
     {
         public RpcBase.Header Header { get; private set; }
