@@ -27,7 +27,7 @@ namespace Unity.NetCode
     {
         private GhostReceiveSystem m_recvSystem;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_recvSystem = World.GetOrCreateSystem<GhostReceiveSystem>();
         }
@@ -101,7 +101,7 @@ namespace Unity.NetCode
         private NativeQueue<DelayedDespawnGhost> m_DelayedDespawnQueue;
         private JobHandle                        m_Dependency;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_ghostEntityMap = new NativeHashMap<int, GhostEntity>(2048, Allocator.Persistent);
 
@@ -117,7 +117,7 @@ namespace Unity.NetCode
 
         private NetworkCompressionModel m_CompressionModel;
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_CompressionModel.Dispose();
             m_ghostEntityMap.Dispose();

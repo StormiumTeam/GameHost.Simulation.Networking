@@ -237,7 +237,7 @@ namespace Unity.NetCode
             return ent;
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
@@ -264,7 +264,7 @@ namespace Unity.NetCode
             rpcQueue             = World.GetOrCreateSystem<RpcSystem>().GetRpcQueue<RpcSetNetworkId>();
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         { 
             numNetworkIds.Dispose();
             freeNetworkIds.Dispose();
@@ -492,7 +492,7 @@ namespace Unity.NetCode
             }
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_Barrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
         }

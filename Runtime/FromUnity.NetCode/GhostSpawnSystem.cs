@@ -290,7 +290,7 @@ namespace Unity.NetCode
         private NativeQueue<DelayedSpawnGhost>.Concurrent m_ConcurrentDelayedSpawnQueue;
         private NativeList<DelayedSpawnGhost>             m_CurrentDelayedSpawnList;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_InitialArchetype = EntityManager.CreateArchetype(typeof(ReplicatedEntity), typeof(ReplicatedEntitySerializer));
 
@@ -307,7 +307,7 @@ namespace Unity.NetCode
             m_GhostSerializerGroup = World.GetOrCreateSystem<GhostManageSerializerGroup>();
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             NewGhostIds.Dispose();
 

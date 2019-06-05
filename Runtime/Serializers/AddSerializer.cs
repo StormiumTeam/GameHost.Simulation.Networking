@@ -6,6 +6,10 @@ using Unity.NetCode;
 namespace DefaultNamespace
 {
 	[UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
+	public class RegisterSerializerGroup : ComponentSystemGroup
+	{}
+		
+	[UpdateInGroup(typeof(RegisterSerializerGroup))]
 	public abstract class AddSerializer<TSerializer, TSnapshot> : ComponentSystem
 		where TSerializer : struct, IGhostSerializer<TSnapshot>
 		where TSnapshot : unmanaged, ISnapshotData<TSnapshot>

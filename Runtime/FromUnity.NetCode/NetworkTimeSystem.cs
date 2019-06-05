@@ -34,7 +34,7 @@ namespace Unity.NetCode
         private const int KSnapshotHistoryMedianDiscard = 4;
         private const int KRTTHistoryMedianDiscard      = 2;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             connectionGroup = GetEntityQuery(ComponentType.ReadOnly<NetworkSnapshotAck>());
             receiveHistory  = new NativeArray<uint>(KSnapshotHistorySize, Allocator.Persistent);
@@ -42,7 +42,7 @@ namespace Unity.NetCode
             resetHistory    = true;
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             receiveHistory.Dispose();
             rttHistory.Dispose();

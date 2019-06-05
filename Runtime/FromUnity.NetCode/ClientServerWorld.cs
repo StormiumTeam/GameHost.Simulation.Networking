@@ -15,7 +15,7 @@ namespace Unity.NetCode
         private uint                                     m_ServerTick;
         public  uint                                     ServerTick => m_ServerTick;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
@@ -57,7 +57,7 @@ namespace Unity.NetCode
         public int ClientWorldIndex { get; internal set; }
 #endif
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier    = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             m_endBarrier      = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
@@ -94,7 +94,7 @@ namespace Unity.NetCode
         private BeginPresentationEntityCommandBufferSystem m_beginBarrier;
         private EndPresentationEntityCommandBufferSystem   m_endBarrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginPresentationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndPresentationEntityCommandBufferSystem>();

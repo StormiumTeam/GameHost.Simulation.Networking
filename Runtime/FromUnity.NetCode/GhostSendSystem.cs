@@ -203,7 +203,7 @@ namespace Unity.NetCode
         private ServerSimulationSystemGroup              m_ServerSimulation;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_DataStream = new DataStreamWriter(2048, Allocator.Persistent);
             ghostGroup   = GetEntityQuery(typeof(GhostComponent), typeof(GhostSystemStateComponent));
@@ -238,7 +238,7 @@ namespace Unity.NetCode
             m_SerialSpawnChunks = new NativeList<PrioChunk>(1024, Allocator.Persistent);
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_SerialSpawnChunks.Dispose();
             m_CompressionModel.Dispose();
@@ -635,7 +635,7 @@ namespace Unity.NetCode
 
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_Barrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
         }

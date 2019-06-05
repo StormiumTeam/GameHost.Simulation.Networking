@@ -115,7 +115,7 @@ namespace Unity.NetCode
         /// </summary>
         public bool CanRegister { get; set; }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_RpcTypes = new Type[] {typeof(RpcSetNetworkId), typeof(RpcBaseType)};
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -174,16 +174,11 @@ namespace Unity.NetCode
                                 var ptr        = UnsafeUtility.Malloc(header.Size, header.Align, Allocator.TempJob);
                                 UnsafeUtility.MemCpy(ptr, UnsafeUtility.AddressOf(ref header), UnsafeUtility.SizeOf<RpcBase.Header>());
                                 Debug.Log("copied");
-
+                                
                                 header.DeserializeFunction.Invoke(ptr, header.Size, (void*) &reader, ref ctx);
-                                Debug.Log("deserialized");
                                 header.ExecuteFunction.Invoke(ptr, header.Size, entities[i], commandBuffer, chunkIndex);
 
-                                Debug.Log("ok");
-
                                 UnsafeUtility.Free(ptr, Allocator.TempJob);
-
-                                commandBuffer.AddComponent(chunkIndex, entities[i], new PlayerStateComponentData());
                                 break;
                             }
                         }
