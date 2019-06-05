@@ -5,6 +5,7 @@
         "Unity.Entities",
         "Unity.Entities.Hybrid",
         "Unity.Mathematics",
+        "Unity.NetCode",
         "Unity.Collections",
         "Unity.Networking.Transport",
         "Unity.Jobs",
