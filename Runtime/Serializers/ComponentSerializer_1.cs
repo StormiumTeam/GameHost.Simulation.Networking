@@ -1,10 +1,11 @@
+using Unity.NetCode;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.NetCode;
 using UnityEngine;
 
 namespace DefaultNamespace
 {
+#if UNITY_NETCODE_MODIFIED
 	public abstract class AddComponentSerializer<TComponent, TSnapshot> : AddSerializer<ComponentSerializer<TComponent, TSnapshot>, TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSnapshot : unmanaged, ISnapshotFromComponent<TSnapshot, TComponent>
@@ -29,8 +30,8 @@ namespace DefaultNamespace
 			var serializerSystem = system.World.GetExistingSystem<AddComponentSerializer<TComponent, TSnapshot>>();
 
 			header.WantsPredictionDelta = serializerSystem.WantsPredictionDelta;
-			header.WantsSingleHistory   = serializerSystem.WantsSingleHistory;
-			header.Importance           = serializerSystem.Importance;
+			header.WantsSingleHistory = serializerSystem.WantsSingleHistory;
+			header.Importance = serializerSystem.Importance;
 		}
 
 		public void BeginSerialize(ComponentSystemBase system)
@@ -44,7 +45,7 @@ namespace DefaultNamespace
 		{
 			var s = system.World.GetExistingSystem<AddComponentSerializer<TComponent, TSnapshot>.SystemGhostSerializer>();
 			
-			NewGhosts   = s.NewGhosts;
+			NewGhosts = s.NewGhosts;
 			NewGhostIds = s.NewGhostIds;
 		}
 
@@ -77,4 +78,5 @@ namespace DefaultNamespace
 			snapshot.Set(components[ent]);
 		}
 	}
+#endif
 }

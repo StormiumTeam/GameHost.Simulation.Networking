@@ -1,9 +1,10 @@
-using Unity.Entities;
 using Unity.NetCode;
+using Unity.Entities;
 using UnityEngine;
 
 namespace DefaultNamespace
 {
+#if UNITY_NETCODE_MODIFIED
 	public interface ISnapshotFromComponent<TSnapshotData, in TComponent1, in TComponent2, in TComponent3, in TComponent4> : ISnapshotData<TSnapshotData>
 		where TSnapshotData : unmanaged, ISnapshotData<TSnapshotData>
 		where TComponent1 : struct, IComponentData
@@ -47,8 +48,8 @@ namespace DefaultNamespace
 			var serializerSystem = system.World.GetExistingSystem<AddComponentSerializer<TComponent1, TComponent2, TComponent3, TComponent4, TSnapshot>>();
 
 			header.WantsPredictionDelta = serializerSystem.WantsPredictionDelta;
-			header.WantsSingleHistory   = serializerSystem.WantsSingleHistory;
-			header.Importance           = serializerSystem.Importance;
+			header.WantsSingleHistory = serializerSystem.WantsSingleHistory;
+			header.Importance = serializerSystem.Importance;
 		}
 
 		public void BeginSerialize(ComponentSystemBase system)
@@ -68,7 +69,7 @@ namespace DefaultNamespace
 		{
 			var s = system.World.GetExistingSystem<AddComponentSerializer<TComponent1, TComponent2, TComponent3, TComponent4, TSnapshot>.SystemGhostSerializer>();
 
-			NewGhosts   = s.NewGhosts;
+			NewGhosts = s.NewGhosts;
 			NewGhostIds = s.NewGhostIds;
 		}
 
@@ -88,7 +89,7 @@ namespace DefaultNamespace
 
 		public bool CanSerialize(EntityArchetype arch)
 		{
-			var matches    = 0;
+			var matches = 0;
 			var components = arch.GetComponentTypes();
 			for (var i = 0; i != components.Length; i++)
 			{
@@ -115,4 +116,5 @@ namespace DefaultNamespace
 			snapshot.Set(component1[ent], component2[ent], component3[ent], component4[ent]);
 		}
 	}
+#endif
 }
