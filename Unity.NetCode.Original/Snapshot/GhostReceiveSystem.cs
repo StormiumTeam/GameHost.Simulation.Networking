@@ -7,10 +7,11 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
-    internal struct GhostEntity
+    public struct GhostEntity
     {
         public Entity entity;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS

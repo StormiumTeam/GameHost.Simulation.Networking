@@ -18,7 +18,7 @@ namespace Unity.NetCode
         {
             m_ghostEntityMap.Dispose();
         }
-        internal NativeHashMap<int, GhostEntity> GhostEntityMap => m_ghostEntityMap;
+        public NativeHashMap<int, GhostEntity> GhostEntityMap => m_ghostEntityMap;
         private  NativeHashMap<int, GhostEntity> m_ghostEntityMap;
 
     }

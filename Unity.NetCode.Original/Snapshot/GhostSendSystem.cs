@@ -9,6 +9,7 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -32,6 +33,7 @@ namespace Unity.NetCode
         public const int SnapshotHistorySize = 32;
     }
     [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
+    [UpdateAfter(typeof(AddNetworkIdSystem))]
     [AlwaysUpdateSystem]
     public class GhostSendSystem<TGhostSerializerCollection> : JobComponentSystem
         where TGhostSerializerCollection : struct, IGhostSerializerCollection
@@ -344,6 +346,13 @@ namespace Unity.NetCode
                     serialChunks.Add(pc);
                     if (ghostChunks[chunk].Count > maxCount)
                         maxCount = ghostChunks[chunk].Count;
+                }
+
+                // report this to unity... (spawned entities don't contribute to ghostChunks array)
+                for (int chunk = 0; chunk < serialChunks.Length; ++chunk)
+                {
+                    if (serialChunks[chunk].chunk.Count > maxCount)
+                        maxCount = serialChunks[chunk].chunk.Count;
                 }
 
                 var oldChunks = chunkSerializationData.GetKeyArray(Allocator.Temp);

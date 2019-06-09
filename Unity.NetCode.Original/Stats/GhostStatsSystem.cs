@@ -336,5 +336,5 @@ namespace Unity.NetCode
             socket.SendBinary(ghostStatData, ghostStatData.Length);
         }
     }
-#endif
 }
+#endif
