@@ -10,6 +10,34 @@ using UnityEngine;
 
 namespace Unity.NetCode
 {
+    public sealed class RpcQueueSystem<TRpc> : ComponentSystem
+        where TRpc : struct, IRpcCommand
+    {
+        private int m_TypeIndex           = -1;
+        private int m_TypeIndexWithOffset = 0;
+
+        protected override void OnUpdate()
+        {
+        }
+
+        public RpcQueue<TRpc> GetRpcQueue()
+        {
+            if (m_TypeIndex < 0)
+                throw new Exception("Trying to get a rpc type which is not registered");
+
+            return new RpcQueue<TRpc> {rpcType = m_TypeIndexWithOffset};
+        }
+
+        public void SetTypeIndex(int typeIndex)
+        {
+            if (m_TypeIndex >= 0)
+                throw new Exception();
+
+            m_TypeIndex           = typeIndex;
+            m_TypeIndexWithOffset = typeIndex + new InternalRpcCollection().Length;
+        }
+    }
+
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
     [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
     public class RpcSystem<TRpcCollection> : JobComponentSystem
