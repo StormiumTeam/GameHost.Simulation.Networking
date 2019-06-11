@@ -371,7 +371,7 @@ namespace Unity.NetCode
                 NativeArray<PrioChunk> serialChunkArray = serialChunks;
                 serialChunkArray.Sort();
                 var availableBaselines = new NativeList<SnapshotBaseline>(GhostSystemConstants.SnapshotHistorySize, Allocator.Temp);
-                var baselinePerEntity  = new NativeArray<int>(maxCount*3, Allocator.Temp);
+                var baselinePerEntity  = new NativeArray<int>(maxCount*3 + 1, Allocator.Temp);
                 for (int pc = 0; pc < serialChunks.Length && dataStream.Length < TargetPacketSize; ++pc)
                 {
                     var chunk     = serialChunks[pc].chunk;
