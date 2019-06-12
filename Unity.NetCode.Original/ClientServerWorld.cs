@@ -94,8 +94,8 @@ namespace Unity.NetCode
         public int ClientWorldIndex { get; internal set; }
 #endif
         private FixedTimeLoop m_fixedTimeLoop;
-        public  float         UpdateTime      => Time.time - m_fixedTimeLoop.accumulatedTime;
-        public  float         UpdateDeltaTime => FixedTimeLoop.fixedTimeStep;
+        public  float         UpdateTime      => Time.time;
+        public  float         UpdateDeltaTime => Time.deltaTime;
 
         protected override void OnCreateManager()
         {
@@ -110,14 +110,19 @@ namespace Unity.NetCode
 
         protected override void OnUpdate()
         {
-            m_fixedTimeLoop.BeginUpdate();
+            /*m_fixedTimeLoop.BeginUpdate();
             while (m_fixedTimeLoop.ShouldUpdate())
             {
                 m_beginBarrier.Update();
                 m_ghostSpawnGroup.Update();
                 base.OnUpdate();
                 m_endBarrier.Update();
-            }
+            }*/
+            
+            m_beginBarrier.Update();
+            m_ghostSpawnGroup.Update();
+            base.OnUpdate();
+            m_endBarrier.Update();
         }
 
         public override void SortSystemUpdateList()
