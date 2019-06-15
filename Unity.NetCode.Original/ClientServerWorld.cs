@@ -215,12 +215,15 @@ namespace Unity.NetCode
         public static int        PlayModeType    = 3;
         public static List<Type> Systems;
 
+        public static int ClientCreationCount { get; private set; }
+        public static int ServerCreationCount { get; private set; }
+
         public static void CreateClientWorlds()
         {
             if (NumClientWorlds < 0)
                 throw new InvalidOperationException();
 
-            if (PlayModeType != 2)
+            if (PlayModeType == 2)
                 throw new InvalidOperationException();
 
 #if !UNITY_SERVER
@@ -291,11 +294,13 @@ namespace Unity.NetCode
                 World.Active.GetOrCreateSystem<TickClientSimulationSystem>().AddSystemToUpdateList(clientSimulationSystemGroup[i]);
                 World.Active.GetOrCreateSystem<TickClientPresentationSystem>().AddSystemToUpdateList(clientPresentationSystemGroup[i]);
             }
+
+            ClientCreationCount++;
         }
 
         public static void CreateServerWorld()
         {
-            if (PlayModeType != 1)
+            if (PlayModeType == 1)
                 throw new InvalidOperationException();
 
             if (serverWorld != null)
@@ -304,16 +309,16 @@ namespace Unity.NetCode
             if (Systems == null)
                 throw new InvalidOperationException();
 
-#if !UNITY_CLIENT
             serverWorld = null;
             ServerSimulationSystemGroup serverSimulationSystemGroup = null;
 
             serverWorld                 = new World("ServerWorld");
             serverSimulationSystemGroup = serverWorld.GetOrCreateSystem<ServerSimulationSystemGroup>();
-#endif
 
             foreach (var type in Systems)
             {
+                Debug.Log(type);
+                
                 var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
                 if (groups.Length == 0)
                     continue;
@@ -343,6 +348,8 @@ namespace Unity.NetCode
 
             serverSimulationSystemGroup.SortSystemUpdateList();
             World.Active.GetOrCreateSystem<TickServerSimulationSystem>().AddSystemToUpdateList(serverSimulationSystemGroup);
+
+            ServerCreationCount++;
         }
 
         public static void StopClientWorlds(World worldParent)
@@ -378,9 +385,13 @@ namespace Unity.NetCode
             serverWorld = null;
         }
 
+        private static bool m_Called = false;
         public List<Type> Initialize(List<Type> systems)
         {
             // Workaround for initialization being called multiple times when using game object conversion
+            if (m_Called)
+                return systems;
+            
 #if !UNITY_SERVER
             if (clientWorld != null)
                 return systems;
@@ -402,6 +413,7 @@ namespace Unity.NetCode
         NumClientWorlds = 1;
 #endif
 #endif
+            m_Called = true;
 
             var defaultBootstrap = new List<Type>();
             foreach (var type in systems)

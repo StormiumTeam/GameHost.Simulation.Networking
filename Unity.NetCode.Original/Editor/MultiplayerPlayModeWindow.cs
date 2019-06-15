@@ -154,6 +154,9 @@ public class MultiplayerPlayModeControllerSystem : ComponentSystem
 {
     public static int PresentedClient;
     private int m_currentPresentedClient;
+
+    private int m_lastClientCreationId;
+    
     protected override void OnCreateManager()
     {
         PresentedClient = 0;
@@ -170,9 +173,20 @@ public class MultiplayerPlayModeControllerSystem : ComponentSystem
 
     protected override void OnUpdate()
     {
+        if (m_lastClientCreationId != ClientServerBootstrap.ClientCreationCount)
+        {
+            m_currentPresentedClient = -999;
+            
+            for (int i = 1; i < ClientServerBootstrap.clientWorld.Length; ++i)
+            {
+                ClientServerBootstrap.clientWorld[i].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = false;
+            }
+        }
+        
         if (PresentedClient != m_currentPresentedClient)
         {
             // Change active client for presentation
+            if (m_currentPresentedClient >= 0)
             ClientServerBootstrap.clientWorld[m_currentPresentedClient].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = false;
             ClientServerBootstrap.clientWorld[PresentedClient].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = true;
             m_currentPresentedClient = PresentedClient;
