@@ -7,6 +7,7 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -82,6 +83,7 @@ namespace Unity.NetCode
             EntityManager.AddBuffer<OutgoingRpcDataStreamBufferComponent>(ent);
             EntityManager.AddBuffer<IncomingCommandDataStreamBufferComponent>(ent);
             EntityManager.AddBuffer<IncomingSnapshotDataStreamBufferComponent>(ent);
+
             return ent;
         }
 
@@ -145,6 +147,8 @@ namespace Unity.NetCode
                     commandBuffer.AddBuffer<OutgoingRpcDataStreamBufferComponent>(ent);
                     commandBuffer.AddBuffer<IncomingCommandDataStreamBufferComponent>(ent);
                     commandBuffer.AddBuffer<IncomingSnapshotDataStreamBufferComponent>(ent);
+                    
+                    Debug.Log($"{driver.GetConnectionState(con)}");
                 }
             }
         }

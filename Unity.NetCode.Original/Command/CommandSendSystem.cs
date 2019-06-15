@@ -5,6 +5,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -15,6 +16,7 @@ namespace Unity.NetCode
         where TCommandData : struct, ICommandData<TCommandData>
     {
         [ExcludeComponent(typeof(NetworkStreamDisconnected))]
+        [RequireComponentTag(typeof(NetworkStreamInGame))]
         struct CommandSendJob : IJobForEachWithEntity<CommandTargetComponent>
         {
             public UdpNetworkDriver.Concurrent                          driver;
@@ -44,7 +46,7 @@ namespace Unity.NetCode
                         inputData.Serialize(writer);
                     }
                 }
-
+                
                 driver.Send(unreliablePipeline, connectionFromEntity[entity].Value, writer);
             }
         }
