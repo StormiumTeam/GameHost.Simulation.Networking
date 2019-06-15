@@ -118,7 +118,7 @@ namespace Unity.NetCode
                 base.OnUpdate();
                 m_endBarrier.Update();
             }*/
-            
+
             m_beginBarrier.Update();
             m_ghostSpawnGroup.Update();
             base.OnUpdate();
@@ -211,6 +211,173 @@ namespace Unity.NetCode
     // Bootstrap of client and server worlds
     public class ClientServerBootstrap : ICustomBootstrap
     {
+        public static int        NumClientWorlds = 0;
+        public static int        PlayModeType    = 3;
+        public static List<Type> Systems;
+
+        public static void CreateClientWorlds()
+        {
+            if (NumClientWorlds < 0)
+                throw new InvalidOperationException();
+
+            if (PlayModeType != 2)
+                throw new InvalidOperationException();
+
+#if !UNITY_SERVER
+            clientWorld = null;
+            ClientSimulationSystemGroup[]   clientSimulationSystemGroup   = null;
+            ClientPresentationSystemGroup[] clientPresentationSystemGroup = null;
+
+            clientWorld                   = new World[NumClientWorlds];
+            clientSimulationSystemGroup   = new ClientSimulationSystemGroup[clientWorld.Length];
+            clientPresentationSystemGroup = new ClientPresentationSystemGroup[clientWorld.Length];
+            for (int i = 0; i < clientWorld.Length; ++i)
+            {
+                clientWorld[i]                 = new World("ClientWorld" + i);
+                clientSimulationSystemGroup[i] = clientWorld[i].GetOrCreateSystem<ClientSimulationSystemGroup>();
+#if UNITY_EDITOR
+                clientSimulationSystemGroup[i].ClientWorldIndex = i;
+#endif
+                clientPresentationSystemGroup[i] = clientWorld[i].GetOrCreateSystem<ClientPresentationSystemGroup>();
+            }
+#endif
+
+            foreach (var type in Systems)
+            {
+                var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
+                if (groups.Length == 0)
+                    continue;
+
+                foreach (var grp in groups)
+                {
+                    var group = grp as UpdateInGroupAttribute;
+                    if (group.GroupType == typeof(ClientAndServerSimulationSystemGroup))
+                    {
+                        for (int i = 0; i < clientSimulationSystemGroup.Length; ++i)
+                            clientSimulationSystemGroup[i]
+                                .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
+                    }
+                    else if (group.GroupType == typeof(ClientSimulationSystemGroup))
+                    {
+                        for (int i = 0; i < clientSimulationSystemGroup.Length; ++i)
+                            clientSimulationSystemGroup[i]
+                                .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
+                    }
+                    else if (group.GroupType == typeof(ClientPresentationSystemGroup))
+                    {
+                        for (int i = 0; i < clientPresentationSystemGroup.Length; ++i)
+                            clientPresentationSystemGroup[i]
+                                .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
+                    }
+                    else
+                    {
+                        var mask = GetTopLevelWorldMask(group.GroupType);
+                        if ((mask & WorldType.ClientWorld) != 0 && clientWorld != null)
+                        {
+                            for (int i = 0; i < clientWorld.Length; ++i)
+                            {
+                                var groupSys = clientWorld[i].GetOrCreateSystem(group.GroupType) as ComponentSystemGroup;
+                                groupSys.AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < clientWorld.Length; ++i)
+            {
+                clientSimulationSystemGroup[i].SortSystemUpdateList();
+                clientPresentationSystemGroup[i].SortSystemUpdateList();
+                World.Active.GetOrCreateSystem<TickClientSimulationSystem>().AddSystemToUpdateList(clientSimulationSystemGroup[i]);
+                World.Active.GetOrCreateSystem<TickClientPresentationSystem>().AddSystemToUpdateList(clientPresentationSystemGroup[i]);
+            }
+        }
+
+        public static void CreateServerWorld()
+        {
+            if (PlayModeType != 1)
+                throw new InvalidOperationException();
+
+            if (serverWorld != null)
+                throw new InvalidOperationException("Server world already exist...");
+
+            if (Systems == null)
+                throw new InvalidOperationException();
+
+#if !UNITY_CLIENT
+            serverWorld = null;
+            ServerSimulationSystemGroup serverSimulationSystemGroup = null;
+
+            serverWorld                 = new World("ServerWorld");
+            serverSimulationSystemGroup = serverWorld.GetOrCreateSystem<ServerSimulationSystemGroup>();
+#endif
+
+            foreach (var type in Systems)
+            {
+                var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
+                if (groups.Length == 0)
+                    continue;
+
+                foreach (var grp in groups)
+                {
+                    var group = grp as UpdateInGroupAttribute;
+                    if (group.GroupType == typeof(ClientAndServerSimulationSystemGroup))
+                    {
+                        serverSimulationSystemGroup.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
+                    }
+                    else if (group.GroupType == typeof(ServerSimulationSystemGroup))
+                    {
+                        serverSimulationSystemGroup.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
+                    }
+                    else
+                    {
+                        var mask = GetTopLevelWorldMask(group.GroupType);
+                        if ((mask & WorldType.ServerWorld) != 0 && serverWorld != null)
+                        {
+                            var groupSys = serverWorld.GetOrCreateSystem(group.GroupType) as ComponentSystemGroup;
+                            groupSys.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
+                        }
+                    }
+                }
+            }
+
+            serverSimulationSystemGroup.SortSystemUpdateList();
+            World.Active.GetOrCreateSystem<TickServerSimulationSystem>().AddSystemToUpdateList(serverSimulationSystemGroup);
+        }
+
+        public static void StopClientWorlds(World worldParent)
+        {
+            if (clientWorld != null)
+            {
+                foreach (var world in clientWorld)
+                {
+                    var tickClientPresentationGroup = worldParent.GetExistingSystem<TickClientPresentationSystem>();
+                    var tickClientSimulationGroup   = worldParent.GetExistingSystem<TickClientSimulationSystem>();
+
+                    tickClientPresentationGroup.RemoveSystemFromUpdateList(world.GetExistingSystem<ClientPresentationSystemGroup>());
+                    tickClientSimulationGroup.RemoveSystemFromUpdateList(world.GetExistingSystem<ClientSimulationSystemGroup>());
+
+                    world.Dispose();
+                }
+            }
+
+            clientWorld = null;
+        }
+
+        public static void StopServerWorld(World worldParent)
+        {
+            if (serverWorld == null)
+                return;
+
+            var tickServerSimulationGroup = worldParent.GetExistingSystem<TickServerSimulationSystem>();
+            var simulationGroup           = serverWorld.GetExistingSystem<ServerSimulationSystemGroup>();
+
+            tickServerSimulationGroup.RemoveSystemFromUpdateList(simulationGroup);
+
+            serverWorld.Dispose();
+            serverWorld = null;
+        }
+
         public List<Type> Initialize(List<Type> systems)
         {
             // Workaround for initialization being called multiple times when using game object conversion
@@ -225,51 +392,18 @@ namespace Unity.NetCode
 
 #if !UNITY_SERVER
 #if UNITY_EDITOR
-            int numClientWorlds = UnityEditor.EditorPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_NumClients");
-            if (numClientWorlds < 1)
-                numClientWorlds = 1;
-            if (numClientWorlds > 8)
-                numClientWorlds = 8;
-            int playModeType = UnityEditor.EditorPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_Type");
+            NumClientWorlds = UnityEditor.EditorPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_NumClients");
+            if (NumClientWorlds < 1)
+                NumClientWorlds = 1;
+            if (NumClientWorlds > 8)
+                NumClientWorlds = 8;
+            PlayModeType = UnityEditor.EditorPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_Type");
 #else
-        int numClientWorlds = 1;
+        NumClientWorlds = 1;
 #endif
 #endif
 
             var defaultBootstrap = new List<Type>();
-#if !UNITY_SERVER
-            clientWorld = null;
-            ClientSimulationSystemGroup[]   clientSimulationSystemGroup   = null;
-            ClientPresentationSystemGroup[] clientPresentationSystemGroup = null;
-#if UNITY_EDITOR
-            if (playModeType != 2)
-#endif
-            {
-                clientWorld                   = new World[numClientWorlds];
-                clientSimulationSystemGroup   = new ClientSimulationSystemGroup[clientWorld.Length];
-                clientPresentationSystemGroup = new ClientPresentationSystemGroup[clientWorld.Length];
-                for (int i = 0; i < clientWorld.Length; ++i)
-                {
-                    clientWorld[i]                 = new World("ClientWorld" + i);
-                    clientSimulationSystemGroup[i] = clientWorld[i].GetOrCreateSystem<ClientSimulationSystemGroup>();
-#if UNITY_EDITOR
-                    clientSimulationSystemGroup[i].ClientWorldIndex = i;
-#endif
-                    clientPresentationSystemGroup[i] = clientWorld[i].GetOrCreateSystem<ClientPresentationSystemGroup>();
-                }
-            }
-#endif
-#if !UNITY_CLIENT
-            serverWorld = null;
-            ServerSimulationSystemGroup serverSimulationSystemGroup = null;
-#if UNITY_EDITOR
-            if (playModeType != 1)
-#endif
-            {
-                serverWorld                 = new World("ServerWorld");
-                serverSimulationSystemGroup = serverWorld.GetOrCreateSystem<ServerSimulationSystemGroup>();
-            }
-#endif
             foreach (var type in systems)
             {
                 var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
@@ -283,92 +417,27 @@ namespace Unity.NetCode
                     var group = grp as UpdateInGroupAttribute;
                     if (group.GroupType == typeof(ClientAndServerSimulationSystemGroup))
                     {
-#if !UNITY_CLIENT
-                        if (serverWorld != null)
-                            serverSimulationSystemGroup.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
-#endif
-#if !UNITY_SERVER
-                        if (clientWorld != null)
-                        {
-                            for (int i = 0; i < clientSimulationSystemGroup.Length; ++i)
-                                clientSimulationSystemGroup[i]
-                                    .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
-                        }
-#endif
                     }
                     else if (group.GroupType == typeof(ServerSimulationSystemGroup))
                     {
-#if !UNITY_CLIENT
-                        if (serverWorld != null)
-                            serverSimulationSystemGroup.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
-#endif
                     }
                     else if (group.GroupType == typeof(ClientSimulationSystemGroup))
                     {
-#if !UNITY_SERVER
-                        if (clientWorld != null)
-                        {
-                            for (int i = 0; i < clientSimulationSystemGroup.Length; ++i)
-                                clientSimulationSystemGroup[i]
-                                    .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
-                        }
-#endif
                     }
                     else if (group.GroupType == typeof(ClientPresentationSystemGroup))
                     {
-#if !UNITY_SERVER
-                        if (clientWorld != null)
-                        {
-                            for (int i = 0; i < clientPresentationSystemGroup.Length; ++i)
-                                clientPresentationSystemGroup[i]
-                                    .AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
-                        }
-#endif
                     }
                     else
                     {
                         var mask = GetTopLevelWorldMask(group.GroupType);
                         if ((mask & WorldType.DefaultWorld) != 0)
                             defaultBootstrap.Add(type);
-#if !UNITY_SERVER
-                        if ((mask & WorldType.ClientWorld) != 0 && clientWorld != null)
-                        {
-                            for (int i = 0; i < clientWorld.Length; ++i)
-                            {
-                                var groupSys = clientWorld[i].GetOrCreateSystem(group.GroupType) as ComponentSystemGroup;
-                                groupSys.AddSystemToUpdateList(clientWorld[i].GetOrCreateSystem(type) as ComponentSystemBase);
-                            }
-                        }
-#endif
-#if !UNITY_CLIENT
-                        if ((mask & WorldType.ServerWorld) != 0 && serverWorld != null)
-                        {
-                            var groupSys = serverWorld.GetOrCreateSystem(group.GroupType) as ComponentSystemGroup;
-                            groupSys.AddSystemToUpdateList(serverWorld.GetOrCreateSystem(type) as ComponentSystemBase);
-                        }
-#endif
                     }
                 }
             }
-#if !UNITY_CLIENT
-            if (serverWorld != null)
-            {
-                serverSimulationSystemGroup.SortSystemUpdateList();
-                World.Active.GetOrCreateSystem<TickServerSimulationSystem>().AddSystemToUpdateList(serverSimulationSystemGroup);
-            }
-#endif
-#if !UNITY_SERVER
-            if (clientWorld != null)
-            {
-                for (int i = 0; i < clientWorld.Length; ++i)
-                {
-                    clientSimulationSystemGroup[i].SortSystemUpdateList();
-                    clientPresentationSystemGroup[i].SortSystemUpdateList();
-                    World.Active.GetOrCreateSystem<TickClientSimulationSystem>().AddSystemToUpdateList(clientSimulationSystemGroup[i]);
-                    World.Active.GetOrCreateSystem<TickClientPresentationSystem>().AddSystemToUpdateList(clientPresentationSystemGroup[i]);
-                }
-            }
-#endif
+
+            Systems = systems;
+
             return defaultBootstrap;
         }
 
@@ -381,7 +450,7 @@ namespace Unity.NetCode
             ServerWorld  = 4
         }
 
-        WorldType GetTopLevelWorldMask(Type type)
+        static WorldType GetTopLevelWorldMask(Type type)
         {
             var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
             if (groups.Length == 0)
