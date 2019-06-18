@@ -316,9 +316,7 @@ namespace Unity.NetCode
             serverSimulationSystemGroup = serverWorld.GetOrCreateSystem<ServerSimulationSystemGroup>();
 
             foreach (var type in Systems)
-            {
-                Debug.Log(type);
-                
+            {                
                 var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
                 if (groups.Length == 0)
                     continue;
