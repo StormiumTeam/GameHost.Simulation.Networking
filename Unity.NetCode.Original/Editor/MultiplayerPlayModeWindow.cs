@@ -176,6 +176,7 @@ public class MultiplayerPlayModeControllerSystem : ComponentSystem
         if (m_lastClientCreationId != ClientServerBootstrap.ClientCreationCount)
         {
             m_currentPresentedClient = -999;
+            m_lastClientCreationId = ClientServerBootstrap.ClientCreationCount;
             
             for (int i = 1; i < ClientServerBootstrap.clientWorld.Length; ++i)
             {
