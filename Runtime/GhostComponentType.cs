@@ -33,12 +33,12 @@ namespace StormiumTeam.Networking.Utilities
 
 		public static bool operator ==(ComponentType lhs, GhostComponentType<T> rhs)
 		{
-			return lhs == rhs.ComponentType;
+			return lhs.TypeIndex == rhs.ComponentType.TypeIndex;
 		}
 
 		public static bool operator !=(ComponentType lhs, GhostComponentType<T> rhs)
 		{
-			return lhs != rhs.ComponentType;
+			return lhs.TypeIndex != rhs.ComponentType.TypeIndex;
 		}
 	}
 
