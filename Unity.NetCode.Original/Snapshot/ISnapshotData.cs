@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -45,7 +46,10 @@ namespace Unity.NetCode
 
             snapshotData = snapshotArray[beforeIdx];
             if (afterTick == 0)
+            {
                 return true;
+            }
+
             var   after       = snapshotArray[afterIdx];
             float afterWeight = (float)(targetTick - beforeTick) / (float)(afterTick - beforeTick);
             snapshotData.Interpolate(ref after, afterWeight);

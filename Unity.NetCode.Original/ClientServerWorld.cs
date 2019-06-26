@@ -110,19 +110,19 @@ namespace Unity.NetCode
 
         protected override void OnUpdate()
         {
-            /*m_fixedTimeLoop.BeginUpdate();
+            m_fixedTimeLoop.BeginUpdate();
             while (m_fixedTimeLoop.ShouldUpdate())
             {
                 m_beginBarrier.Update();
                 m_ghostSpawnGroup.Update();
                 base.OnUpdate();
                 m_endBarrier.Update();
-            }*/
+            }
 
-            m_beginBarrier.Update();
+            /*m_beginBarrier.Update();
             m_ghostSpawnGroup.Update();
             base.OnUpdate();
-            m_endBarrier.Update();
+            m_endBarrier.Update();*/
         }
 
         public override void SortSystemUpdateList()

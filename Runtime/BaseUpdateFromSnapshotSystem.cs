@@ -45,6 +45,14 @@ namespace DefaultNamespace
 			}
 		}
 
+		private EntityQuery m_Query;
+
+		protected override void OnCreate()
+		{
+			base.OnCreate();
+			m_Query = GetEntityQuery(typeof(TSnapshot), typeof(TComponent));
+		}
+
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
 			return new UpdateJob()
@@ -52,7 +60,7 @@ namespace DefaultNamespace
 				SnapshotFromEntity = GetBufferFromEntity<TSnapshot>(),
 				GhostMap           = World.GetExistingSystem<GhostReceiveSystemGroup>().GhostEntityMap,
 				TargetTick         = NetworkTimeSystem.predictTargetTick
-			}.Schedule(this, inputDeps);
+			}.Schedule(m_Query, inputDeps);
 		}
 	}
 }
