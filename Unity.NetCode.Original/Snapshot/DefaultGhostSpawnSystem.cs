@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -175,6 +176,7 @@ namespace Unity.NetCode
                     newSnapshot.ResizeUninitialized(oldSnapshot.Length);
                     for (int snap = 0; snap < newSnapshot.Length; ++snap)
                         newSnapshot[snap] = oldSnapshot[snap];
+                    
                     ghostMap.Remove(delayedGhost[i].ghostId);
                     ghostMap.TryAdd(delayedGhost[i].ghostId, new GhostEntity
                     {
@@ -286,22 +288,22 @@ namespace Unity.NetCode
             }
 
             var delayedEntities = default(NativeArray<Entity>);
-            delayedEntities = new NativeArray<Entity>(m_CurrentDelayedSpawnList.Length, Allocator.TempJob);
+            delayedEntities = new NativeArray<Entity>(m_CurrentDelayedSpawnList.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (m_CurrentDelayedSpawnList.Length > 0)
                 EntityManager.CreateEntity(m_Archetype, delayedEntities);
 
             var predictedEntities = default(NativeArray<Entity>);
-            predictedEntities = new NativeArray<Entity>(m_CurrentPredictedSpawnList.Length, Allocator.TempJob);
+            predictedEntities = new NativeArray<Entity>(m_CurrentPredictedSpawnList.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (m_CurrentPredictedSpawnList.Length > 0)
                 EntityManager.CreateEntity(m_PredictedArchetype, predictedEntities);
 
             var predictSpawnRequests = m_SpawnRequestGroup.ToEntityArray(Allocator.TempJob);
-            var predictSpawnEntities = new NativeArray<Entity>(predictSpawnRequests.Length, Allocator.TempJob);
+            var predictSpawnEntities = new NativeArray<Entity>(predictSpawnRequests.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (predictSpawnEntities.Length > 0)
                 EntityManager.CreateEntity(m_PredictedArchetype, predictSpawnEntities);
 
             var newEntities = default(NativeArray<Entity>);
-            newEntities = new NativeArray<Entity>(m_NewGhosts.Length, Allocator.TempJob);
+            newEntities = new NativeArray<Entity>(m_NewGhosts.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (m_NewGhosts.Length > 0)
                 EntityManager.CreateEntity(m_InitialArchetype, newEntities);
 

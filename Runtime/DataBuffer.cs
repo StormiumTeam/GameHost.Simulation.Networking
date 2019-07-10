@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace package.stormiumteam.networking.runtime.lowlevel
 {
-    public unsafe struct DataBufferMarker
+    public struct DataBufferMarker
     {
         public bool Valid;
         public int  Index;

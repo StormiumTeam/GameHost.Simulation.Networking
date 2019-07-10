@@ -27,7 +27,7 @@ namespace DefaultNamespace
 		where TComponent : struct, IComponentFromSnapshot<TSnapshot>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>
 	{
-		[BurstCompile]
+		//[BurstCompile]
 		struct UpdateJob : IJobForEachWithEntity<TComponent>
 		{
 			[ReadOnly] public BufferFromEntity<TSnapshot> SnapshotFromEntity;
