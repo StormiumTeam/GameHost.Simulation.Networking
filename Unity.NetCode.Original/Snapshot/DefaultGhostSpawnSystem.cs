@@ -258,8 +258,8 @@ namespace Unity.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            EntityManager.DestroyEntity(m_DestroyGroup);
-            EntityManager.DestroyEntity(m_InvalidGhosts);
+            if (m_DestroyGroup.CalculateLength() > 0) EntityManager.DestroyEntity(m_DestroyGroup);
+            if (m_InvalidGhosts.Length > 0) EntityManager.DestroyEntity(m_InvalidGhosts);
             m_InvalidGhosts.Clear();
 
             var targetTick = NetworkTimeSystem.interpolateTargetTick;
@@ -285,6 +285,14 @@ namespace Unity.NetCode
                     m_CurrentPredictedSpawnList.Add(ghost);
                     m_InvalidGhosts.Add(gent.entity);
                 }
+            }
+
+            if (m_CurrentDelayedSpawnList.Length == 0 && m_DelayedSpawnQueue.Count == 0 && m_CurrentPredictedSpawnList.Length == 0 && m_PredictedSpawnQueue.Count == 0
+                && m_SpawnRequestGroup.CalculateLength() == 0
+                && m_NewGhosts.Length == 0
+                && m_InvalidGhosts.Length == 0)
+            {
+                return inputDeps;
             }
 
             var delayedEntities = default(NativeArray<Entity>);
