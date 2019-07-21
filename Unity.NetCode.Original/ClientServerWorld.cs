@@ -335,6 +335,9 @@ namespace Unity.NetCode
                 return systems;
 #endif
 
+            if (!Application.isPlaying)
+                return systems;
+
 #if !UNITY_SERVER
 #if UNITY_EDITOR
             int numClientWorlds = UnityEditor.EditorPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_NumClients");
