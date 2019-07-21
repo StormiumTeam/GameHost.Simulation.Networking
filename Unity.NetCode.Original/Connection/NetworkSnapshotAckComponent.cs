@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Networking.Transport.Utilities;
 
 namespace Unity.NetCode
@@ -15,7 +16,7 @@ namespace Unity.NetCode
             else if (SequenceHelpers.IsNewer(tick, LastReceivedSnapshotByRemote))
             {
                 // TODO: this assumes the delta between acks is less than 64
-                int shamt = (int)(tick - LastReceivedSnapshotByRemote);
+                int shamt = (int) (tick - LastReceivedSnapshotByRemote);
                 ReceivedSnapshotByRemoteMask3 = (ReceivedSnapshotByRemoteMask3 << shamt) |
                                                 (ReceivedSnapshotByRemoteMask2 >> (64 - shamt));
                 ReceivedSnapshotByRemoteMask2 = (ReceivedSnapshotByRemoteMask2 << shamt) |
@@ -34,7 +35,7 @@ namespace Unity.NetCode
                 return false;
             if (SequenceHelpers.IsNewer(tick, LastReceivedSnapshotByRemote))
                 return false;
-            int bit = (int)(LastReceivedSnapshotByRemote - tick);
+            int bit = (int) (LastReceivedSnapshotByRemote - tick);
             if (bit >= 256)
                 return false;
             if (bit >= 192)
@@ -42,18 +43,22 @@ namespace Unity.NetCode
                 bit -= 192;
                 return (ReceivedSnapshotByRemoteMask3 & (1ul << bit)) != 0;
             }
+
             if (bit >= 128)
             {
                 bit -= 128;
                 return (ReceivedSnapshotByRemoteMask2 & (1ul << bit)) != 0;
             }
+
             if (bit >= 64)
             {
                 bit -= 64;
                 return (ReceivedSnapshotByRemoteMask1 & (1ul << bit)) != 0;
             }
+
             return (ReceivedSnapshotByRemoteMask0 & (1ul << bit)) != 0;
         }
+
         public  uint  LastReceivedSnapshotByRemote;
         private ulong ReceivedSnapshotByRemoteMask0;
         private ulong ReceivedSnapshotByRemoteMask1;
@@ -67,13 +72,19 @@ namespace Unity.NetCode
             if (remoteTime != 0 && SequenceHelpers.IsNewer(remoteTime, LastReceivedRemoteTime))
             {
                 LastReceivedRemoteTime = remoteTime;
-                LastReceivedRTT        = localTime - localTimeMinusRTT;
                 LastReceiveTimestamp   = localTime;
+                uint lastReceivedRTT = localTime - localTimeMinusRTT;
+                if (EstimatedRTT == 0)
+                    EstimatedRTT = lastReceivedRTT;
+                else
+                    EstimatedRTT = EstimatedRTT * 0.875f + lastReceivedRTT * 0.125f;
+                DeviationRTT = DeviationRTT * 0.75f + math.abs(lastReceivedRTT - EstimatedRTT) * 0.25f;
             }
         }
-        public uint LastReceivedRemoteTime;
-        public uint LastReceivedRTT;
-        public uint LastReceiveTimestamp;
+
+        public uint  LastReceivedRemoteTime;
+        public uint  LastReceiveTimestamp;
+        public float EstimatedRTT;
+        public float DeviationRTT;
     }
 }
-

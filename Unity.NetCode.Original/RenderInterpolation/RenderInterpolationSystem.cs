@@ -22,6 +22,7 @@ namespace Unity.NetCode
         private       EntityQuery                   posInterpolationGroup;
         private       EntityQuery                   rotInterpolationGroup;
         private       uint                          lastInterpolationVersion;
+
         protected override void OnCreateManager()
         {
             posInterpolationGroup = GetEntityQuery(
@@ -42,6 +43,7 @@ namespace Unity.NetCode
             public            ArchetypeChunkComponentType<Translation>               positionType;
             [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedPosition>  curPositionType;
             [ReadOnly] public ArchetypeChunkComponentType<PreviousSimulatedPosition> prevPositionType;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // If current was written after copying it to prev we need to interpolate, otherwise they must be identical
@@ -58,6 +60,7 @@ namespace Unity.NetCode
                 }
             }
         }
+
         [BurstCompile]
         struct RotInterpolateJob : IJobChunk
         {
@@ -66,6 +69,7 @@ namespace Unity.NetCode
             public            ArchetypeChunkComponentType<Rotation>                  rotationType;
             [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedRotation>  curRotationType;
             [ReadOnly] public ArchetypeChunkComponentType<PreviousSimulatedRotation> prevRotationType;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // If current was written after copying it to prev we need to interpolate, otherwise they must be identical

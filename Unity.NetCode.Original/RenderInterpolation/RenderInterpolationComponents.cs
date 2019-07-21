@@ -7,14 +7,17 @@ namespace Unity.NetCode
     {
         public float3 Value;
     }
+
     public struct PreviousSimulatedPosition : IComponentData
     {
         public float3 Value;
     }
+
     public struct CurrentSimulatedRotation : IComponentData
     {
         public quaternion Value;
     }
+
     public struct PreviousSimulatedRotation : IComponentData
     {
         public quaternion Value;

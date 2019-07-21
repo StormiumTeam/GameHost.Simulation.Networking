@@ -1,5 +1,4 @@
 using System;
-using Unity.NetCode;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
@@ -20,9 +19,9 @@ public class MultiplayerPlayModeWindow : EditorWindow
         var playModeType = EditorPopup("PlayMode Type", new[] {"Client & Server", "Client", "Server"}, "Type");
         if (playModeType != 2)
         {
-            var numClients = EditorInt("Num Clients", "NumClients", 1, 8);
-            EditorInt("Client send/recv delay (ms)", "ClientDelay", 0);
-            EditorInt("Client packet drop (percentage)", "ClientDropRate", 0, 100);
+            EditorInt("Num Clients", "NumClients", 1, 8);
+            EditorInt("Client send/recv delay (ms)", "ClientDelay", 0, 2000, true);
+            EditorInt("Client packet drop (percentage)", "ClientDropRate", 0, 100, true);
         }
 
         if (EditorApplication.isPlaying && ClientServerBootstrap.clientWorld != null)
@@ -74,10 +73,15 @@ public class MultiplayerPlayModeWindow : EditorWindow
         EditorPrefs.SetInt(prefsKey, index);
         return index;
     }
-    int EditorInt(string label, string key = null, int minValue = Int32.MinValue, int maxValue = Int32.MaxValue)
+    int EditorInt(string label, string key = null, int minValue = Int32.MinValue, int maxValue = Int32.MaxValue, bool playerPrefs = false)
     {
         string prefsKey = (string.IsNullOrEmpty(key) ? GetKey(label) : GetKey(key));
-        int value = EditorPrefs.GetInt(prefsKey);
+        int value;
+        if (playerPrefs)
+            value = PlayerPrefs.GetInt(prefsKey);
+        else
+            value = EditorPrefs.GetInt(prefsKey);
+
         if (value < minValue)
             value = minValue;
         if (value > maxValue)
@@ -87,7 +91,13 @@ public class MultiplayerPlayModeWindow : EditorWindow
             value = minValue;
         if (value > maxValue)
             value = maxValue;
-        EditorPrefs.SetInt(prefsKey, value);
+        if (playerPrefs)
+        {
+            PlayerPrefs.SetInt(prefsKey, value);
+            PlayerPrefs.Save();
+        }
+        else
+            EditorPrefs.SetInt(prefsKey, value);
         return value;
     }
 }
@@ -148,15 +158,17 @@ public class MultiplayerPlayModeConnectionSystem : ComponentSystem
     }
 }
 
+#if !UNITY_SERVER
 [UpdateBefore(typeof(TickClientSimulationSystem))]
+#endif
+#if !UNITY_CLIENT || UNITY_SERVER || UNITY_EDITOR
 [UpdateBefore(typeof(TickServerSimulationSystem))]
+#endif
+[NotClientServerSystem]
 public class MultiplayerPlayModeControllerSystem : ComponentSystem
 {
     public static int PresentedClient;
     private int m_currentPresentedClient;
-
-    private int m_lastClientCreationId;
-    
     protected override void OnCreateManager()
     {
         PresentedClient = 0;
@@ -173,21 +185,9 @@ public class MultiplayerPlayModeControllerSystem : ComponentSystem
 
     protected override void OnUpdate()
     {
-        if (m_lastClientCreationId != ClientServerBootstrap.ClientCreationCount)
-        {
-            m_currentPresentedClient = -999;
-            m_lastClientCreationId = ClientServerBootstrap.ClientCreationCount;
-            
-            for (int i = 1; i < ClientServerBootstrap.clientWorld.Length; ++i)
-            {
-                ClientServerBootstrap.clientWorld[i].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = false;
-            }
-        }
-        
         if (PresentedClient != m_currentPresentedClient)
         {
             // Change active client for presentation
-            if (m_currentPresentedClient >= 0)
             ClientServerBootstrap.clientWorld[m_currentPresentedClient].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = false;
             ClientServerBootstrap.clientWorld[PresentedClient].GetExistingSystem<ClientPresentationSystemGroup>().Enabled = true;
             m_currentPresentedClient = PresentedClient;

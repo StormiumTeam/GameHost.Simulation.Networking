@@ -1,5 +1,4 @@
 using System;
-using Unity.NetCode;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -7,7 +6,6 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
-using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -40,6 +38,7 @@ namespace Unity.NetCode
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
 
         private NativeQueue<DelayedDespawnGhost> m_DelayedDespawnQueue;
+
         protected override void OnCreateManager()
         {
             serializers      = default(TGhostDeserializerCollection);
@@ -53,17 +52,21 @@ namespace Unity.NetCode
             m_Barrier          = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             m_CompressionModel = new NetworkCompressionModel(Allocator.Persistent);
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-            m_NetStats = new NativeArray<uint>(serializers.Length * 3 + 3, Allocator.Persistent);
-            World.GetOrCreateSystem<GhostStatsSystem>().SetStatsBuffer(m_NetStats, serializers.CreateSerializerNameList());
+            m_NetStats        = new NativeArray<uint>(serializers.Length * 3 + 3, Allocator.Persistent);
+            m_StatsCollection = World.GetOrCreateSystem<GhostStatsCollectionSystem>();
+            m_StatsCollection.SetGhostNames(serializers.CreateSerializerNameList());
 #endif
+            m_TimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
 
             m_DelayedDespawnQueue = new NativeQueue<DelayedDespawnGhost>(Allocator.Persistent);
 
             serializers.Initialize(World);
         }
 
+        private NetworkTimeSystem m_TimeSystem;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-        private NativeArray<uint> m_NetStats;
+        private NativeArray<uint>          m_NetStats;
+        private GhostStatsCollectionSystem m_StatsCollection;
 #endif
         private NetworkCompressionModel m_CompressionModel;
 
@@ -79,6 +82,7 @@ namespace Unity.NetCode
         struct ClearGhostsJob : IJobForEachWithEntity<ReplicatedEntityComponent>
         {
             public EntityCommandBuffer.Concurrent commandBuffer;
+
             public void Execute(Entity entity, int index, [ReadOnly] ref ReplicatedEntityComponent repl)
             {
                 commandBuffer.RemoveComponent<ReplicatedEntityComponent>(index, entity);
@@ -88,6 +92,7 @@ namespace Unity.NetCode
         struct ClearMapJob : IJob
         {
             public NativeHashMap<int, GhostEntity> ghostMap;
+
             public void Execute()
             {
                 ghostMap.Clear();
@@ -111,8 +116,16 @@ namespace Unity.NetCode
             public            NativeQueue<DelayedDespawnGhost>                  delayedDespawnQueue;
             public            uint                                              targetTick;
             [ReadOnly] public ComponentDataFromEntity<PredictedEntityComponent> predictedFromEntity;
+
             public unsafe void Execute()
             {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                for (int i = 0; i < netStats.Length; ++i)
+                {
+                    netStats[i] = 0;
+                }
+#endif
+
                 // FIXME: should handle any number of connections with individual ghost mappings for each
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                 if (players.Length > 1)
@@ -129,7 +142,7 @@ namespace Unity.NetCode
                     return;
 
                 var dataStream =
-                    DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*)snapshot.GetUnsafePtr(), snapshot.Length);
+                    DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) snapshot.GetUnsafePtr(), snapshot.Length);
                 // Read the ghost stream
                 // find entities to spawn or destroy
                 var readCtx    = new DataStreamReader.Context();
@@ -138,7 +151,7 @@ namespace Unity.NetCode
                 if (ack.LastReceivedSnapshotByLocal != 0 && !SequenceHelpers.IsNewer(serverTick, ack.LastReceivedSnapshotByLocal))
                     return;
                 if (ack.LastReceivedSnapshotByLocal != 0)
-                    ack.ReceivedSnapshotByLocalMask <<= (int)(serverTick - ack.LastReceivedSnapshotByLocal);
+                    ack.ReceivedSnapshotByLocalMask <<= (int) (serverTick - ack.LastReceivedSnapshotByLocal);
                 ack.ReceivedSnapshotByLocalMask   |= 1;
                 ack.LastReceivedSnapshotByLocal   =  serverTick;
                 snapshotAckFromEntity[players[0]] =  ack;
@@ -151,7 +164,7 @@ namespace Unity.NetCode
 #endif
                 for (var i = 0; i < despawnLen; ++i)
                 {
-                    int         ghostId = (int)dataStream.ReadPackedUInt(ref readCtx, compressionModel);
+                    int         ghostId = (int) dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                     GhostEntity ent;
                     if (!ghostEntityMap.TryGetValue(ghostId, out ent))
                         continue;
@@ -168,12 +181,6 @@ namespace Unity.NetCode
                 netStats[0] = despawnLen;
                 netStats[1] = (uint) (dataStream.GetBitsRead(ref readCtx) - startPos);
                 netStats[2] = 0;
-                for (int i = 0; i < serializers.Length; ++i)
-                {
-                    netStats[i * 3 + 3] = 0;
-                    netStats[i * 3 + 4] = 0;
-                    netStats[i * 3 + 5] = 0;
-                }
                 uint statCount         = 0;
                 uint uncompressedCount = 0;
 #endif
@@ -195,7 +202,7 @@ namespace Unity.NetCode
                         {
                             int statType = (int) targetArch;
                             netStats[statType * 3 + 3] = netStats[statType * 3 + 3] + statCount;
-                            netStats[statType * 3 + 4] = netStats[statType * 3 + 4] + (uint)(curPos - startPos);
+                            netStats[statType * 3 + 4] = netStats[statType * 3 + 4] + (uint) (curPos - startPos);
                             netStats[statType * 3 + 5] = netStats[statType * 3 + 5] + uncompressedCount;
                         }
 
@@ -206,6 +213,7 @@ namespace Unity.NetCode
                         targetArch    = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                         targetArchLen = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                     }
+
                     --targetArchLen;
 
                     if (baselineLen == 0)
@@ -215,9 +223,10 @@ namespace Unity.NetCode
                         baselineTick3 = serverTick - dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                         baselineLen   = dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                     }
+
                     --baselineLen;
 
-                    int         ghostId = (int)dataStream.ReadPackedUInt(ref readCtx, compressionModel);
+                    int         ghostId = (int) dataStream.ReadPackedUInt(ref readCtx, compressionModel);
                     GhostEntity gent;
                     if (ghostEntityMap.TryGetValue(ghostId, out gent))
                     {
@@ -232,7 +241,7 @@ namespace Unity.NetCode
                     else
                     {
                         ++newGhosts;
-                        serializers.Spawn((int)targetArch, ghostId, serverTick, dataStream, ref readCtx, compressionModel);
+                        serializers.Spawn((int) targetArch, ghostId, serverTick, dataStream, ref readCtx, compressionModel);
                     }
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -247,7 +256,7 @@ namespace Unity.NetCode
                     int curPos   = dataStream.GetBitsRead(ref readCtx);
                     int statType = (int) targetArch;
                     netStats[statType * 3 + 3] = netStats[statType * 3 + 3] + statCount;
-                    netStats[statType * 3 + 4] = netStats[statType * 3 + 4] + (uint)(curPos - startPos);
+                    netStats[statType * 3 + 4] = netStats[statType * 3 + 4] + (uint) (curPos - startPos);
                     netStats[statType * 3 + 5] = netStats[statType * 3 + 5] + uncompressedCount;
                 }
 #endif
@@ -258,6 +267,9 @@ namespace Unity.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            m_StatsCollection.AddSnapshotReceiveStats(m_NetStats);
+#endif
             var commandBuffer = m_Barrier.CreateCommandBuffer();
             if (playerGroup.IsEmptyIgnoreFilter)
             {
@@ -292,7 +304,7 @@ namespace Unity.NetCode
 #endif
                 replicatedEntityType = ComponentType.ReadWrite<ReplicatedEntityComponent>(),
                 delayedDespawnQueue  = m_DelayedDespawnQueue,
-                targetTick           = NetworkTimeSystem.interpolateTargetTick,
+                targetTick           = m_TimeSystem.interpolateTargetTick,
                 predictedFromEntity  = GetComponentDataFromEntity<PredictedEntityComponent>(true)
             };
             inputDeps = readJob.Schedule(JobHandle.CombineDependencies(inputDeps, playerHandle));
@@ -314,7 +326,7 @@ namespace Unity.NetCode
         public static void InvokeDeserialize<T>(BufferFromEntity<T> snapshotFromEntity,
                                                 Entity              entity, uint                         snapshot, uint                    baseline, uint baseline2, uint baseline3,
                                                 DataStreamReader    reader, ref DataStreamReader.Context ctx,      NetworkCompressionModel compressionModel)
-            where T: struct, ISnapshotData<T>
+            where T : struct, ISnapshotData<T>
         {
             DynamicBuffer<T> snapshotArray = snapshotFromEntity[entity];
             var              baselineData  = default(T);
@@ -329,6 +341,7 @@ namespace Unity.NetCode
                     }
                 }
             }
+
             if (baseline3 != snapshot)
             {
                 var baselineData2 = default(T);
@@ -339,6 +352,7 @@ namespace Unity.NetCode
                     {
                         baselineData2 = snapshotArray[i];
                     }
+
                     if (snapshotArray[i].Tick == baseline3)
                     {
                         baselineData3 = snapshotArray[i];
@@ -347,6 +361,7 @@ namespace Unity.NetCode
 
                 baselineData.PredictDelta(snapshot, ref baselineData2, ref baselineData3);
             }
+
             var data = default(T);
             data.Deserialize(snapshot, ref baselineData, reader, ref ctx, compressionModel);
             // Replace the oldest snapshot and add a new one
@@ -354,6 +369,5 @@ namespace Unity.NetCode
                 snapshotArray.RemoveAt(0);
             snapshotArray.Add(data);
         }
-
     }
 }

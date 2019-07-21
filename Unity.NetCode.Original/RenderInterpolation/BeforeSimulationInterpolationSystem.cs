@@ -1,4 +1,3 @@
-using Unity.NetCode;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -10,10 +9,12 @@ namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     [UpdateBefore(typeof(NetworkStreamReceiveSystem))]
+    [UpdateBefore(typeof(TransformSystemGroup))]
     public class BeforeSimulationInterpolationSystem : JobComponentSystem
     {
         private EntityQuery positionInterpolationGroup;
         private EntityQuery rotationInterpolationGroup;
+
         protected override void OnCreateManager()
         {
             positionInterpolationGroup = GetEntityQuery(ComponentType.ReadOnly<CurrentSimulatedPosition>(),
@@ -33,6 +34,7 @@ namespace Unity.NetCode
             public            ArchetypeChunkComponentType<PreviousSimulatedPosition> prevPositionType;
             public            uint                                                   simStartComponentVersion;
             public            uint                                                   simEndComponentVersion;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where currentTrans is newer than previousTrans
@@ -63,6 +65,7 @@ namespace Unity.NetCode
                 }
             }
         }
+
         [BurstCompile]
         struct UpdateRot : IJobChunk
         {
@@ -71,6 +74,7 @@ namespace Unity.NetCode
             public            ArchetypeChunkComponentType<PreviousSimulatedRotation> prevRotationType;
             public            uint                                                   simStartComponentVersion;
             public            uint                                                   simEndComponentVersion;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where currentTrans is newer than previousTrans
@@ -101,6 +105,7 @@ namespace Unity.NetCode
                 }
             }
         }
+
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
             var topGroup = World.GetExistingSystem<ClientSimulationSystemGroup>();

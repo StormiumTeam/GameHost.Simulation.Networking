@@ -1,4 +1,3 @@
-using Unity.NetCode;
 using Unity.Entities;
 using Unity.Networking.Transport;
 
@@ -12,6 +11,7 @@ namespace Unity.NetCode
     internal struct RpcSetNetworkId : IRpcCommand
     {
         public int nid;
+
         public void Execute(Entity connection, EntityCommandBuffer.Concurrent commandBuffer, int jobIndex)
         {
             commandBuffer.AddComponent(jobIndex, connection, new NetworkIdComponent {Value = nid});

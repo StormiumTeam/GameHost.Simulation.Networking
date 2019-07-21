@@ -11,7 +11,7 @@ namespace Unity.NetCode
     [UpdateInGroup(typeof(GhostSpawnSystemGroup))]
     [AlwaysUpdateSystem]
     public abstract class DefaultGhostSpawnSystem<T> : JobComponentSystem
-        where T: struct, ISnapshotData<T>
+        where T : struct, ISnapshotData<T>
     {
         public  int                                        GhostType   { get; set; }
         public  NativeList<T>                              NewGhosts   => m_NewGhosts;
@@ -25,6 +25,7 @@ namespace Unity.NetCode
         private NativeHashMap<int, GhostEntity>.Concurrent m_ConcurrentGhostMap;
         private EntityQuery                                m_DestroyGroup;
         private EntityQuery                                m_SpawnRequestGroup;
+        private EntityQuery                                m_PrefabGroup;
 
         private NativeList<Entity> m_InvalidGhosts;
 
@@ -40,6 +41,7 @@ namespace Unity.NetCode
             public T      snapshotData;
             public Entity entity;
         }
+
         private NativeList<PredictSpawnGhost> m_PredictSpawnGhosts;
         private NativeHashMap<int, int>       m_PredictionSpawnCleanupMap;
 
@@ -47,10 +49,13 @@ namespace Unity.NetCode
         private NativeQueue<DelayedSpawnGhost>.Concurrent m_ConcurrentDelayedSpawnQueue;
         private NativeList<DelayedSpawnGhost>             m_CurrentDelayedSpawnList;
         private NativeQueue<DelayedSpawnGhost>            m_PredictedSpawnQueue;
+
         private NativeQueue<DelayedSpawnGhost>.Concurrent m_ConcurrentPredictedSpawnQueue;
+
         // The entities which need to wait to be spawned on the right tick (interpolated)
         private NativeList<DelayedSpawnGhost>          m_CurrentPredictedSpawnList;
         private EndSimulationEntityCommandBufferSystem m_Barrier;
+        private NetworkTimeSystem                      m_TimeSystem;
 
         protected abstract EntityArchetype GetGhostArchetype();
         protected abstract EntityArchetype GetPredictedGhostArchetype();
@@ -59,6 +64,7 @@ namespace Unity.NetCode
         {
             return inputDeps;
         }
+
         protected virtual JobHandle UpdateNewPredictedEntities(NativeArray<Entity> entities, JobHandle inputDeps)
         {
             return inputDeps;
@@ -81,9 +87,12 @@ namespace Unity.NetCode
             m_GhostMap           = World.GetOrCreateSystem<GhostReceiveSystemGroup>().GhostEntityMap;
             m_ConcurrentGhostMap = m_GhostMap.ToConcurrent();
             m_DestroyGroup = GetEntityQuery(ComponentType.ReadOnly<T>(),
-                ComponentType.Exclude<ReplicatedEntityComponent>(), ComponentType.Exclude<PredictedSpawnRequestComponent>());
+                ComponentType.Exclude<ReplicatedEntityComponent>(), ComponentType.Exclude<PredictedSpawnRequestComponent>(),
+                ComponentType.Exclude<GhostClientPrefabComponent>());
             m_SpawnRequestGroup = GetEntityQuery(ComponentType.ReadOnly<T>(),
                 ComponentType.ReadOnly<PredictedSpawnRequestComponent>());
+            m_PrefabGroup = GetEntityQuery(ComponentType.ReadOnly<T>(),
+                ComponentType.ReadOnly<GhostClientPrefabComponent>());
 
             m_InvalidGhosts                 = new NativeList<Entity>(1024, Allocator.Persistent);
             m_DelayedSpawnQueue             = new NativeQueue<DelayedSpawnGhost>(Allocator.Persistent);
@@ -93,10 +102,13 @@ namespace Unity.NetCode
             m_CurrentPredictedSpawnList     = new NativeList<DelayedSpawnGhost>(1024, Allocator.Persistent);
             m_ConcurrentPredictedSpawnQueue = m_PredictedSpawnQueue.ToConcurrent();
             m_Barrier                       = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
-        
+
             m_PredictSpawnGhosts        = new NativeList<PredictSpawnGhost>(16, Allocator.Persistent);
             m_PredictionSpawnCleanupMap = new NativeHashMap<int, int>(16, Allocator.Persistent);
+
+            m_TimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
         }
+
 
         protected override void OnDestroyManager()
         {
@@ -116,36 +128,38 @@ namespace Unity.NetCode
         [BurstCompile]
         struct CopyInitialStateJob : IJobParallelFor
         {
-            [ReadOnly]                            public NativeArray<Entity>                        entities;
-            [ReadOnly]                            public NativeList<T>                              newGhosts;
-            [ReadOnly]                            public NativeList<int>                            newGhostIds;
-            [NativeDisableParallelForRestriction] public BufferFromEntity<T>                        snapshotFromEntity;
-            public                                       NativeHashMap<int, GhostEntity>.Concurrent ghostMap;
-            public                                       int                                        ghostType;
-            public                                       NativeQueue<DelayedSpawnGhost>.Concurrent  pendingSpawnQueue;
-            public                                       NativeQueue<DelayedSpawnGhost>.Concurrent  predictedSpawnQueue;
-            [DeallocateOnJobCompletion][ReadOnly] public NativeArray<int>                           predictionMask;
-            [ReadOnly]                            public NativeList<PredictSpawnGhost>              predictionSpawnGhosts;
-            public                                       NativeHashMap<int, int>.Concurrent         predictionSpawnCleanupMap;
-            public                                       EntityCommandBuffer.Concurrent             commandBuffer;
+            [ReadOnly]                            public  NativeArray<Entity>                        entities;
+            [ReadOnly]                            public  NativeList<T>                              newGhosts;
+            [ReadOnly]                            public  NativeList<int>                            newGhostIds;
+            [NativeDisableParallelForRestriction] public  BufferFromEntity<T>                        snapshotFromEntity;
+            public                                        NativeHashMap<int, GhostEntity>.Concurrent ghostMap;
+            public                                        int                                        ghostType;
+            public                                        NativeQueue<DelayedSpawnGhost>.Concurrent  pendingSpawnQueue;
+            public                                        NativeQueue<DelayedSpawnGhost>.Concurrent  predictedSpawnQueue;
+            [DeallocateOnJobCompletion] [ReadOnly] public NativeArray<int>                           predictionMask;
+            [ReadOnly]                             public NativeList<PredictSpawnGhost>              predictionSpawnGhosts;
+            public                                        NativeHashMap<int, int>.Concurrent         predictionSpawnCleanupMap;
+            public                                        EntityCommandBuffer.Concurrent             commandBuffer;
+
             public void Execute(int i)
             {
                 var entity = entities[i];
                 if (predictionMask[i] == 0)
                 {
-                    pendingSpawnQueue.Enqueue(new DelayedSpawnGhost{ghostId = newGhostIds[i], spawnTick = newGhosts[i].Tick, oldEntity = entity});
+                    pendingSpawnQueue.Enqueue(new DelayedSpawnGhost {ghostId = newGhostIds[i], spawnTick = newGhosts[i].Tick, oldEntity = entity});
                 }
                 // If multiple entities map to the same prediction spawned entity, the first one will get it, the others are treated like regular spawns
-                else if (predictionMask[i] > 1 && predictionSpawnCleanupMap.TryAdd(predictionMask[i]-2, 1))
+                else if (predictionMask[i] > 1 && predictionSpawnCleanupMap.TryAdd(predictionMask[i] - 2, 1))
                 {
                     commandBuffer.DestroyEntity(i, entity);
-                    entity = predictionSpawnGhosts[predictionMask[i]-2].entity;
+                    entity = predictionSpawnGhosts[predictionMask[i] - 2].entity;
                 }
                 else
                 {
                     predictedSpawnQueue.Enqueue(new DelayedSpawnGhost
                         {ghostId = newGhostIds[i], spawnTick = newGhosts[i].Tick, oldEntity = entity});
                 }
+
                 var snapshot = snapshotFromEntity[entity];
                 snapshot.ResizeUninitialized(1);
                 snapshot[0] = newGhosts[i];
@@ -167,6 +181,7 @@ namespace Unity.NetCode
             [NativeDisableParallelForRestriction] public BufferFromEntity<T>             snapshotFromEntity;
             public                                       NativeHashMap<int, GhostEntity> ghostMap;
             public                                       int                             ghostType;
+
             public void Execute()
             {
                 for (int i = 0; i < entities.Length; ++i)
@@ -176,7 +191,7 @@ namespace Unity.NetCode
                     newSnapshot.ResizeUninitialized(oldSnapshot.Length);
                     for (int snap = 0; snap < newSnapshot.Length; ++snap)
                         newSnapshot[snap] = oldSnapshot[snap];
-                    
+
                     ghostMap.Remove(delayedGhost[i].ghostId);
                     ghostMap.TryAdd(delayedGhost[i].ghostId, new GhostEntity
                     {
@@ -188,6 +203,7 @@ namespace Unity.NetCode
                 }
             }
         }
+
         [BurstCompile]
         struct ClearNewJob : IJob
         {
@@ -198,6 +214,7 @@ namespace Unity.NetCode
             [DeallocateOnJobCompletion] public NativeArray<Entity> predictSpawnRequests;
             public                             NativeList<T>       newGhosts;
             public                             NativeList<int>     newGhostIds;
+
             public void Execute()
             {
                 newGhosts.Clear();
@@ -212,6 +229,7 @@ namespace Unity.NetCode
             public BufferFromEntity<T>           snapshotFromEntity;
             public EntityCommandBuffer           commandBuffer;
             public NativeList<PredictSpawnGhost> predictSpawnGhosts;
+
             public void Execute()
             {
                 for (int i = 0; i < requests.Length; ++i)
@@ -225,6 +243,7 @@ namespace Unity.NetCode
                 }
             }
         }
+
         [BurstCompile]
         struct PredictSpawnCleanupJob : IJob
         {
@@ -233,6 +252,7 @@ namespace Unity.NetCode
             public uint                          interpolationTarget;
             public EntityCommandBuffer           commandBuffer;
             public ComponentType                 replicatedEntityComponentType;
+
             public void Execute()
             {
                 var keys = predictionSpawnCleanupMap.GetKeyArray(Allocator.Temp);
@@ -247,6 +267,7 @@ namespace Unity.NetCode
                         commandBuffer.RemoveComponent(predictionSpawnGhosts[i].entity, replicatedEntityComponentType);
                         predictionSpawnGhosts[i] = default(PredictSpawnGhost);
                     }
+
                     if (predictionSpawnGhosts[i].entity == Entity.Null)
                     {
                         predictionSpawnGhosts.RemoveAtSwapBack(i);
@@ -262,7 +283,7 @@ namespace Unity.NetCode
             if (m_InvalidGhosts.Length > 0) EntityManager.DestroyEntity(m_InvalidGhosts);
             m_InvalidGhosts.Clear();
 
-            var targetTick = NetworkTimeSystem.interpolateTargetTick;
+            var targetTick = m_TimeSystem.interpolateTargetTick;
             m_CurrentDelayedSpawnList.Clear();
             while (m_DelayedSpawnQueue.Count > 0 &&
                    !SequenceHelpers.IsNewer(m_DelayedSpawnQueue.Peek().spawnTick, targetTick))
@@ -275,6 +296,7 @@ namespace Unity.NetCode
                     m_InvalidGhosts.Add(gent.entity);
                 }
             }
+
             m_CurrentPredictedSpawnList.Clear();
             while (m_PredictedSpawnQueue.Count > 0)
             {
@@ -295,20 +317,38 @@ namespace Unity.NetCode
                 return inputDeps;
             }
 
+            var prefabs         = m_PrefabGroup.ToComponentDataArray<GhostClientPrefabComponent>(Allocator.TempJob);
             var delayedEntities = default(NativeArray<Entity>);
             delayedEntities = new NativeArray<Entity>(m_CurrentDelayedSpawnList.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (m_CurrentDelayedSpawnList.Length > 0)
-                EntityManager.CreateEntity(m_Archetype, delayedEntities);
+            {
+                if (prefabs.Length == 1)
+                    EntityManager.Instantiate(prefabs[0].interpolatedPrefab, delayedEntities);
+                else
+                    EntityManager.CreateEntity(m_Archetype, delayedEntities);
+            }
 
             var predictedEntities = default(NativeArray<Entity>);
             predictedEntities = new NativeArray<Entity>(m_CurrentPredictedSpawnList.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (m_CurrentPredictedSpawnList.Length > 0)
-                EntityManager.CreateEntity(m_PredictedArchetype, predictedEntities);
+            {
+                if (prefabs.Length == 1)
+                    EntityManager.Instantiate(prefabs[0].predictedPrefab, predictedEntities);
+                else
+                    EntityManager.CreateEntity(m_PredictedArchetype, predictedEntities);
+            }
 
             var predictSpawnRequests = m_SpawnRequestGroup.ToEntityArray(Allocator.TempJob);
             var predictSpawnEntities = new NativeArray<Entity>(predictSpawnRequests.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             if (predictSpawnEntities.Length > 0)
-                EntityManager.CreateEntity(m_PredictedArchetype, predictSpawnEntities);
+            {
+                if (prefabs.Length == 1)
+                    EntityManager.Instantiate(prefabs[0].predictedPrefab, predictSpawnEntities);
+                else
+                    EntityManager.CreateEntity(m_PredictedArchetype, predictSpawnEntities);
+            }
+
+            prefabs.Dispose();
 
             var newEntities = default(NativeArray<Entity>);
             newEntities = new NativeArray<Entity>(m_NewGhosts.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
@@ -328,6 +368,7 @@ namespace Unity.NetCode
                 inputDeps = delayedjob.Schedule(inputDeps);
                 inputDeps = UpdateNewInterpolatedEntities(delayedEntities, inputDeps);
             }
+
             // FIXME: current and predicted can run in parallel I think
             if (m_CurrentPredictedSpawnList.Length > 0)
             {
@@ -342,6 +383,7 @@ namespace Unity.NetCode
                 inputDeps = delayedjob.Schedule(inputDeps);
                 inputDeps = UpdateNewPredictedEntities(predictedEntities, inputDeps);
             }
+
             if (predictSpawnRequests.Length > 0)
             {
                 var spawnJob = new PredictSpawnJob
@@ -406,4 +448,3 @@ namespace Unity.NetCode
         }
     }
 }
-

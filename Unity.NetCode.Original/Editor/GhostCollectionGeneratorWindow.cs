@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Unity.NetCode;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,8 +12,6 @@ public class GhostCollectionGeneratorWindow : EditorWindow
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using Unity.NetCode;
-
 public struct /*$GHOST_COLLECTION_PREFIX*/GhostSerializerCollection : IGhostSerializerCollection
 {
     public int FindSerializer(EntityArchetype arch)
@@ -82,8 +79,6 @@ public class /*$GHOST_SYSTEM_PREFIX*/GhostSendSystem : GhostSendSystem<GhostSeri
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using Unity.NetCode;
-
 public struct /*$GHOST_COLLECTION_PREFIX*/GhostDeserializerCollection : IGhostDeserializerCollection
 {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS

@@ -1,25 +1,26 @@
-using Unity.NetCode;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Transforms;
-using UnityEngine;
 
 namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     [UpdateAfter(typeof(RpcSendSystem))]
     [UpdateAfter(typeof(GhostReceiveSystemGroup))]
+    [UpdateAfter(typeof(TransformSystemGroup))]
     public class AfterSimulationInterpolationSystem : JobComponentSystem
     {
         private BeforeSimulationInterpolationSystem beforeSystem;
+
         // Commands needs to be applied before next simulation is run
         private BeginSimulationEntityCommandBufferSystem barrier;
         private EntityQuery                              positionInterpolationGroup;
         private EntityQuery                              rotationInterpolationGroup;
         private EntityQuery                              newPositionInterpolationGroup;
         private EntityQuery                              newRotationInterpolationGroup;
+
         protected override void OnCreateManager()
         {
             positionInterpolationGroup = GetEntityQuery(ComponentType.ReadOnly<CurrentSimulatedPosition>(),
@@ -47,6 +48,7 @@ namespace Unity.NetCode
             [ReadOnly] public ArchetypeChunkComponentType<Translation>              positionType;
             public            ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
             public            uint                                                  simStartComponentVersion;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where trans has changed since start of simulation
@@ -64,12 +66,14 @@ namespace Unity.NetCode
                 }
             }
         }
+
         [BurstCompile]
         struct UpdateCurrentRotJob : IJobChunk
         {
             [ReadOnly] public ArchetypeChunkComponentType<Rotation>                 rotationType;
             public            ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
             public            uint                                                  simStartComponentVersion;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where trans has changed since start of simulation
@@ -87,12 +91,14 @@ namespace Unity.NetCode
                 }
             }
         }
+
         struct InitCurrentPosJob : IJobChunk
         {
             [ReadOnly] public ArchetypeChunkEntityType                              entityType;
             [ReadOnly] public ArchetypeChunkComponentType<Translation>              positionType;
             public            ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
             public            EntityCommandBuffer.Concurrent                        commandBuffer;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 var curPos = chunk.GetNativeArray(curPositionType);
@@ -107,12 +113,14 @@ namespace Unity.NetCode
                 }
             }
         }
+
         struct InitCurrentRotJob : IJobChunk
         {
             [ReadOnly] public ArchetypeChunkEntityType                              entityType;
             [ReadOnly] public ArchetypeChunkComponentType<Rotation>                 rotationType;
             public            ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
             public            EntityCommandBuffer.Concurrent                        commandBuffer;
+
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 var curRot = chunk.GetNativeArray(curRotationType);
