@@ -325,6 +325,8 @@ namespace Unity.NetCode
     {
         public List<Type> Initialize(List<Type> systems)
         {
+            Debug.Log("call...");
+            
             // Workaround for initialization being called multiple times when using game object conversion
 #if !UNITY_SERVER
             if (clientWorld != null)
@@ -334,9 +336,12 @@ namespace Unity.NetCode
             if (serverWorld != null)
                 return systems;
 #endif
+            Debug.Log("Creeper, aww man, " + Application.isPlaying);
 
             if (!Application.isPlaying)
                 return systems;
+            
+            
 
 #if !UNITY_SERVER
 #if UNITY_EDITOR
@@ -604,6 +609,8 @@ namespace Unity.NetCode
                 }
             }
 #endif
+            Debug.Log("finalized...");
+            
             return defaultBootstrap;
         }
 
