@@ -12,6 +12,7 @@ namespace Unity.NetCode
     public struct GhostEntity
     {
         public Entity entity;
+        public bool valid; // true if the entity is the full archetype
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         public int ghostType;
 #endif

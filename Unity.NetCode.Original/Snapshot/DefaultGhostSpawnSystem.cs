@@ -196,6 +196,7 @@ namespace Unity.NetCode
                     ghostMap.TryAdd(delayedGhost[i].ghostId, new GhostEntity
                     {
                         entity = entities[i],
+                        valid  = true,
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                         ghostType = ghostType
 #endif
@@ -279,7 +280,7 @@ namespace Unity.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            if (m_DestroyGroup.CalculateLength() > 0) EntityManager.DestroyEntity(m_DestroyGroup);
+            if (m_DestroyGroup.CalculateEntityCount() > 0) EntityManager.DestroyEntity(m_DestroyGroup);
             if (m_InvalidGhosts.Length > 0) EntityManager.DestroyEntity(m_InvalidGhosts);
             m_InvalidGhosts.Clear();
 
@@ -310,7 +311,7 @@ namespace Unity.NetCode
             }
 
             if (m_CurrentDelayedSpawnList.Length == 0 && m_DelayedSpawnQueue.Count == 0 && m_CurrentPredictedSpawnList.Length == 0 && m_PredictedSpawnQueue.Count == 0
-                && m_SpawnRequestGroup.CalculateLength() == 0
+                && m_SpawnRequestGroup.CalculateEntityCount() == 0
                 && m_NewGhosts.Length == 0
                 && m_InvalidGhosts.Length == 0)
             {

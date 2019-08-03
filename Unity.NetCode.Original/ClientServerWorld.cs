@@ -8,7 +8,7 @@ namespace Unity.NetCode
     internal struct FixedTimeLoop
     {
         public       float accumulatedTime;
-        public const float fixedTimeStep = 1f / 60f;
+        public const float fixedTimeStep = 1f / 30f;
         public const int   maxTimeSteps  = 4;
         public       int   timeSteps;
 

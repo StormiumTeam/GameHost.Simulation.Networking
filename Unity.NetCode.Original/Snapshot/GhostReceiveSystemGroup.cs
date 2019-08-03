@@ -13,16 +13,19 @@ namespace Unity.NetCode
         // having the group own the ghost map is a bit of a hack to solve a problem with accessing the receiver system from the default spawn system (because it is generic)
         protected override void OnCreateManager()
         {
-            m_ghostEntityMap = new NativeHashMap<int, GhostEntity>(2048, Allocator.Persistent);
+            m_ghostEntityMap  = new NativeHashMap<int, GhostEntity>(2048, Allocator.Persistent);
+            m_ghostSpawnedMap = new NativeHashMap<int, GhostEntity>(2048, Allocator.Persistent);
         }
 
         protected override void OnDestroyManager()
         {
             m_ghostEntityMap.Dispose();
         }
-        public NativeHashMap<int, GhostEntity> GhostEntityMap => m_ghostEntityMap;
-        private  NativeHashMap<int, GhostEntity> m_ghostEntityMap;
 
+        public  NativeHashMap<int, GhostEntity> GhostEntityMap  => m_ghostEntityMap;
+        public  NativeHashMap<int, GhostEntity> GhostSpawnedMap => m_ghostSpawnedMap;
+        private NativeHashMap<int, GhostEntity> m_ghostEntityMap;
+        private NativeHashMap<int, GhostEntity> m_ghostSpawnedMap;
     }
 
     [UpdateInGroup(typeof(GhostReceiveSystemGroup))]
@@ -33,5 +36,6 @@ namespace Unity.NetCode
     [DisableAutoCreation]
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     public class GhostSpawnSystemGroup : ComponentSystemGroup
-    {}
+    {
+    }
 }
