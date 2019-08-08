@@ -29,7 +29,7 @@ namespace Unity.NetCode
             {
                 World.Active           = ClientServerBootstrap.serverWorld;
                 subScene.AutoLoadScene = true;
-                subScene.UpdateSceneEntities();
+                subScene.UpdateSceneEntities(true);
             }
 #endif
 #if !UNITY_SERVER
@@ -39,7 +39,7 @@ namespace Unity.NetCode
                 {
                     World.Active           = world;
                     subScene.AutoLoadScene = true;
-                    subScene.UpdateSceneEntities( /*World world*/);
+                    subScene.UpdateSceneEntities(true);
                 }
             }
 #endif

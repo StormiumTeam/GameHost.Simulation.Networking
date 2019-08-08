@@ -286,8 +286,8 @@ namespace Unity.NetCode
 
             var targetTick = m_TimeSystem.interpolateTargetTick;
             m_CurrentDelayedSpawnList.Clear();
-            while (m_DelayedSpawnQueue.Count > 0 &&
-                   !SequenceHelpers.IsNewer(m_DelayedSpawnQueue.Peek().spawnTick, targetTick))
+            while (m_DelayedSpawnQueue.Count > 0/* &&
+                   !SequenceHelpers.IsNewer(m_DelayedSpawnQueue.Peek().spawnTick, targetTick)*/)
             {
                 var         ghost = m_DelayedSpawnQueue.Dequeue();
                 GhostEntity gent;

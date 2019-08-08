@@ -4,9 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Karambolo.Common;
 using Unity.NetCode;
 using UnityEditor;
 using UnityEngine;
+
+public class GenerateAdditionalRpcAttribute : Attribute
+{}
 
 public class RpcCollectionGeneratorWindow : EditorWindow
 {
@@ -219,6 +223,19 @@ public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFI
             }
 
             pipelineTypes = pipelineTypes.Concat(nestedTypeList);
+            
+            var additionalTypes = new List<Type>();
+            foreach (var t in allTypes)
+            {
+                foreach (var method in t.GetMethods())
+                {
+                    if (!method.HasAttribute<GenerateAdditionalRpcAttribute>())
+                        continue;
+                    method.Invoke(null, new object[] {additionalTypes});
+                }
+            }
+
+            pipelineTypes = pipelineTypes.Concat(additionalTypes);
 
             foreach (var pt in pipelineTypes)
             {

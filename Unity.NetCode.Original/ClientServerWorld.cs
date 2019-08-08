@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Unity.NetCode
 {
-    internal struct FixedTimeLoop
+    public struct FixedTimeLoop
     {
         public       float accumulatedTime;
         public const float fixedTimeStep = 1f / 30f;
