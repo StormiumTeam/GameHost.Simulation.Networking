@@ -48,7 +48,7 @@ namespace Unity.NetCode
         private TRpcCollection                           m_RpcCollection;
         private EntityQuery                              m_RpcBufferGroup;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_InternalRpcCollection       = default(InternalRpcCollection);
             m_InternalRpcCollectionLength = m_InternalRpcCollection.Length;

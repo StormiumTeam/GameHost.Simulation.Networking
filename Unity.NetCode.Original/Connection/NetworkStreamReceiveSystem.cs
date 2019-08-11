@@ -77,7 +77,7 @@ namespace Unity.NetCode
             return ent;
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
@@ -106,7 +106,7 @@ namespace Unity.NetCode
             rpcQueue             = InternalRpcCollection.GetRpcQueue<RpcSetNetworkId>();
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             numNetworkIds.Dispose();
             freeNetworkIds.Dispose();

@@ -42,7 +42,7 @@ namespace Unity.NetCode
 
         private ServerSimulationSystemGroup serverSimulationSystemGroup;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             serverSimulationSystemGroup = World.GetExistingSystem<ServerSimulationSystemGroup>();
         }

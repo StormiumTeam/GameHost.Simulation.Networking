@@ -12,7 +12,7 @@ namespace Unity.NetCode
     public class RpcSendSystem : JobComponentSystem
     {
         private NetworkStreamReceiveSystem m_ReceiveSystem;
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_ReceiveSystem = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
         }

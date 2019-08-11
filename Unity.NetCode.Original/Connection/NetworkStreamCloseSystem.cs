@@ -21,7 +21,7 @@ namespace Unity.NetCode
             }
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_Barrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
         }

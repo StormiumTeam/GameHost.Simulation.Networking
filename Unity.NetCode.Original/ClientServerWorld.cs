@@ -47,7 +47,7 @@ namespace Unity.NetCode
         public  float                                    UpdateTime      => Time.time - m_fixedTimeLoop.accumulatedTime;
         public  float                                    UpdateDeltaTime => FixedTimeLoop.fixedTimeStep;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
@@ -100,7 +100,7 @@ namespace Unity.NetCode
         public  float         UpdateTime      => Time.time - m_fixedTimeLoop.accumulatedTime;
         public  float         UpdateDeltaTime => FixedTimeLoop.fixedTimeStep;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier    = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             m_endBarrier      = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
@@ -145,7 +145,7 @@ namespace Unity.NetCode
         private BeginPresentationEntityCommandBufferSystem m_beginBarrier;
         private EndPresentationEntityCommandBufferSystem   m_endBarrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginPresentationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndPresentationEntityCommandBufferSystem>();
@@ -182,7 +182,7 @@ namespace Unity.NetCode
         private BeginInitializationEntityCommandBufferSystem m_beginBarrier;
         private EndInitializationEntityCommandBufferSystem   m_endBarrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();
@@ -219,7 +219,7 @@ namespace Unity.NetCode
         private BeginInitializationEntityCommandBufferSystem m_beginBarrier;
         private EndInitializationEntityCommandBufferSystem   m_endBarrier;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_beginBarrier = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             m_endBarrier   = World.GetOrCreateSystem<EndInitializationEntityCommandBufferSystem>();

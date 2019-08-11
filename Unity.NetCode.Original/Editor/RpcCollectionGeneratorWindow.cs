@@ -47,9 +47,9 @@ public struct /*$RPC_COLLECTION_PREFIX*/RpcCollection : IRpcCollection
 
 public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFIX*/RpcCollection>
 {
-    protected override void OnCreateManager()
+    protected override void OnCreate()
     {
-        base.OnCreateManager();
+        base.OnCreate();
 
 /*$RPC_REGISTER_SYSTEMS*/
     }

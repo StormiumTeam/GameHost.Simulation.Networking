@@ -23,7 +23,7 @@ namespace Unity.NetCode
         private       EntityQuery                   rotInterpolationGroup;
         private       uint                          lastInterpolationVersion;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             posInterpolationGroup = GetEntityQuery(
                 ComponentType.ReadWrite<Translation>(),

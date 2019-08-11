@@ -21,7 +21,7 @@ namespace Unity.NetCode
         private EntityQuery                              newPositionInterpolationGroup;
         private EntityQuery                              newRotationInterpolationGroup;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             positionInterpolationGroup = GetEntityQuery(ComponentType.ReadOnly<CurrentSimulatedPosition>(),
                 ComponentType.ReadOnly<PreviousSimulatedPosition>(), ComponentType.ReadWrite<Translation>());

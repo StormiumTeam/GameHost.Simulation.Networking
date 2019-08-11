@@ -14,13 +14,13 @@ namespace Unity.NetCode
         private DebugWebSocket                   m_Socket;
         private List<GhostStatsCollectionSystem> m_StatsCollections;
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_Socket = new DebugWebSocket(0);
 
         }
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_Socket.Dispose();
         }

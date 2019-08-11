@@ -648,7 +648,7 @@ $(GHOSTPREDICTEDASSIGNMENTS)
         }
     }
     private NetworkTimeSystem m_NetworkTimeSystem;
-    protected override void OnCreateManager()
+    protected override void OnCreate()
     {
         m_NetworkTimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
     }

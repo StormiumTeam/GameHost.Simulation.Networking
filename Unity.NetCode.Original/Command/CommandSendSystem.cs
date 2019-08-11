@@ -53,7 +53,7 @@ namespace Unity.NetCode
 
         private NetworkStreamReceiveSystem m_ReceiveSystem;
         private NetworkTimeSystem m_TimeSystem;
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_ReceiveSystem = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
             m_TimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();

@@ -29,7 +29,7 @@ namespace Unity.NetCode
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         private GhostStatsCollectionSystem m_StatsCollection;
 #endif
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             connectionGroup        = GetEntityQuery(ComponentType.ReadOnly<NetworkSnapshotAckComponent>());
             latestSnapshotEstimate = 0;

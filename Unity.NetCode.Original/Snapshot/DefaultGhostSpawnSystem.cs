@@ -76,7 +76,7 @@ namespace Unity.NetCode
             return inputDeps;
         }
 
-        protected override void OnCreateManager()
+        protected override void OnCreate()
         {
             m_NewGhosts          = new NativeList<T>(16, Allocator.Persistent);
             m_NewGhostIds        = new NativeList<int>(16, Allocator.Persistent);
@@ -110,7 +110,7 @@ namespace Unity.NetCode
         }
 
 
-        protected override void OnDestroyManager()
+        protected override void OnDestroy()
         {
             m_NewGhosts.Dispose();
             m_NewGhostIds.Dispose();
