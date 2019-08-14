@@ -515,6 +515,8 @@ namespace Unity.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
+            inputDeps.Complete();
+            
             m_SerialSpawnChunks.Clear();
             // Make sure the list of connections and connection state is up to date
             var connections = connectionGroup.ToEntityArray(Allocator.TempJob);
@@ -642,6 +644,7 @@ namespace Unity.NetCode
                 serialSpawnChunks = m_SerialSpawnChunks
             };
             inputDeps = cleanupJob.Schedule(inputDeps);
+            inputDeps.Complete();
 
             return inputDeps;
         }

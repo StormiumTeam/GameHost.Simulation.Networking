@@ -13,7 +13,7 @@ namespace Unity.NetCode
         internal int rpcType;
         public unsafe void Schedule(DynamicBuffer<OutgoingRpcDataStreamBufferComponent> buffer, T data)
         {
-            DataStreamWriter writer = new DataStreamWriter(128, Allocator.Temp);
+            DataStreamWriter writer = new DataStreamWriter(512, Allocator.Temp);
             if (buffer.Length == 0)
                 writer.Write((byte)NetworkStreamProtocol.Rpc);
             writer.Write(rpcType);

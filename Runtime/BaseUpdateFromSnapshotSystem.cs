@@ -46,13 +46,13 @@ namespace DefaultNamespace
 		}
 
 		private EntityQuery m_Query;
-		private NetworkTimeSystem m_NetworkTimeSystem;
+		protected NetworkTimeSystem NetworkTimeSystem;
 		
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 			m_Query = GetEntityQuery(typeof(TSnapshot), typeof(TComponent));
-			m_NetworkTimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
+			NetworkTimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
 		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
@@ -61,7 +61,7 @@ namespace DefaultNamespace
 			{
 				SnapshotFromEntity = GetBufferFromEntity<TSnapshot>(),
 				GhostMap           = World.GetExistingSystem<GhostReceiveSystemGroup>().GhostEntityMap,
-				TargetTick         = m_NetworkTimeSystem.predictTargetTick
+				TargetTick         = NetworkTimeSystem.predictTargetTick
 			}.Schedule(m_Query, inputDeps);
 		}
 	}

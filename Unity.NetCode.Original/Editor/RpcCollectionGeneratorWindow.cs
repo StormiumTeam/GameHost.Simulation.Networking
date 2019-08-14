@@ -139,11 +139,6 @@ public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFI
             FindAllRpcs();
         }
 
-        for (int i = 0; i < m_RpcTypes.Count; ++i)
-        {
-            m_RpcTypes[i].generate = GUILayout.Toggle(m_RpcTypes[i].generate, SpecifiedTypeName(m_RpcTypes[i].type));
-        }
-
         if (GUILayout.Button("Generate Collection"))
         {
             var dstFile = EditorUtility.SaveFilePanel("Select file to save", "", "RpcCollection", "cs");
@@ -172,6 +167,11 @@ public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFI
                              .Replace("/*$RPC_SYSTEM_PREFIX*/", Application.productName)
                              .Replace("/*$RPC_REGISTER_SYSTEMS*/", rpcRegisterSystems);
             File.WriteAllText(dstFile, content);
+        }
+        
+        for (int i = 0; i < m_RpcTypes.Count; ++i)
+        {
+            m_RpcTypes[i].generate = GUILayout.Toggle(m_RpcTypes[i].generate, SpecifiedTypeName(m_RpcTypes[i].type));
         }
     }
 
@@ -217,10 +217,10 @@ public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFI
                 !t.ContainsGenericParameters);
 
             var nestedTypeList = new List<Type>();
-            foreach (var t in allTypes)
+            /*foreach (var t in allTypes)
             {
                 FindNestedRpcTypes(t, nestedTypeList);
-            }
+            }*/
 
             pipelineTypes = pipelineTypes.Concat(nestedTypeList);
             
@@ -239,7 +239,6 @@ public class /*$RPC_SYSTEM_PREFIX*/RpcSystem : RpcSystem</*$RPC_COLLECTION_PREFI
 
             foreach (var pt in pipelineTypes)
             {
-                Debug.Log(pt.FullName);
                 m_RpcTypes.Add(new RpcType {type = pt, generate = true});
             }
         }
