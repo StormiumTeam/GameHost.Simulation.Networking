@@ -3,6 +3,8 @@
 - [How is this done for this library? (todo)](#How)   
 - [Creation of a simple snapshot system](#Creation)   
 
+# THIS DOCUMENTATION IS OBSOLETE
+
 ## What
 ---
 todo ...
