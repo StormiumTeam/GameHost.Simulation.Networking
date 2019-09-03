@@ -3,6 +3,7 @@ using System.Linq;
 using DefaultNamespace;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine;
@@ -21,15 +22,28 @@ namespace Revolution
 		where TSharedData : struct
 	{
 		public abstract NativeArray<ComponentType> EntityComponents { get; }
-		public abstract ComponentType ExcludeComponent { get; }
+		public abstract ComponentType              ExcludeComponent { get; }
 
-		public const    uint                       SnapshotHistorySize = 16;
+		public const uint SnapshotHistorySize = 16;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
 			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+			
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			m_BufferSafetyHandle = AtomicSafetyHandle.Create();
+#endif
+		}
+		
+		protected override void OnDestroy()
+		{
+			base.OnDestroy();
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			AtomicSafetyHandle.Release(m_BufferSafetyHandle);
+#endif
 		}
 
 		public ref SharedSystemChunk GetSharedChunk()
@@ -125,7 +139,7 @@ namespace Revolution
 						}
 					}
 				}
-				
+
 				for (var i = 0; i < componentsToRemove.Length; i++)
 					EntityManager.RemoveComponent(entities[ent], componentsToRemove[i]);
 
@@ -139,6 +153,16 @@ namespace Revolution
 		public abstract void OnBeginSerialize(Entity entity);
 
 		public abstract void OnBeginDeserialize(Entity entity);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+		private AtomicSafetyHandle m_BufferSafetyHandle;
+#endif
+		public unsafe void SetEmptySafetyHandle(ref BufferFromEntity<TSnapshot> bfe)
+		{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			SafetyUtility.Replace(ref bfe, m_BufferSafetyHandle);
+#endif
+		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{

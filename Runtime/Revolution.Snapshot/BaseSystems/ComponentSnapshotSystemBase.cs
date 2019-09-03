@@ -43,7 +43,6 @@ namespace Revolution
 		private BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
 		private EntityQuery        m_EntityWithoutComponentQuery;
-		private AtomicSafetyHandle m_BufferSafetyHandle;
 
 		internal abstract void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize);
 		internal abstract void SystemBeginSerialize(Entity                         entity);
@@ -52,10 +51,6 @@ namespace Revolution
 		protected override void OnCreate()
 		{
 			base.OnCreate();
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-			m_BufferSafetyHandle = AtomicSafetyHandle.Create();
-#endif
 
 			GetDelegates(out m_SerializeDelegate, out m_DeserializeDelegate);
 			m_EntityWithoutComponentQuery = GetEntityQuery(new EntityQueryDesc
@@ -92,29 +87,6 @@ namespace Revolution
 		public sealed override void OnBeginDeserialize(Entity entity)
 		{
 			SystemBeginDeserialize(entity);
-		}
-
-		public unsafe void SetEmptySafetyHandle(ref BufferFromEntity<TSnapshot> bfe)
-		{
-			// remove safety... (the array goes only writeonly for some weird reasons)
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-			UnsafeUtility.MemCpy(UnsafeUtility.AddressOf(ref bfe),
-				UnsafeUtility.AddressOf(ref m_BufferSafetyHandle),
-				sizeof(AtomicSafetyHandle));
-
-			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + sizeof(AtomicSafetyHandle),
-				UnsafeUtility.AddressOf(ref m_BufferSafetyHandle),
-				sizeof(AtomicSafetyHandle));
-#endif
-		}
-
-		protected override void OnDestroy()
-		{
-			base.OnDestroy();
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-			AtomicSafetyHandle.Release(m_BufferSafetyHandle);
-#endif
 		}
 	}
 }
