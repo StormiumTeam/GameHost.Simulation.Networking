@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -321,6 +320,11 @@ namespace Revolution
 
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);
 			writer.Write(baseline.Tick);
+			
+			//< This part is used for verification client-side
+			writer.Write((byte)60);
+			writer.Write(baseline.Tick);
+			//>
 			
 			// Before we write anything, we need to check if the ghosts are sorted correctly to not have problems client-side
 			var deferredEntityCount = writer.Write(0);

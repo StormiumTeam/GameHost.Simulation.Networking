@@ -1,0 +1,14 @@
+{
+  "name": "Revolution.Snapshot",
+  "references": [
+    "Unity.Burst",
+    "Unity.Entities",
+    "Unity.Entities.Hybrid",
+    "Unity.Scenes.Hybrid",
+    "Unity.Transforms",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "Unity.Networking.Transport"
+  ],
+  "allowUnsafeCode": true
+}

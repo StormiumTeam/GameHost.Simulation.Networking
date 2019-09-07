@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
+using Unity.Networking.Transport.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Revolution
@@ -84,15 +85,19 @@ namespace Revolution
 			}
 		}
 
-		public void ApplySnapshot(ref DeserializeClientData baseline, NativeArray<byte> data)
+		public unsafe void ApplySnapshot(ref DeserializeClientData baseline, NativeArray<byte> data, ref DataStreamReader.Context ctx)
 		{
-			if (data.Length <= 0)
-				return;
-
-			var reader = new DataStreamReader(data);
-			var ctx    = default(DataStreamReader.Context);
-
+			var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) data.GetUnsafePtr(), data.Length);
+			
 			baseline.Tick = reader.ReadUInt(ref ctx);
+
+			if (reader.ReadByte(ref ctx) == 60)
+			{
+				if (reader.ReadUInt(ref ctx) != baseline.Tick)
+					throw new InvalidOperationException("Invalid header");
+			}
+			else
+				throw new InvalidOperationException("Invalid header");
 
 			// Be sure that all systems are ready...
 			foreach (var system in m_SnapshotManager.IdToSystems)
@@ -114,6 +119,9 @@ namespace Revolution
 			var ghostUpdate     = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var entityUpdate    = new NativeList<Entity>(entityLength, Allocator.TempJob);
 			var archetypeUpdate = new NativeList<uint>(entityLength, Allocator.TempJob);
+			
+			Debug.Log($"[{baseline.Tick}] {entityLength}");
+			
 			if (entityLength > 0)
 			{
 				ReadArchetypes(in baseline, in reader, ref ctx);

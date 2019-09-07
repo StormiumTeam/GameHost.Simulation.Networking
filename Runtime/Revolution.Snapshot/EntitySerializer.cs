@@ -1,12 +1,9 @@
 using System.Collections.Generic;
-using System.Linq;
-using DefaultNamespace;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
-using UnityEngine;
 
 namespace Revolution
 {
@@ -26,6 +23,8 @@ namespace Revolution
 
 		public const uint SnapshotHistorySize = 16;
 
+		
+		
 		protected override void OnCreate()
 		{
 			base.OnCreate();
@@ -35,6 +34,8 @@ namespace Revolution
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 			m_BufferSafetyHandle = AtomicSafetyHandle.Create();
 #endif
+			
+			GetDelegates(out m_SerializeDelegate, out m_DeserializeDelegate);
 		}
 		
 		protected override void OnDestroy()
@@ -147,8 +148,13 @@ namespace Revolution
 			}
 		}
 
-		public abstract FunctionPointer<OnSerializeSnapshot>   SerializeDelegate   { get; }
-		public abstract FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate { get; }
+		protected abstract void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize);
+
+		public FunctionPointer<OnSerializeSnapshot> SerializeDelegate => m_SerializeDelegate.Get();
+		public FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate => m_DeserializeDelegate.Get();
+		
+		private BurstDelegate<OnSerializeSnapshot>   m_SerializeDelegate;
+		private BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
 		public abstract void OnBeginSerialize(Entity entity);
 

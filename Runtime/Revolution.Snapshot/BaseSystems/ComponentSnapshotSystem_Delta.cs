@@ -1,12 +1,7 @@
 using System;
-using Revolution;
 using Unity.Burst;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {
@@ -163,7 +158,7 @@ namespace Revolution
 
 		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
-		internal override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
+		protected override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
 		{
 			onSerialize   = new BurstDelegate<OnSerializeSnapshot>(Serialize);
 			onDeserialize = new BurstDelegate<OnDeserializeSnapshot>(Deserialize);

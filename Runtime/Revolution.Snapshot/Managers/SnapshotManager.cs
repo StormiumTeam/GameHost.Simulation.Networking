@@ -1,12 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using DefaultNamespace;
-using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
 using UnityEngine;
 
@@ -118,6 +113,15 @@ namespace Revolution
 			{
 				SystemsToId[idToSystem.Value] = idToSystem.Key;
 			}
+		}
+
+		public void SetFixedSystemsFromBuilder(Action<World, CollectionBuilder<object>> builder)
+		{
+			var cb = new CollectionBuilder<object>();
+			cb.Set(0, null);
+
+			builder(World, cb);
+			SetFixedSystems(cb.Build());
 		}
 
 		/// <summary>

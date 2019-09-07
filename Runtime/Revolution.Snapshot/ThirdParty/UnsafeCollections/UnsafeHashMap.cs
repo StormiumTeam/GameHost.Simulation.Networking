@@ -25,7 +25,6 @@ THE SOFTWARE.
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Unity.Collections.LowLevel.Unsafe;
 
 namespace Collections.Unsafe {
   public unsafe partial struct UnsafeHashMap {

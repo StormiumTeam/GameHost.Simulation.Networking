@@ -1,12 +1,8 @@
-using System;
-using Revolution;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {
@@ -39,20 +35,15 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSharedData : struct
 	{
-		private BurstDelegate<OnSerializeSnapshot>   m_SerializeDelegate;
-		private BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
-
 		private EntityQuery        m_EntityWithoutComponentQuery;
 
-		internal abstract void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize);
 		internal abstract void SystemBeginSerialize(Entity                         entity);
 		internal abstract void SystemBeginDeserialize(Entity                       entity);
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
-
-			GetDelegates(out m_SerializeDelegate, out m_DeserializeDelegate);
+			
 			m_EntityWithoutComponentQuery = GetEntityQuery(new EntityQueryDesc
 			{
 				All  = new ComponentType[] {typeof(TSnapshot)},
@@ -75,9 +66,6 @@ namespace Revolution
 			{
 				[0] = ComponentType.ReadWrite<TComponent>()
 			};
-
-		public override FunctionPointer<OnSerializeSnapshot>   SerializeDelegate   => m_SerializeDelegate.Get();
-		public override FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate => m_DeserializeDelegate.Get();
 
 		public sealed override void OnBeginSerialize(Entity entity)
 		{

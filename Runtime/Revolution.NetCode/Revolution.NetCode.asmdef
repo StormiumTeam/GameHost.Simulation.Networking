@@ -1,0 +1,15 @@
+{
+  "name": "Revolution.NetCode",
+  "references": [
+    "Unity.Burst",
+    "Unity.Entities",
+    "Unity.Entities.Hybrid",
+    "Unity.Scenes.Hybrid",
+    "Unity.Transforms",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "Unity.Networking.Transport",
+    "Revolution.Snapshot"
+  ],
+  "allowUnsafeCode": true
+}
