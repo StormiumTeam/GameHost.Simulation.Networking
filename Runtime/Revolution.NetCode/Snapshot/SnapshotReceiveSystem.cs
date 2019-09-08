@@ -18,6 +18,8 @@ namespace Revolution.NetCode
 
 		private ApplySnapshotSystem m_ApplySnapshotSystem;
 
+		public DeserializeClientData JobData => m_DeserializeData;
+
 		protected override void OnCreate()
 		{
 			m_DeserializeData = new DeserializeClientData(Allocator.Persistent);

@@ -19,17 +19,21 @@ namespace Revolution
 		bool DidChange(TSnapshot baseline);
 	}
 
-	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
-		ComponentSnapshotSystem_Delta<TComponent, TSnapshot>.SharedData
+		TSetup,
+		ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup>.SharedData
 	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
 		where TComponent : struct, IComponentData
+		where TSetup : struct, ISetup
 	{
 		public struct SharedData
 		{
+			public TSetup SetupData;
+
 			public uint            SystemVersion;
 			public DeltaChangeType Delta;
 
@@ -81,7 +85,7 @@ namespace Revolution
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent]);
+					newSnapshot.SynchronizeFrom(componentArray[ent], in sharedData.SetupData, in jobData);
 
 					// If we must check for delta change on components and
 					// If the snapshot didn't changed since the previous baseline and
@@ -116,7 +120,7 @@ namespace Revolution
 			var deltaOnComponent = (sharedData.Delta & DeltaChangeType.Component) != 0;
 
 			var previousChunkCount = 0u;
-			var checkChunkSkipIn = 0;
+			var checkChunkSkipIn   = 0;
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++, checkChunkSkipIn--)
 			{
 				bool shouldSkip;
@@ -124,7 +128,7 @@ namespace Revolution
 				{
 					shouldSkip         = reader.ReadPackedUInt(ref ctx, jobData.NetworkCompressionModel) == 1;
 					previousChunkCount = reader.ReadPackedUIntDelta(ref ctx, previousChunkCount, jobData.NetworkCompressionModel);
-					
+
 					if (shouldSkip)
 					{
 						ent += (int) previousChunkCount;
@@ -137,7 +141,7 @@ namespace Revolution
 				if (deltaOnComponent)
 				{
 					shouldSkip = reader.ReadPackedUInt(ref ctx, jobData.NetworkCompressionModel) == 1;
-					
+
 					if (shouldSkip)
 						continue;
 				}
@@ -170,6 +174,7 @@ namespace Revolution
 			sharedData.Delta             = DeltaType;
 			sharedData.SystemVersion     = GlobalSystemVersion - 1;
 			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
+			sharedData.SetupData.BeginSetup(this);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)
@@ -181,5 +186,16 @@ namespace Revolution
 			sharedData.Delta              = DeltaType;
 			sharedData.SnapshotFromEntity = snapshotBuffer;
 		}
+	}
+
+	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot> : ComponentSnapshotSystem_Delta
+	<
+		TComponent,
+		TSnapshot,
+		DefaultSetup
+	>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
+		where TComponent : struct, IComponentData
+	{
 	}
 }

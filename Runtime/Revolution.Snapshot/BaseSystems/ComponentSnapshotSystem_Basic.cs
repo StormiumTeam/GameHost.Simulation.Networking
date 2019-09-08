@@ -1,21 +1,25 @@
 using System;
+using Karambolo.Common;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Networking.Transport;
 
 namespace Revolution
 {
-	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
-		ComponentSnapshotSystem_Basic<TComponent, TSnapshot>.SharedData
+		TSetup,
+		ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup>.SharedData
 	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent>, IRwSnapshotComplement<TSnapshot>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>
 		where TComponent : struct, IComponentData
+		where TSetup : struct, ISetup
 	{
 		public struct SharedData
 		{
+			public TSetup                                  SetupData;
 			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
 			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
 		}
@@ -37,7 +41,7 @@ namespace Revolution
 					{
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
-					
+
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(systemId, out var success);
 					if (!success)
 					{
@@ -46,7 +50,7 @@ namespace Revolution
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent]);
+					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in jobData);
 					newSnapshot.WriteTo(writer, ref baseline, jobData.NetworkCompressionModel);
 
 					baseline = newSnapshot;
@@ -86,6 +90,7 @@ namespace Revolution
 		{
 			ref var sharedData = ref GetShared();
 			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>();
+			sharedData.SetupData.BeginSetup(this);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)
@@ -95,6 +100,18 @@ namespace Revolution
 
 			ref var sharedData = ref GetShared();
 			sharedData.SnapshotFromEntity = snapshotBuffer;
+			sharedData.SetupData.BeginSetup(this);
 		}
+	}
+
+	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot> : ComponentSnapshotSystem_Basic
+	<
+		TComponent,
+		TSnapshot,
+		DefaultSetup
+	>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IRwSnapshotComplement<TSnapshot>
+		where TComponent : struct, IComponentData
+	{
 	}
 }

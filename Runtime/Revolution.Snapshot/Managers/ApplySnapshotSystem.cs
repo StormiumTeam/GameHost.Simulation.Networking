@@ -11,6 +11,10 @@ using UnityEngine;
 
 namespace Revolution
 {
+	public class AfterSnapshotIsAppliedSystemGroup : ComponentSystemGroup
+	{
+	}
+
 	public class ApplySnapshotSystem : JobComponentSystem
 	{
 		private SnapshotManager                    m_SnapshotManager;
@@ -88,7 +92,7 @@ namespace Revolution
 		public unsafe void ApplySnapshot(ref DeserializeClientData baseline, NativeArray<byte> data, ref DataStreamReader.Context ctx)
 		{
 			var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) data.GetUnsafePtr(), data.Length);
-			
+
 			baseline.Tick = reader.ReadUInt(ref ctx);
 
 			if (reader.ReadByte(ref ctx) == 60)
@@ -119,9 +123,7 @@ namespace Revolution
 			var ghostUpdate     = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var entityUpdate    = new NativeList<Entity>(entityLength, Allocator.TempJob);
 			var archetypeUpdate = new NativeList<uint>(entityLength, Allocator.TempJob);
-			
-			Debug.Log($"[{baseline.Tick}] {entityLength}");
-			
+
 			if (entityLength > 0)
 			{
 				ReadArchetypes(in baseline, in reader, ref ctx);
@@ -139,7 +141,7 @@ namespace Revolution
 
 					previousGhostId   = ghostId;
 					previousArchetype = archetype;
-					
+
 					var exists     = false;
 					var ghostIndex = 0;
 					for (; ghostIndex < baseline.GhostIds.Length; ghostIndex++)
@@ -205,9 +207,13 @@ namespace Revolution
 					if (baseline.GhostToEntityMap.ContainsKey(ghostId))
 						baseline.GhostToEntityMap.Remove(ghostId);
 
-					if (EntityManager.Exists(baseline.Entities[ent]))
+					var baselineEnt = baseline.Entities[ent];
+					if (EntityManager.Exists(baselineEnt))
 					{
-						EntityManager.DestroyEntity(baseline.Entities[ent]);
+						if (!EntityManager.HasComponent(baselineEnt, typeof(ManualDestroy)))
+							EntityManager.DestroyEntity(baselineEnt);
+						else
+							EntityManager.AddComponent(baselineEnt, typeof(IsDestroyedOnSnapshot));
 					}
 				}
 
@@ -257,7 +263,7 @@ namespace Revolution
 				{
 					var entity    = entityUpdate[ent];
 					var archetype = archetypeUpdate[ent];
-					
+
 					EntityManager.SetComponentData(entity, new ReplicatedEntity {GhostId = ghostUpdate[ent], Archetype = archetype});
 				}
 
@@ -305,6 +311,8 @@ namespace Revolution
 
 			ctx = readCtxArray[0];
 			readCtxArray.Dispose();
+
+			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().Update();
 		}
 	}
 }

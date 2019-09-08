@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Revolution.NetCode
 {
-    public struct RpcQueue<T> where T : struct, IRpcCommand<T>
+    public struct RpcQueue<T> where T : struct, IRpcCommand
     {
         public RpcQueue<T> Null => default(RpcQueue<T>);
 

@@ -68,7 +68,7 @@ namespace Revolution.NetCode
 	}
 
 	public abstract class RpcProcessSystemBase<TRpc> : RpcProcessSystemBase
-		where TRpc : struct, IRpcCommand<TRpc>
+		where TRpc : struct, IRpcCommand
 	{
 		private EntityQuery m_EntityWithoutBufferQuery;
 
@@ -109,15 +109,18 @@ namespace Revolution.NetCode
 
 		public abstract void ExecuteCall(TRpc rpc);
 
-		public virtual RpcQueue<TRpc> GetQueue()
+		public virtual RpcQueue<TRpc> RpcQueue
 		{
-			Prepare();
-			return new RpcQueue<TRpc> {RpcType = (int) SystemRpcId};
+			get
+			{
+				Prepare();
+				return new RpcQueue<TRpc> {RpcType = (int) SystemRpcId};
+			}
 		}
 	}
 
 	public class DefaultRpcProcessSystem<TRpc> : RpcProcessSystemBase<TRpc>
-		where TRpc : struct, IRpcCommand<TRpc>
+		where TRpc : struct, IRpcCommand
 	{
 		public override void ExecuteCall(TRpc rpc)
 		{

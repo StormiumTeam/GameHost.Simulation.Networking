@@ -3,8 +3,7 @@ using Unity.Networking.Transport;
 
 namespace Revolution.NetCode
 {
-    public interface IRpcCommand<T> : IBufferElementData
-        where T : struct, IRpcCommand<T>
+    public interface IRpcCommand : IBufferElementData
     {
         void Execute(Entity            connection, World world);
         void WriteTo(DataStreamWriter  writer);

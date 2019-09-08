@@ -18,32 +18,51 @@ namespace Revolution
 		void ReadFrom(ref DataStreamReader.Context ctx,    DataStreamReader reader,   ref TSnapshot           baseline, NetworkCompressionModel compressionModel);
 	}
 
-	public interface ISynchronizeImpl<TComponent>
+	public interface ISetup
+	{
+		void BeginSetup(JobComponentSystem system);
+	}
+
+	public struct DefaultSetup : ISetup
+	{
+		public void BeginSetup(JobComponentSystem system)
+		{
+		}
+	}
+
+	public interface ISynchronizeImpl<TComponent, TSetup>
+		where TComponent : struct, IComponentData
+		where TSetup : ISetup
+	{
+		void SynchronizeFrom(in TComponent component, in TSetup                setup, in SerializeClientData serializeData);
+		void SynchronizeTo(ref  TComponent component, in DeserializeClientData deserializeData);
+	}
+
+	public interface ISynchronizeImpl<TComponent> : ISynchronizeImpl<TComponent, DefaultSetup>
 		where TComponent : struct, IComponentData
 	{
-		void SynchronizeFrom(in TComponent component);
-		void SynchronizeTo(ref  TComponent component);
 	}
 
 	[UpdateInGroup(typeof(SnapshotWithDelegateSystemGroup))]
-	public abstract class ComponentSnapshotSystemBase<TComponent, TSnapshot, TSharedData> :
-		EntitySerializer<ComponentSnapshotSystemBase<TComponent, TSnapshot, TSharedData>,
+	public abstract class ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData> :
+		EntitySerializer<ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData>,
 			TSnapshot,
 			TSharedData>
 
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent>, IRwSnapshotComplement<TSnapshot>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>
 		where TComponent : struct, IComponentData
+		where TSetup : struct, ISetup
 		where TSharedData : struct
 	{
-		private EntityQuery        m_EntityWithoutComponentQuery;
+		private EntityQuery m_EntityWithoutComponentQuery;
 
-		internal abstract void SystemBeginSerialize(Entity                         entity);
-		internal abstract void SystemBeginDeserialize(Entity                       entity);
+		internal abstract void SystemBeginSerialize(Entity   entity);
+		internal abstract void SystemBeginDeserialize(Entity entity);
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
-			
+
 			m_EntityWithoutComponentQuery = GetEntityQuery(new EntityQueryDesc
 			{
 				All  = new ComponentType[] {typeof(TSnapshot)},

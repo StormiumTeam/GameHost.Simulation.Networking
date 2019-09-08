@@ -9,7 +9,7 @@ namespace Revolution.NetCode
         public int Value;
     }
 
-    internal struct RpcSetNetworkId : IRpcCommand<RpcSetNetworkId>
+    internal struct RpcSetNetworkId : IRpcCommand
     {
         public int nid;
 
