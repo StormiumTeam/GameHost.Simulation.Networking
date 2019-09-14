@@ -162,6 +162,8 @@ namespace Revolution
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 		private AtomicSafetyHandle m_BufferSafetyHandle;
+
+		protected AtomicSafetyHandle SafetyHandle => m_BufferSafetyHandle;
 #endif
 		public unsafe void SetEmptySafetyHandle(ref BufferFromEntity<TSnapshot> bfe)
 		{

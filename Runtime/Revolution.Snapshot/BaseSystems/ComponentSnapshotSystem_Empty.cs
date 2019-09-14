@@ -1,8 +1,5 @@
-using System;
-using Karambolo.Common;
-using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
-using Unity.Networking.Transport;
 
 namespace Revolution
 {
@@ -12,5 +9,11 @@ namespace Revolution
 		public struct SharedData
 		{
 		}
+
+		public override NativeArray<ComponentType> EntityComponents =>
+			new NativeArray<ComponentType>(1, Allocator.Temp, NativeArrayOptions.UninitializedMemory)
+			{
+				[0] = typeof(TTag)
+			};
 	}
 }

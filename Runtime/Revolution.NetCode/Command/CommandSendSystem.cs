@@ -1,19 +1,13 @@
-using Revolution.NetCode;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
-using Unity.Networking.Transport.LowLevel.Unsafe;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     // dependency just for acking
     [UpdateAfter(typeof(NetworkReceiveSnapshotSystemGroup))]
-    public class CommandSendSystem<TCommandData> : ComponentSystem
-        where TCommandData : struct, ICommandData<TCommandData>
+    public sealed class CommandSendSystem : ComponentSystem
     {
         private EntityQuery                m_IncomingDataQuery;
         private CommandCollectionSystem    m_CommandCollectionSystem;

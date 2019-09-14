@@ -17,7 +17,17 @@ namespace Revolution
 			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + sizeof(AtomicSafetyHandle),
 				UnsafeUtility.AddressOf(ref safetyHandle),
 				sizeof(AtomicSafetyHandle));
-#endif
+
 		}
+
+		public static void Replace<T>(ref ComponentDataFromEntity<T> bfe, AtomicSafetyHandle safetyHandle)
+			where T : struct, IComponentData
+		{
+			// remove safety... (the array goes only writeonly for some weird reasons)
+			UnsafeUtility.MemCpy(UnsafeUtility.AddressOf(ref bfe),
+				UnsafeUtility.AddressOf(ref safetyHandle),
+				sizeof(AtomicSafetyHandle));
+		}
+#endif
 	}
 }

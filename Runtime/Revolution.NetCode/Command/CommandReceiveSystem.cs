@@ -1,8 +1,5 @@
 using System.Collections.Generic;
-using Revolution.NetCode;
-using Unity.Burst;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Collections;
@@ -11,7 +8,7 @@ namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
     [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
-    public class CommandReceiveSystem : ComponentSystem
+    public sealed class CommandReceiveSystem : ComponentSystem
     {
         private EntityQuery             m_IncomingDataQuery;
         private CommandCollectionSystem m_CommandCollectionSystem;
