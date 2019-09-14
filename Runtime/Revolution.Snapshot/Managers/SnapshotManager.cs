@@ -62,6 +62,7 @@ namespace Revolution
 	public class SnapshotManager : ComponentSystem
 	{
 		private bool                     m_IsDynamicSystemId;
+		private bool m_IsAddingToFixedCollection;
 		
 		public  Dictionary<uint, object> IdToSystems;
 		public Dictionary<object, uint> SystemsToId;
@@ -111,6 +112,9 @@ namespace Revolution
 			SystemsToId.Clear();
 			foreach (var idToSystem in IdToSystems)
 			{
+				if (idToSystem.Value == null)
+					continue;
+				
 				SystemsToId[idToSystem.Value] = idToSystem.Key;
 			}
 		}
@@ -120,8 +124,21 @@ namespace Revolution
 			var cb = new CollectionBuilder<object>();
 			cb.Set(0, null);
 
-			builder(World, cb);
-			SetFixedSystems(cb.Build());
+			m_IsDynamicSystemId = false;
+			m_IsAddingToFixedCollection = true;
+			try
+			{
+				builder(World, cb);
+				SetFixedSystems(cb.Build());
+			}
+			catch (Exception ex)
+			{
+				Debug.LogException(ex);
+			}
+			finally
+			{
+				m_IsAddingToFixedCollection = false;
+			}
 		}
 
 		/// <summary>
@@ -139,7 +156,7 @@ namespace Revolution
 		/// <typeparam name="T"></typeparam>
 		public void RegisterSystem<T>(T system)
 		{
-			if (!m_IsDynamicSystemId)
+			if (!m_IsDynamicSystemId && !m_IsAddingToFixedCollection)
 			{
 				if (!IdToSystems.ContainsValue(system))
 				{

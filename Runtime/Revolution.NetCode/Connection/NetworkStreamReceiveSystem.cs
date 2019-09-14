@@ -45,7 +45,7 @@ namespace Revolution.NetCode
         private NativeArray<int>                         numNetworkIds;
         private NativeQueue<int>                         freeNetworkIds;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
-        private RpcQueue<RpcSetNetworkId>                rpcQueue;
+        private DefaultRpcProcessSystem<RpcSetNetworkId>                rpcQueue;
         private int                                      m_ClientPacketDelay;
         private int                                      m_ClientPacketDrop;
 
@@ -134,7 +134,7 @@ namespace Revolution.NetCode
             m_Barrier            = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             numNetworkIds        = new NativeArray<int>(1, Allocator.Persistent);
             freeNetworkIds       = new NativeQueue<int>(Allocator.Persistent);
-            rpcQueue             = World.GetOrCreateSystem<RpcCollectionSystem>().NetworkIdRpcQueue;
+            rpcQueue             = World.GetOrCreateSystem<DefaultRpcProcessSystem<RpcSetNetworkId>>();
         }
 
         protected override void OnDestroy()
@@ -347,7 +347,7 @@ namespace Revolution.NetCode
                 assignJob.commandBuffer  = m_Barrier.CreateCommandBuffer();
                 assignJob.numNetworkId   = numNetworkIds;
                 assignJob.freeNetworkIds = freeNetworkIds;
-                assignJob.rpcQueue       = rpcQueue;
+                assignJob.rpcQueue       = rpcQueue.RpcQueue;
                 assignJob.rpcBuffer      = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>();
                 inputDeps                = assignJob.ScheduleSingle(this, inputDeps);
             }

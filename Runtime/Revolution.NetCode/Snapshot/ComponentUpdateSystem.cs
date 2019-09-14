@@ -12,6 +12,7 @@ namespace Revolution.NetCode
 	{
 		private struct Job : IJobForEach_BC<TSnapshot, TComponent>
 		{
+			[ReadOnly]
 			public DeserializeClientData JobData;
 
 			public void Execute([ReadOnly] DynamicBuffer<TSnapshot> snapshot, ref TComponent component)
@@ -50,6 +51,7 @@ namespace Revolution.NetCode
 	{
 		private struct Job : IJobForEach_BC<TSnapshot, TComponent>
 		{
+			[ReadOnly]
 			public DeserializeClientData JobData;
 
 			public void Execute([ReadOnly] DynamicBuffer<TSnapshot> snapshot, ref TComponent component)

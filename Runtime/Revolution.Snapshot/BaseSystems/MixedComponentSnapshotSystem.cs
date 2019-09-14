@@ -6,7 +6,7 @@ using Unity.Networking.Transport;
 
 namespace Revolution
 {
-	public interface IReadWriteComponentSnapshot<T, TSetup> : IComponentData, ISnapshotData<T>
+	public interface IReadWriteComponentSnapshot<T, TSetup> : IComponentData
 		where T : struct, IReadWriteComponentSnapshot<T, TSetup>
 	{
 		void WriteTo(DataStreamWriter              writer, ref T            baseline, TSetup setup,    SerializeClientData   jobData);
@@ -18,7 +18,7 @@ namespace Revolution
 	{
 	}
 
-	public abstract class MixedComponentSnapshotSystem<TComponent, TSetup> : EntitySerializer<MixedComponentSnapshotSystem<TComponent, TSetup>,
+	public abstract class MixedComponentSnapshotSystem<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem<TComponent, TSetup>,
 		TComponent,
 		MixedComponentSnapshotSystem<TComponent, TSetup>.SharedData>
 		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>
@@ -81,7 +81,6 @@ namespace Revolution
 				var entity      = jobData.GhostToEntityMap[ghostArray[ent]];
 				var baseline    = sharedData.ComponentFromEntity[entity];
 				var newSnapshot = default(TComponent);
-				newSnapshot.Tick = tick;
 				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData);
 
 				sharedData.ComponentFromEntity[entity] = newSnapshot;

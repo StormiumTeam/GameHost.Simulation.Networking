@@ -20,8 +20,7 @@ namespace Revolution.NetCode
 
             m_IncomingDataQuery = GetEntityQuery(new EntityQueryDesc
             {
-                All  = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)},
-                None = new ComponentType[] {typeof(NetworkStreamInGame)}
+                All  = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)}
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
             m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();

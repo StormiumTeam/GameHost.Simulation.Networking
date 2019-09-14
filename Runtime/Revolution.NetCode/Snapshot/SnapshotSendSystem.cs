@@ -88,8 +88,6 @@ namespace Revolution.NetCode
 				writer.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
 				writer.Write(m_ServerSimulationSystemGroup.ServerTick);
 				
-				Debug.Log($"Send at {m_ServerSimulationSystemGroup.ServerTick}");
-				
 				writer.WriteBytes((byte*) buffer.GetUnsafePtr(), buffer.Length);
 
 				driver.Send(pipeline, connection.Value, writer);

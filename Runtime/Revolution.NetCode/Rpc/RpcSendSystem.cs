@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -16,7 +17,7 @@ namespace Revolution.NetCode
             m_ReceiveSystem = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
         }
 
-        [BurstCompile]
+        //[BurstCompile]
         [ExcludeComponent(typeof(NetworkStreamDisconnected))]
         struct SendJob : IJobForEachWithEntity<NetworkStreamConnection>
         {

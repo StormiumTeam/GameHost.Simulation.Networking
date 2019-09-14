@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
@@ -22,9 +23,11 @@ namespace Revolution.NetCode
 
 		}
 
-		public void SetFixedCollection(Dictionary<uint, CommandProcessSystemBase> systemProcessors)
+		public void SetFixedCollection(Action<World, CollectionBuilder<CommandProcessSystemBase>> build)
 		{
-			SystemProcessors = systemProcessors;
+			var cb = new CollectionBuilder<CommandProcessSystemBase>();
+			build(World, cb);
+			SystemProcessors = cb.Build();
 		}
 	}
 

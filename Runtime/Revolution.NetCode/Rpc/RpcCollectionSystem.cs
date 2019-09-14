@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -11,12 +12,6 @@ namespace Revolution.NetCode
 	public class RpcCollectionSystem : ComponentSystem
 	{
 		public Dictionary<uint, RpcProcessSystemBase> SystemProcessors;
-
-		internal RpcQueue<RpcSetNetworkId> NetworkIdRpcQueue =>
-			new RpcQueue<RpcSetNetworkId>
-			{
-				RpcType = 1
-			};
 
 		protected override void OnCreate()
 		{
@@ -33,8 +28,13 @@ namespace Revolution.NetCode
 		public void SetFixedCollection(Action<World, CollectionBuilder<RpcProcessSystemBase>> build)
 		{
 			var cb = new CollectionBuilder<RpcProcessSystemBase>();
-			cb.Set(1, World.GetOrCreateSystem<DefaultRpcProcessSystem<RpcSetNetworkId>>());
+			cb.Set(0, World.GetOrCreateSystem<DefaultRpcProcessSystem<RpcSetNetworkId>>());
+			build(World, cb);
 			SystemProcessors = cb.Build();
+			foreach (var processor in SystemProcessors)
+			{
+				processor.Value.SystemRpcId = processor.Key;
+			}
 		}
 	}
 
@@ -48,7 +48,7 @@ namespace Revolution.NetCode
 	public abstract class RpcProcessSystemBase : JobComponentSystem
 	{
 		public Entity RpcTarget   { get; private set; }
-		public uint   SystemRpcId { get; private set; }
+		public uint   SystemRpcId { get; internal set; }
 
 		public abstract void Prepare();
 
@@ -69,33 +69,8 @@ namespace Revolution.NetCode
 	public abstract class RpcProcessSystemBase<TRpc> : RpcProcessSystemBase
 		where TRpc : struct, IRpcCommand
 	{
-		private EntityQuery m_EntityWithoutBufferQuery;
-
-		protected override void OnCreate()
-		{
-			base.OnCreate();
-
-			m_EntityWithoutBufferQuery = GetEntityQuery(new EntityQueryDesc
-			{
-				All  = new ComponentType[] {typeof(NetworkStreamConnection)},
-				None = new ComponentType[] {typeof(TRpc)}
-			});
-		}
-
 		public override void Prepare()
 		{
-			if (m_EntityWithoutBufferQuery.IsEmptyIgnoreFilter)
-				return;
-
-			using (var entities = m_EntityWithoutBufferQuery.ToEntityArray(Allocator.TempJob))
-			{
-				foreach (var entity in entities)
-				{
-					var buffer = EntityManager.AddBuffer<TRpc>(entity);
-					buffer.ResizeUninitialized(buffer.Capacity + 1);
-					buffer.Clear();
-				}
-			}
 		}
 
 		public override void ProcessReceive(DataStreamReader reader, ref DataStreamReader.Context ctx)
