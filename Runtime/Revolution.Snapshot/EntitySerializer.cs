@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -13,6 +14,7 @@ namespace Revolution
 	/// <typeparam name="TSerializer"></typeparam>
 	/// <typeparam name="TSnapshot"></typeparam>
 	/// <typeparam name="TSharedData"></typeparam>
+	[UpdateInGroup(typeof(SnapshotWithDelegateSystemGroup))]
 	public abstract class EntitySerializer<TSerializer, TSnapshot, TSharedData> : JobComponentSystem, IEntityComponents, ISystemDelegateForSnapshot, IDynamicSnapshotSystem
 		where TSerializer : EntitySerializer<TSerializer, TSnapshot, TSharedData>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, IBufferElementData
@@ -23,6 +25,12 @@ namespace Revolution
 
 		public const uint SnapshotHistorySize = 16;
 
+		protected virtual void SetSystemGroup()
+		{
+			var delegateGroup = World.GetOrCreateSystem<SnapshotWithDelegateSystemGroup>();
+			if (!delegateGroup.Systems.Contains(this))
+				delegateGroup.AddSystemToUpdateList(this);
+		}
 		
 		
 		protected override void OnCreate()
@@ -30,6 +38,8 @@ namespace Revolution
 			base.OnCreate();
 
 			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+
+			SetSystemGroup();
 			
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 			m_BufferSafetyHandle = AtomicSafetyHandle.Create();

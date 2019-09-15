@@ -3,6 +3,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution
 {
@@ -32,7 +33,7 @@ namespace Revolution
 		}
 
 		public override NativeArray<ComponentType> EntityComponents =>
-			new NativeArray<ComponentType>
+			new NativeArray<ComponentType>(1, Allocator.Temp)
 			{
 				[0] = typeof(TComponent)
 			};
@@ -42,12 +43,19 @@ namespace Revolution
 		{
 			var sharedData = GetShared();
 			var chunks     = GetSerializerChunkData().Array;
-
+			
 			for (int c = 0, length = chunks.Length; c < length; c++)
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(jobData.GhostType);
+				var ghostArray = chunk.GetNativeArray(jobData.GhostType);
+
+				if (chunk.Count != componentArray.Length)
+				{
+					var comps = chunk.Archetype.GetComponentTypes();
+					Debug.Log($"[{GetSerializerChunkData().SystemId} - {systemId}] {typeof(SharedData)} {chunk.Count} {componentArray.Length} -> {string.Join(",", comps)}");
+				}
+
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
 					if (!jobData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
@@ -61,11 +69,9 @@ namespace Revolution
 						baseline = ref ghostSnapshot.AllocateSystemData<TComponent>(systemId);
 						baseline = default; // always set to default values!
 					}
-
-					var newSnapshot = default(TComponent);
-					newSnapshot.WriteTo(writer, ref baseline, sharedData.SetupData, jobData);
-
-					baseline = newSnapshot;
+		
+					componentArray[ent].WriteTo(writer, ref baseline, sharedData.SetupData, jobData);
+					baseline = componentArray[ent];
 				}
 			}
 		}
@@ -81,6 +87,7 @@ namespace Revolution
 				var entity      = jobData.GhostToEntityMap[ghostArray[ent]];
 				var baseline    = sharedData.ComponentFromEntity[entity];
 				var newSnapshot = default(TComponent);
+				
 				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData);
 
 				sharedData.ComponentFromEntity[entity] = newSnapshot;

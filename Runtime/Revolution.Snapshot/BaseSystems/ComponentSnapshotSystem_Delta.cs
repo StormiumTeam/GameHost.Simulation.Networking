@@ -2,15 +2,17 @@ using System;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution
 {
 	[Flags]
 	public enum DeltaChangeType
 	{
+		Invalid = 0,
 		Chunk     = 1,
 		Component = 2,
-		Both      = 3
+		Both      = 3,
 	}
 
 	public interface ISnapshotDelta<in TSnapshot>
@@ -102,7 +104,7 @@ namespace Revolution
 						// don't skip
 						writer.WritePackedUInt(0, jobData.NetworkCompressionModel);
 					}
-
+	
 					newSnapshot.WriteTo(writer, ref baseline, jobData.NetworkCompressionModel);
 
 					baseline = newSnapshot;
@@ -145,7 +147,7 @@ namespace Revolution
 					if (shouldSkip)
 						continue;
 				}
-
+				
 				var     snapshotArray = sharedData.SnapshotFromEntity[jobData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
@@ -160,7 +162,7 @@ namespace Revolution
 			}
 		}
 
-		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
+		public virtual DeltaChangeType DeltaType => DeltaChangeType.Invalid;
 
 		protected override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
 		{

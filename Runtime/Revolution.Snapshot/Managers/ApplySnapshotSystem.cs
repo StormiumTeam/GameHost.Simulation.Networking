@@ -7,6 +7,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace Revolution
 {
@@ -46,6 +47,14 @@ namespace Revolution
 					var serializer = Deserializers[i];
 					var invoke     = serializer.Value.Invoke;
 
+					var byteRead = reader.GetBytesRead(ref readCtx);
+					var currLength = reader.ReadInt(ref readCtx);
+					if (currLength != byteRead)
+					{
+						Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.SystemId}");
+						return;
+					}
+					
 					invoke((uint) i, ClientData.Tick, ref ClientData, ref reader, ref readCtx);
 				}
 
@@ -86,12 +95,14 @@ namespace Revolution
 					previousArchetypeId = id;
 				}
 			}
+			reader.ReadByte(ref ctx);
 		}
 
-		public unsafe void ApplySnapshot(ref DeserializeClientData baseline, NativeArray<byte> data, ref DataStreamReader.Context ctx)
+		public unsafe void ApplySnapshot(ref DeserializeClientData baseline, NativeArray<byte> data)
 		{
 			var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) data.GetUnsafePtr(), data.Length);
-
+			var ctx = default(DataStreamReader.Context);
+			
 			baseline.Tick = reader.ReadUInt(ref ctx);
 
 			if (reader.ReadByte(ref ctx) == 60)
@@ -117,7 +128,7 @@ namespace Revolution
 					sharedGhost.Ghosts = list;
 				}
 			}
-
+			
 			var entityLength    = reader.ReadInt(ref ctx);
 			var ghostUpdate     = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var entityUpdate    = new NativeList<Entity>(entityLength, Allocator.TempJob);
@@ -126,7 +137,6 @@ namespace Revolution
 			if (entityLength > 0)
 			{
 				ReadArchetypes(in baseline, in reader, ref ctx);
-				reader.ReadByte(ref ctx); // DON'T REMOVE THIS LINE
 
 				var newGhostArray  = new NativeArray<uint>(entityLength, Allocator.Temp);
 				var newEntityArray = new NativeArray<Entity>(entityLength, Allocator.Temp);
@@ -228,7 +238,6 @@ namespace Revolution
 				if (entityChangeCount >= 0)
 				{
 					ReadArchetypes(in baseline, in reader, ref ctx);
-					reader.ReadByte(ref ctx); // DON'T REMOVE THIS LINE
 
 					var previousGhostId   = 0u;
 					var previousArchetype = 0u;

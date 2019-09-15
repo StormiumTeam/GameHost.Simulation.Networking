@@ -16,4 +16,13 @@ namespace Revolution
 				[0] = typeof(TTag)
 			};
 	}
+	
+	public struct ExcludeFromTagging : IComponentData
+	{}
+	
+	public class ComponentSnapshotSystemTag<TTag> : ComponentSnapshotSystem_Empty<TTag>
+		where TTag : IComponentData
+	{
+		public override ComponentType ExcludeComponent => typeof(ExcludeFromTagging);
+	}
 }

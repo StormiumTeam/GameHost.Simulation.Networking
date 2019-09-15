@@ -18,11 +18,13 @@ namespace Revolution
 		{
 			foreach (var sys in m_systemsToUpdate)
 			{
-				var castSys = ((ISystemDelegateForSnapshot) sys);
+				if (!(sys is ISystemDelegateForSnapshot castSys))
+					continue;
+
 				castSys.OnBeginSerialize(client);
 				serializers.Add(new SortDelegate<OnSerializeSnapshot>
 				{
-					Value = castSys.SerializeDelegate,
+					Value    = castSys.SerializeDelegate,
 					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(castSys)
 				});
 			}
@@ -32,7 +34,9 @@ namespace Revolution
 		{
 			foreach (var sys in m_systemsToUpdate)
 			{
-				var castSys = ((ISystemDelegateForSnapshot) sys);
+				if (!(sys is ISystemDelegateForSnapshot castSys))
+					continue;
+
 				castSys.OnBeginDeserialize(client);
 				deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
 				{
@@ -45,12 +49,14 @@ namespace Revolution
 
 	public struct SharedSystemChunk
 	{
+		public uint SystemId;
 		public NativeList<ArchetypeChunk>  Chunks;
 		public NativeArray<ArchetypeChunk> Array => Chunks;
 	}
 
 	public struct SharedSystemGhost
 	{
+		public uint SystemId;
 		public NativeList<uint>  Ghosts;
 		public NativeArray<uint> Array => Ghosts;
 	}
@@ -223,6 +229,9 @@ namespace Revolution
 			{
 				var matches = 0;
 				var models  = archetype.Value;
+				if (models.Length != systemArray.Length)
+					continue;
+
 				for (int i = 0, length = models.Length; i < length; i++)
 				{
 					for (int j = 0, count = systemArray.Length; j < count; j++)
@@ -238,7 +247,7 @@ namespace Revolution
 			// We need to create our own archetype
 			var copy = new NativeArray<uint>(systems.Length, Allocator.Persistent);
 			copy.CopyFrom(systems);
-			
+
 			return CreateArchetype(copy);
 		}
 

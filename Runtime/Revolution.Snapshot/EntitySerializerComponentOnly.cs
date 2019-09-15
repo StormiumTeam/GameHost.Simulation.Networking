@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
+using UnityEngine;
 
 namespace Revolution
 {
@@ -14,6 +17,7 @@ namespace Revolution
 	/// <typeparam name="TSerializer"></typeparam>
 	/// <typeparam name="TComponent"></typeparam>
 	/// <typeparam name="TSharedData"></typeparam>
+	[UpdateInGroup(typeof(SnapshotWithDelegateSystemGroup))]
 	public abstract class EntitySerializerComponent<TSerializer, TComponent, TSharedData> : JobComponentSystem, IEntityComponents, ISystemDelegateForSnapshot, IDynamicSnapshotSystem
 		where TSerializer : EntitySerializerComponent<TSerializer, TComponent, TSharedData>
 		where TComponent : struct, IComponentData
@@ -24,13 +28,22 @@ namespace Revolution
 
 		public const uint SnapshotHistorySize = 16;
 
-		
-		
+
+		protected virtual void SetSystemGroup()
+		{
+			var delegateGroup = World.GetOrCreateSystem<SnapshotWithDelegateSystemGroup>();
+			if (!delegateGroup.Systems.Contains(this))
+				delegateGroup.AddSystemToUpdateList(this);
+		}
+
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
 			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+
+			SetSystemGroup();
 			
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 			m_BufferSafetyHandle = AtomicSafetyHandle.Create();
@@ -76,10 +89,12 @@ namespace Revolution
 				for (var j = 0; j < ownLength; j++)
 				{
 					if (componentTypes[i].TypeIndex == ownComponents[j].TypeIndex)
+					{
 						match++;
+					}
 				}
 			}
-
+			
 			return match == ownLength;
 		}
 
@@ -100,6 +115,13 @@ namespace Revolution
 					if (model == systemId)
 					{
 						hasModel = true;
+
+						if (!EntityManager.HasComponent<TComponent>(entities[ent]))
+						{
+							for (var i = 0; i != EntityComponents.Length; i++)
+								EntityManager.AddComponent(entities[ent], EntityComponents[i]);
+						}
+
 						break;
 					}
 				}

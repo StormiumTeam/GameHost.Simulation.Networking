@@ -65,7 +65,7 @@ namespace Revolution.NetCode
 
 					var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);
 					{
-						m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, snapshotData, ref ctx);
+						m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, snapshotData.GetSubArray(sizeof(uint), snapshotData.Length - sizeof(uint)));
 					}
 					EntityManager.SetComponentData(player, snapshotAck);
 				}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -25,7 +26,7 @@ namespace Revolution
 		public unsafe struct SerializeJob : IJob
 		{
 			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;
-			public SerializeClientData                              ClientData;
+			public SerializeClientData                           ClientData;
 
 			public DataStreamWriter StreamWriter;
 			public NativeList<byte> OutgoingData;
@@ -38,7 +39,8 @@ namespace Revolution
 					var serializer = Serializers[i];
 					var invoke     = serializer.Value.Invoke;
 
-					invoke((uint) i, ref ClientData, ref StreamWriter);
+					StreamWriter.Write(StreamWriter.Length);
+					invoke((uint) serializer.SystemId, ref ClientData, ref StreamWriter);
 				}
 
 				StreamWriter.Write(0);
@@ -51,8 +53,8 @@ namespace Revolution
 		private EntityQuery m_GhostWithoutIdentifierQuery;
 		private EntityQuery m_InvalidGhostQuery;
 
-		private NativeHashMap<ArchetypeChunk, ArchData>  m_ChunkToGhostArchetype;
-		private Dictionary<Entity, NativeList<byte>> m_TemporaryOutgoingData;
+		private NativeHashMap<ArchetypeChunk, ArchData> m_ChunkToGhostArchetype;
+		private Dictionary<Entity, NativeList<byte>>    m_TemporaryOutgoingData;
 
 		private uint              m_GhostId;
 		private NativeQueue<uint> m_GhostIdQueue;
@@ -150,12 +152,26 @@ namespace Revolution
 
 			CreateNewGhosts(blockedList);
 
-			var entities   = m_GhostEntityQuery.ToEntityArray(Allocator.TempJob);
-			var ghostArray = m_GhostEntityQuery.ToComponentDataArray<GhostIdentifier>(Allocator.TempJob);
+			var entities   = new NativeArray<Entity>(m_GhostEntityQuery.CalculateEntityCount(), Allocator.TempJob);
+			var ghostArray = new NativeArray<GhostIdentifier>(m_GhostEntityQuery.CalculateEntityCount(), Allocator.TempJob);
 			var chunks     = m_GhostEntityQuery.CreateArchetypeChunkArray(Allocator.TempJob);
 
-			foreach (var system in m_SnapshotManager.IdToSystems.Values)
+			var x = 0;
+			foreach (var chunk in chunks)
 			{
+				var entityArray  = chunk.GetNativeArray(GetArchetypeChunkEntityType());
+				var ghostIdArray = chunk.GetNativeArray(GetArchetypeChunkComponentType<GhostIdentifier>());
+				for (var index = 0; index < ghostIdArray.Length; index++)
+				{
+					entities[x]   = entityArray[index];
+					ghostArray[x] = ghostIdArray[index];
+					x++;
+				}
+			}
+
+			foreach (var systemKvp in m_SnapshotManager.IdToSystems)
+			{
+				var system = systemKvp.Value;
 				if (system is IDynamicSnapshotSystem dynamicSystem)
 				{
 					ref var sharedData = ref dynamicSystem.GetSharedChunk();
@@ -164,6 +180,7 @@ namespace Revolution
 						sharedData.Chunks = new NativeList<ArchetypeChunk>(8, Allocator.Persistent);
 					}
 
+					sharedData.SystemId = systemKvp.Key;
 					sharedData.Chunks.Clear();
 				}
 			}
@@ -190,11 +207,17 @@ namespace Revolution
 				if (!m_ChunkToGhostArchetype.TryGetValue(chunk, out var archetype)
 				    || archetype.EntityArch != chunk.Archetype)
 				{
+					var archId = m_SnapshotManager.FindArchetype(chunk);
+					if (archId <= 0)
+						continue;
+					
 					m_ChunkToGhostArchetype[chunk] = archetype = new ArchData
 					{
 						EntityArch = chunk.Archetype,
-						GhostArch  = m_SnapshotManager.FindArchetype(chunk)
+						GhostArch  = archId
 					};
+					
+					Debug.Log($"Create archId={archId} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
 				}
 
 				var systemIds = m_SnapshotManager.ArchetypeToSystems[archetype.GhostArch];
@@ -205,6 +228,8 @@ namespace Revolution
 					{
 						ref var sharedData = ref dynamicSystem.GetSharedChunk();
 						sharedData.Chunks.Add(chunk);
+						
+						//Debug.Log($"Add Chunk systemId={sysId} archId={archetype.GhostArch} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
 					}
 				}
 			}
@@ -217,7 +242,7 @@ namespace Revolution
 
 				var serializeData = data.Value;
 				serializeData.Client = data.Key;
-				serializeData.Tick = tick;
+				serializeData.Tick   = tick;
 				deps.Add(CreateSnapshot(outgoing, serializeData, in chunks, in entities, in ghostArray, entityUpdate));
 			}
 
@@ -289,7 +314,7 @@ namespace Revolution
 				archetypeAdded++;
 			}
 			
-			writer.Flush();
+			writer.Write((byte) 42);
 			deferredArchetypeCount.Update(archetypeAdded);
 		}
 
@@ -307,10 +332,10 @@ namespace Revolution
 		/// <returns></returns>
 		/// <exception cref="NotImplementedException"></exception>
 		/// <exception cref="InvalidOperationException"></exception>
-		public unsafe JobHandle CreateSnapshot(NativeList<byte>       outgoing,       SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
-		                                       in NativeArray<Entity> entities,       in NativeArray<GhostIdentifier> ghostArray,
+		public unsafe JobHandle CreateSnapshot(NativeList<byte>       outgoing, SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
+		                                       in NativeArray<Entity> entities, in NativeArray<GhostIdentifier> ghostArray,
 		                                       in NativeArray<Entity> entityUpdate,
-		                                       bool                   inChain = true, JobHandle                       inputDeps = default)
+		                                       bool                   inChain = true, JobHandle inputDeps = default)
 		{
 			if (!inChain)
 				throw new NotImplementedException("unchained operation for 'CreateSnapshot' is not available for now;");
@@ -320,9 +345,9 @@ namespace Revolution
 
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);
 			writer.Write(baseline.Tick);
-			
+
 			//< This part is used for verification client-side
-			writer.Write((byte)60);
+			writer.Write((byte) 60);
 			writer.Write(baseline.Tick);
 			//>
 			
@@ -354,8 +379,6 @@ namespace Revolution
 					// ----- ARCHETYPE PART ----- //
 					WriteArchetypes(in baseline, ref writer, entities);
 					deferredEntityCount.Update(ghostArray.Length);
-					
-					writer.Write((byte) 42); // DON'T REMOVE THIS LINE
 
 					// ----- ENTITY PART ----- //
 
@@ -400,20 +423,19 @@ namespace Revolution
 
 						var archetype = m_ChunkToGhostArchetype[EntityManager.GetChunk(entities[i])].GhostArch;
 						writer.WritePackedUIntDelta(archetype, previousArchetype, baseline.NetworkCompressionModel);
-						
+
 						previousArchetype = archetype;
 						previousId        = ghostId;
 					}
 				}
 				else if (entityUpdate.Length > 0)
-				{					
+				{
 					var previousId           = 0u;
 					var previousArchetype    = 0u;
 					var deferredEntityChange = writer.Write(0);
-					
+
 					WriteArchetypes(in baseline, ref writer, entities);
-					writer.Write((byte) 42); // DON'T REMOVE THIS LINE
-					
+
 					var changeCount = 0;
 					for (int ent = 0, count = ghostArray.Length; ent < count; ent++)
 					{
@@ -442,9 +464,8 @@ namespace Revolution
 						changeCount++;
 					}
 
-					writer.Flush();
-					deferredEntityChange.Update(changeCount);
 					writer.Write((byte) 42); // DON'T REMOVE THIS LINE
+					deferredEntityChange.Update(changeCount);
 				}
 				else
 				{

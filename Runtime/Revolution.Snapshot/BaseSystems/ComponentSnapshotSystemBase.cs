@@ -41,8 +41,7 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 	{
 	}
-
-	[UpdateInGroup(typeof(SnapshotWithDelegateSystemGroup))]
+	
 	public abstract class ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData> :
 		EntitySerializer<ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData>,
 			TSnapshot,
