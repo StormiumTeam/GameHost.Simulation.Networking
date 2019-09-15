@@ -55,7 +55,7 @@ namespace Revolution
 						return;
 					}
 					
-					invoke((uint) i, ClientData.Tick, ref ClientData, ref reader, ref readCtx);
+					invoke((uint) serializer.SystemId, ClientData.Tick, ref ClientData, ref reader, ref readCtx);
 				}
 
 				ReadContext[0] = readCtx;

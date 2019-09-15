@@ -9,6 +9,7 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
@@ -157,6 +158,7 @@ namespace Revolution
 			var chunks     = m_GhostEntityQuery.CreateArchetypeChunkArray(Allocator.TempJob);
 
 			var x = 0;
+			Profiler.BeginSample("Set GhostArray and EntityArray");
 			foreach (var chunk in chunks)
 			{
 				var entityArray  = chunk.GetNativeArray(GetArchetypeChunkEntityType());
@@ -168,7 +170,9 @@ namespace Revolution
 					x++;
 				}
 			}
+			Profiler.EndSample();
 
+			Profiler.BeginSample("Init System Chunks Data");
 			foreach (var systemKvp in m_SnapshotManager.IdToSystems)
 			{
 				var system = systemKvp.Value;
@@ -184,7 +188,9 @@ namespace Revolution
 					sharedData.Chunks.Clear();
 				}
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Check Entity Update");
 			var entityUpdate = new NativeList<Entity>(entities.Length, Allocator.Temp);
 			foreach (var entity in entities)
 			{
@@ -200,8 +206,10 @@ namespace Revolution
 					m_EntityToChunk[entity] = currChunk;
 				}
 			}
+			Profiler.EndSample();
 
 			var i = 0;
+			Profiler.BeginSample("Search Chunk GhostArchetype");
 			foreach (var chunk in chunks)
 			{
 				if (!m_ChunkToGhostArchetype.TryGetValue(chunk, out var archetype)
@@ -233,8 +241,10 @@ namespace Revolution
 					}
 				}
 			}
+			Profiler.EndSample();
 
 			var deps = new NativeList<JobHandle>(lookup.Count, Allocator.Temp);
+			Profiler.BeginSample("Create Snapshots");
 			foreach (var data in lookup)
 			{
 				var outgoing = new NativeList<byte>(1024, Allocator.TempJob);
@@ -245,10 +255,14 @@ namespace Revolution
 				serializeData.Tick   = tick;
 				deps.Add(CreateSnapshot(outgoing, serializeData, in chunks, in entities, in ghostArray, entityUpdate));
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Complete()");
 			foreach (var dep in deps)
 				dep.Complete();
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Set Data");
 			foreach (var outgoingData in m_TemporaryOutgoingData)
 			{
 				var dBuffer = EntityManager.GetBuffer<ClientSnapshotBuffer>(outgoingData.Key);
@@ -257,25 +271,13 @@ namespace Revolution
 
 				outgoingData.Value.Dispose();
 			}
+			Profiler.EndSample();
 
 			m_TemporaryOutgoingData.Clear();
 
 			entities.Dispose();
 			ghostArray.Dispose();
 			chunks.Dispose();
-
-			// Dispose temporary shared data...
-			foreach (var system in m_SnapshotManager.IdToSystems.Values)
-			{
-				if (system is IDynamicSnapshotSystem dynamicSystem)
-				{
-					ref var sharedData = ref dynamicSystem.GetSharedChunk();
-					if (!sharedData.Chunks.IsCreated)
-						continue;
-
-					sharedData.Chunks.Dispose();
-				}
-			}
 		}
 
 		private void WriteArchetypes(in SerializeClientData baseline, ref DataStreamWriter writer, NativeArray<Entity> entities)

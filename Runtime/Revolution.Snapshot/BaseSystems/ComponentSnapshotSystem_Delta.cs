@@ -133,7 +133,7 @@ namespace Revolution
 
 					if (shouldSkip)
 					{
-						ent += (int) previousChunkCount;
+						ent += (int) previousChunkCount - 1;
 						continue;
 					}
 
@@ -162,7 +162,7 @@ namespace Revolution
 			}
 		}
 
-		public virtual DeltaChangeType DeltaType => DeltaChangeType.Invalid;
+		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
 		protected override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
 		{
