@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using K4os.Compression.LZ4;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using UnityEngine;
@@ -21,6 +24,7 @@ namespace Revolution.NetCode
 		protected override void OnCreate()
 		{
 			base.OnCreate();
+
 			m_SerializeLookup = new Dictionary<Entity, SerializeClientData>(32);
 			m_ConnectionGroup = GetEntityQuery(new EntityQueryDesc
 			{
@@ -87,8 +91,20 @@ namespace Revolution.NetCode
 				writer.Write(localTime);
 				writer.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
 				writer.Write(m_ServerSimulationSystemGroup.ServerTick);
-				
-				writer.WriteBytes((byte*) buffer.GetUnsafePtr(), buffer.Length);
+
+				var compressed = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
+				var compressedLength = LZ4Codec.MaximumOutputSize(buffer.Length);
+				{
+					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength);
+					writer.Write(size);
+					writer.Write(buffer.Length);
+					
+					Debug.Log($"{new IntPtr(compressed)} length={compressedLength}, size={size}, buffer_size={buffer.Length}, tick={m_ServerSimulationSystemGroup.ServerTick}");
+					
+					writer.WriteBytes((byte*) compressed, size);
+					writer.Write(42);
+				}
+				UnsafeUtility.Free(compressed, Allocator.Temp);
 
 				driver.Send(pipeline, connection.Value, writer);
 				writer.Dispose();

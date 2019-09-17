@@ -1,6 +1,9 @@
+using K4os.Compression.LZ4;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -65,7 +68,22 @@ namespace Revolution.NetCode
 
 					var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);
 					{
-						m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, snapshotData.GetSubArray(sizeof(uint), snapshotData.Length - sizeof(uint)));
+						var compressedSize = reader.ReadInt(ref ctx);
+						var uncompressedSize = reader.ReadInt(ref ctx);
+						var compressedMemory = new NativeArray<byte>(compressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+						reader.ReadBytes(ref ctx, (byte*) compressedMemory.GetUnsafePtr(), compressedSize);
+						
+						
+						var uncompressedMemory = new NativeArray<byte>(uncompressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory); 
+						
+						LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 
+							(byte*) uncompressedMemory.GetUnsafePtr(), uncompressedSize);
+						
+						Debug.Log($"compressed size = {compressedSize} {reader.ReadInt(ref ctx)}, uncompressed = {uncompressedSize}");
+						
+						m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, uncompressedMemory);
+						
+						uncompressedMemory.Dispose();
 					}
 					EntityManager.SetComponentData(player, snapshotAck);
 				}

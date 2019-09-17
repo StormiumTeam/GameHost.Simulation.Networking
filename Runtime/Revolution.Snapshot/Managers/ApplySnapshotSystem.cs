@@ -105,13 +105,14 @@ namespace Revolution
 			
 			baseline.Tick = reader.ReadUInt(ref ctx);
 
-			if (reader.ReadByte(ref ctx) == 60)
+			var hbyte = reader.ReadByte(ref ctx);
+			if (hbyte == 60)
 			{
 				if (reader.ReadUInt(ref ctx) != baseline.Tick)
 					throw new InvalidOperationException("Invalid header");
 			}
 			else
-				throw new InvalidOperationException("Invalid header");
+				throw new InvalidOperationException($"Invalid header [requested 60 but we got {hbyte}] <tick:{baseline.Tick}>");
 
 			// Be sure that all systems are ready...
 			foreach (var system in m_SnapshotManager.IdToSystems)
