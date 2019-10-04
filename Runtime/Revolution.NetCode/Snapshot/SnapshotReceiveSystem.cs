@@ -79,13 +79,14 @@ namespace Revolution.NetCode
 						LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 
 							(byte*) uncompressedMemory.GetUnsafePtr(), uncompressedSize);
 						
-						Debug.Log($"compressed size = {compressedSize} {reader.ReadInt(ref ctx)}, uncompressed = {uncompressedSize}");
-						
 						m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, uncompressedMemory);
 						
 						uncompressedMemory.Dispose();
+						compressedMemory.Dispose();
 					}
 					EntityManager.SetComponentData(player, snapshotAck);
+
+					snapshotData.Dispose();
 				}
 
 				EntityManager.DestroyEntity(m_PacketQuery);

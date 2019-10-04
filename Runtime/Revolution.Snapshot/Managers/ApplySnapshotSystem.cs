@@ -103,17 +103,6 @@ namespace Revolution
 			var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) data.GetUnsafePtr(), data.Length);
 			var ctx = default(DataStreamReader.Context);
 			
-			baseline.Tick = reader.ReadUInt(ref ctx);
-
-			var hbyte = reader.ReadByte(ref ctx);
-			if (hbyte == 60)
-			{
-				if (reader.ReadUInt(ref ctx) != baseline.Tick)
-					throw new InvalidOperationException("Invalid header");
-			}
-			else
-				throw new InvalidOperationException($"Invalid header [requested 60 but we got {hbyte}] <tick:{baseline.Tick}>");
-
 			// Be sure that all systems are ready...
 			foreach (var system in m_SnapshotManager.IdToSystems)
 			{
@@ -319,6 +308,8 @@ namespace Revolution
 			}.Run();
 
 			ctx = readCtxArray[0];
+
+			delegateDeserializers.Dispose();
 			readCtxArray.Dispose();
 
 			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().Update();

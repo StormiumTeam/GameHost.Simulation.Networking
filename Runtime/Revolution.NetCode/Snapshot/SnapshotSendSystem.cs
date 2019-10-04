@@ -98,11 +98,8 @@ namespace Revolution.NetCode
 					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength);
 					writer.Write(size);
 					writer.Write(buffer.Length);
-					
-					Debug.Log($"{new IntPtr(compressed)} length={compressedLength}, size={size}, buffer_size={buffer.Length}, tick={m_ServerSimulationSystemGroup.ServerTick}");
-					
+
 					writer.WriteBytes((byte*) compressed, size);
-					writer.Write(42);
 				}
 				UnsafeUtility.Free(compressed, Allocator.Temp);
 

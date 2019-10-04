@@ -308,7 +308,7 @@ namespace Revolution.NetCode
     {
         public override void SortSystemUpdateList()
         {
-        }
+        } 
     }
 #endif
 
@@ -319,6 +319,18 @@ namespace Revolution.NetCode
     // Bootstrap of client and server worlds
     public class ClientServerBootstrap : ICustomBootstrap
     {
+        [RuntimeInitializeOnLoadMethod]
+        private static void OnInit()
+        {
+           PlayerLoopManager.RegisterDomainUnload(OnQuit, 1001);
+        }
+
+        private static void OnQuit()
+        {
+            clientWorld = null;
+            serverWorld = null;
+        }
+        
         public List<Type> Initialize(List<Type> systems)
         {
             Debug.Log("call...");

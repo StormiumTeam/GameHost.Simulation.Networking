@@ -28,7 +28,7 @@ namespace Revolution
 		{
 			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;
 			public SerializeClientData                           ClientData;
-
+			
 			public DataStreamWriter StreamWriter;
 			public NativeList<byte> OutgoingData;
 
@@ -47,6 +47,16 @@ namespace Revolution
 				StreamWriter.Write(0);
 
 				OutgoingData.AddRange(StreamWriter.GetUnsafePtr(), StreamWriter.Length);
+			}
+		}
+
+		public struct DisposeWriterJob : IJob
+		{
+			public DataStreamWriter Writer;
+			
+			public void Execute()
+			{
+				Writer.Dispose();
 			}
 		}
 
@@ -100,6 +110,13 @@ namespace Revolution
 			base.OnDestroy();
 
 			m_ChunkToGhostArchetype.Dispose();
+			foreach (var nativeList in m_TemporaryOutgoingData.Values)
+			{
+				nativeList.Dispose();
+			}
+			m_TemporaryOutgoingData.Clear();
+			m_GhostIdQueue.Dispose();
+			m_EntityToChunk.Clear();
 		}
 
 		private uint FindGhostId(NativeList<uint> blockedId)
@@ -195,17 +212,13 @@ namespace Revolution
 			foreach (var entity in entities)
 			{
 				var currChunk = EntityManager.GetChunk(entity);
-				if (!m_EntityToChunk.TryGetValue(entity, out var otherChunk))
-				{
-					m_EntityToChunk[entity] = currChunk;
-					entityUpdate.Add(entity);
-				}
-				else if (otherChunk != currChunk)
-				{
-					entityUpdate.Add(entity);
-					m_EntityToChunk[entity] = currChunk;
-				}
+				if (m_EntityToChunk.TryGetValue(entity, out var otherChunk) && otherChunk == currChunk)
+					continue;
+
+				m_EntityToChunk[entity] = currChunk;
+				entityUpdate.Add(entity);
 			}
+
 			Profiler.EndSample();
 
 			var i = 0;
@@ -346,12 +359,6 @@ namespace Revolution
 			baseline.BeginSerialize(this, chunks);
 
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);
-			writer.Write(baseline.Tick);
-
-			//< This part is used for verification client-side
-			writer.Write((byte) 60);
-			writer.Write(baseline.Tick);
-			//>
 			
 			// Before we write anything, we need to check if the ghosts are sorted correctly to not have problems client-side
 			var deferredEntityCount = writer.Write(0);
@@ -451,8 +458,6 @@ namespace Revolution
 							}
 						}
 
-						Debug.Log($"need update? {needUpdate}");
-
 						if (!needUpdate)
 							continue;
 
@@ -488,6 +493,9 @@ namespace Revolution
 				OutgoingData = outgoing
 			}.Schedule(inputDeps);
 			inputDeps = delegateSerializers.Dispose(inputDeps);
+			inputDeps.Complete();
+			
+			writer.Dispose();
 
 			return inputDeps;
 		}
