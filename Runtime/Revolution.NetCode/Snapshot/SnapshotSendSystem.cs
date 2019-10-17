@@ -21,6 +21,8 @@ namespace Revolution.NetCode
 		private NetworkStreamReceiveSystem  m_ReceiveSystem;
 		private CreateSnapshotSystem        m_CreateSnapshotSystem;
 
+		private DataStreamWriter m_DataStream;
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
@@ -28,16 +30,18 @@ namespace Revolution.NetCode
 			m_SerializeLookup = new Dictionary<Entity, SerializeClientData>(32);
 			m_ConnectionGroup = GetEntityQuery(new EntityQueryDesc
 			{
-				All = new ComponentType[] {typeof(NetworkStreamConnection), typeof(NetworkSnapshotAckComponent), typeof(NetworkStreamInGame)}
+				All = new ComponentType[] {typeof(NetworkStreamConnection), typeof(NetworkSnapshotAckComponent), /*typeof(NetworkStreamInGame)*/}
 			});
 			m_ConnectionWithoutSnapshotBufferGroup = GetEntityQuery(new EntityQueryDesc
 			{
-				All  = new ComponentType[] {typeof(NetworkStreamConnection), typeof(NetworkStreamInGame)},
+				All  = new ComponentType[] {typeof(NetworkStreamConnection),/* typeof(NetworkStreamInGame)*/},
 				None = new ComponentType[] {typeof(ClientSnapshotBuffer)}
 			});
 			m_ServerSimulationSystemGroup = World.GetOrCreateSystem<ServerSimulationSystemGroup>();
 			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
 			m_CreateSnapshotSystem        = World.GetOrCreateSystem<CreateSnapshotSystem>();
+			
+			m_DataStream = new DataStreamWriter(1440, Allocator.Persistent);
 		}
 
 		protected override void OnUpdate()
@@ -52,16 +56,19 @@ namespace Revolution.NetCode
 				}
 			}
 
-			var deleteKeys = new NativeList<Entity>(8, Allocator.Temp);
-			foreach (var kvp in m_SerializeLookup)
+			using (var deleteKeys = new NativeList<Entity>(8, Allocator.Temp))
 			{
-				if (!EntityManager.Exists(kvp.Key))
-					deleteKeys.Add(kvp.Key);
-			}
+				foreach (var kvp in m_SerializeLookup)
+				{
+					if (!EntityManager.Exists(kvp.Key))
+						deleteKeys.Add(kvp.Key);
+				}
 
-			foreach (var key in deleteKeys)
-			{
-				m_SerializeLookup.Remove(key);
+				foreach (var key in deleteKeys)
+				{
+					m_SerializeLookup[key].Dispose();
+					m_SerializeLookup.Remove(key);
+				}
 			}
 
 			var connectionEntities           = m_ConnectionGroup.ToEntityArray(Allocator.TempJob);
@@ -71,6 +78,7 @@ namespace Revolution.NetCode
 			{
 				if (m_SerializeLookup.ContainsKey(entity))
 					continue;
+
 				m_SerializeLookup[entity] = new SerializeClientData(Allocator.Persistent);
 			}
 
@@ -86,25 +94,25 @@ namespace Revolution.NetCode
 				var ack        = ackComponentArray[ent];
 
 				var buffer = EntityManager.GetBuffer<ClientSnapshotBuffer>(entity);
-				var writer = new DataStreamWriter(buffer.Length + 64, Allocator.TempJob);
-				writer.Write((byte) NetworkStreamProtocol.Snapshot);
-				writer.Write(localTime);
-				writer.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
-				writer.Write(m_ServerSimulationSystemGroup.ServerTick);
 
-				var compressed = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
+				m_DataStream.Clear();
+				m_DataStream.Write((byte) NetworkStreamProtocol.Snapshot);
+				m_DataStream.Write(localTime);
+				m_DataStream.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
+				m_DataStream.Write(m_ServerSimulationSystemGroup.ServerTick);
+
+				var compressed       = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
 				var compressedLength = LZ4Codec.MaximumOutputSize(buffer.Length);
 				{
 					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength);
-					writer.Write(size);
-					writer.Write(buffer.Length);
+					m_DataStream.Write(size);
+					m_DataStream.Write(buffer.Length);
 
-					writer.WriteBytes((byte*) compressed, size);
+					m_DataStream.WriteBytes((byte*) compressed, size);
 				}
 				UnsafeUtility.Free(compressed, Allocator.Temp);
 
-				driver.Send(pipeline, connection.Value, writer);
-				writer.Dispose();
+				driver.Send(pipeline, connection.Value, m_DataStream);
 			}
 
 			connectionEntities.Dispose();
@@ -114,6 +122,8 @@ namespace Revolution.NetCode
 
 		protected override void OnDestroy()
 		{
+			m_DataStream.Dispose(); 
+			
 			foreach (var kvp in m_SerializeLookup)
 			{
 				kvp.Value.Dispose();

@@ -6,6 +6,7 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -45,18 +46,21 @@ namespace Revolution.NetCode
         private NativeArray<int>                         numNetworkIds;
         private NativeQueue<int>                         freeNetworkIds;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
-        private DefaultRpcProcessSystem<RpcSetNetworkId>                rpcQueue;
+        private DefaultRpcProcessSystem<RpcSetNetworkId> rpcQueue;
         private int                                      m_ClientPacketDelay;
         private int                                      m_ClientPacketDrop;
+
+        private EntityQuery m_AssignQuery;
+        private EntityQuery m_ConnectionReceiveQuery;
 
         public bool Listen(NetworkEndPoint endpoint)
         {
             if (m_UnreliablePipeline == NetworkPipeline.Null)
                 m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
             if (m_RpcPipeline == NetworkPipeline.Null)
-                m_RpcPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+                m_RpcPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
             if (m_SnapshotPipeline == NetworkPipeline.Null)
-                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
 
             // Switching to server mode
             if (m_Driver.Bind(endpoint) != 0)
@@ -73,26 +77,17 @@ namespace Revolution.NetCode
         {
             if (m_UnreliablePipeline == NetworkPipeline.Null)
             {
-                if (m_ClientPacketDelay > 0 || m_ClientPacketDrop > 0)
-                    m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStage), typeof(SimulatorPipelineStageInSend));
-                else
-                    m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
+                m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
             }
 
             if (m_RpcPipeline == NetworkPipeline.Null)
             {
-                if (m_ClientPacketDelay > 0 || m_ClientPacketDrop > 0)
-                    m_RpcPipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStageInSend), typeof(ReliableSequencedPipelineStage), typeof(SimulatorPipelineStage));
-                else
-                    m_RpcPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+                m_RpcPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
             }
 
             if (m_SnapshotPipeline == NetworkPipeline.Null)
             {
-                if (m_ClientPacketDelay > 0 || m_ClientPacketDrop > 0)
-                    m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStageInSend), typeof(ReliableSequencedPipelineStage), typeof(SimulatorPipelineStage));
-                else
-                    m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
             }
 
             var ent = EntityManager.CreateEntity();
@@ -100,10 +95,10 @@ namespace Revolution.NetCode
             EntityManager.AddComponentData(ent, new NetworkSnapshotAckComponent());
             EntityManager.AddComponentData(ent, new CommandTargetComponent());
 
-            EntityManager.AddBuffer<OutgoingRpcDataStreamBufferComponent>(ent);
-            EntityManager.AddBuffer<IncomingCommandDataStreamBufferComponent>(ent);
-            EntityManager.AddBuffer<SnapshotPacketHolder>(ent);
-            EntityManager.AddBuffer<IncomingRpcDataStreamBufferComponent>(ent);
+            EntityManager.AddBuffer<OutgoingRpcDataStreamBufferComponent>(ent).Reserve(100);
+            EntityManager.AddBuffer<IncomingCommandDataStreamBufferComponent>(ent).Reserve(100);
+            EntityManager.AddBuffer<IncomingSnapshotStreamBufferComponent>(ent).Reserve(100);
+            EntityManager.AddBuffer<IncomingRpcDataStreamBufferComponent>(ent).Reserve(100);
             return ent;
         }
 
@@ -111,7 +106,7 @@ namespace Revolution.NetCode
         {
             var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
-            if (UnityEngine.Debug.isDebugBuild)
+            if (UnityEngine.Debug.isDebugBuild && false == true)
             {
                 m_ClientPacketDelay = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDelay");
                 m_ClientPacketDrop  = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDropRate");
@@ -135,6 +130,17 @@ namespace Revolution.NetCode
             numNetworkIds        = new NativeArray<int>(1, Allocator.Persistent);
             freeNetworkIds       = new NativeQueue<int>(Allocator.Persistent);
             rpcQueue             = World.GetOrCreateSystem<DefaultRpcProcessSystem<RpcSetNetworkId>>();
+
+            m_AssignQuery = GetEntityQuery(new EntityQueryDesc
+            {
+                All  = new ComponentType[] {typeof(NetworkStreamConnection)},
+                None = new ComponentType[] {typeof(NetworkIdComponent)}
+            });
+            m_ConnectionReceiveQuery = GetEntityQuery(new EntityQueryDesc
+            {
+                All  = new ComponentType[] {typeof(NetworkStreamConnection), typeof(NetworkSnapshotAckComponent)},
+                None = new ComponentType[] {typeof(NetworkStreamDisconnected)}
+            });
         }
 
         protected override void OnDestroy()
@@ -169,7 +175,6 @@ namespace Revolution.NetCode
                     commandBuffer.AddComponent(ent, new CommandTargetComponent());
                     commandBuffer.AddBuffer<OutgoingRpcDataStreamBufferComponent>(ent);
                     commandBuffer.AddBuffer<IncomingCommandDataStreamBufferComponent>(ent);
-                    commandBuffer.AddBuffer<SnapshotPacketHolder>(ent);
                     commandBuffer.AddBuffer<IncomingRpcDataStreamBufferComponent>(ent);
                 }
             }
@@ -205,24 +210,23 @@ namespace Revolution.NetCode
         [ExcludeComponent(typeof(NetworkStreamDisconnected))]
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
-            public            EntityCommandBuffer.Concurrent                             commandBuffer;
+            public            EntityCommandBuffer                                        commandBuffer;
             public            UdpNetworkDriver.Concurrent                                driver;
-            public            NativeQueue<int>.Concurrent                                freeNetworkIds;
+            public            NativeQueue<int>                                           freeNetworkIds;
             public            BufferFromEntity<IncomingRpcDataStreamBufferComponent>     rpcBuffer;
             public            BufferFromEntity<IncomingCommandDataStreamBufferComponent> cmdBuffer;
-            public            BufferFromEntity<SnapshotPacketHolder>                     snapshotHolders;
+            public            BufferFromEntity<IncomingSnapshotStreamBufferComponent>    snapshotBuffer;
             [ReadOnly] public ComponentDataFromEntity<NetworkIdComponent>                networkId;
             public            uint                                                       localTime;
 
             public unsafe void Execute(Entity entity, int index, ref NetworkStreamConnection connection, ref NetworkSnapshotAckComponent snapshotAck)
             {
-                snapshotHolders[entity].Clear();
-
                 if (!connection.Value.IsCreated)
                     return;
 
                 DataStreamReader  reader;
                 NetworkEvent.Type evt;
+
                 while ((evt = driver.PopEventForConnection(connection.Value, out reader)) != NetworkEvent.Type.Empty)
                 {
                     switch (evt)
@@ -230,19 +234,16 @@ namespace Revolution.NetCode
                         case NetworkEvent.Type.Connect:
                             break;
                         case NetworkEvent.Type.Disconnect:
+                        {
                             // Flag the connection as lost, it will be deleted in a separate system, giving user code one frame to detect and respond to lost connection
-                            commandBuffer.AddComponent(index, entity, new NetworkStreamDisconnected());
+                            commandBuffer.AddComponent(entity, new NetworkStreamDisconnected());
 
-                            // destroy incoming packets...
-                            var snapshotHolder = snapshotHolders[entity];
-                            for (var i = 0; i < snapshotHolder.Length; i++)
-                                commandBuffer.DestroyEntity(index, snapshotHolder[i].Value);
-
-                            snapshotHolders[entity].Clear();
                             connection.Value = default(NetworkConnection);
                             if (networkId.Exists(entity))
                                 freeNetworkIds.Enqueue(networkId[entity].Value);
                             return;
+                        }
+
                         case NetworkEvent.Type.Data:
                             // FIXME: do something with the data
                             var ctx = default(DataStreamReader.Context);
@@ -260,7 +261,6 @@ namespace Revolution.NetCode
                                     snapshotAck.UpdateRemoteTime(remoteTime, localTimeMinusRTT, localTime);
 
                                     int headerSize = 1 + 4 * 3;
-
                                     buffer.ResizeUninitialized(reader.Length - headerSize);
                                     UnsafeUtility.MemCpy(buffer.GetUnsafePtr(),
                                         reader.GetUnsafeReadOnlyPtr() + headerSize,
@@ -276,25 +276,12 @@ namespace Revolution.NetCode
                                     snapshotAck.UpdateRemoteTime(remoteTime, localTimeMinusRTT, localTime);
                                     int headerSize = 1 + 4 * 2;
 
-                                    var packet = commandBuffer.CreateEntity(index);
-                                    {
-                                        commandBuffer.AddComponent(index, packet, new IncomingPacket
-                                        {
-                                            Entity = entity,
-                                            Connection = connection.Value
-                                        });
-                                        commandBuffer.AddComponent(index, packet, typeof(SnapshotPacketTag));
-                                    }
-                                    var buffer = commandBuffer.AddBuffer<IncomingData>(index, packet);
-                                    buffer.ResizeUninitialized(reader.Length - headerSize);
-                                    UnsafeUtility.MemCpy(buffer.GetUnsafePtr(),
+                                    var buffer = snapshotBuffer[entity];
+                                    var oldLen = buffer.Length;
+                                    buffer.ResizeUninitialized(buffer.Length + reader.Length - headerSize);
+                                    UnsafeUtility.MemCpy((byte*) buffer.GetUnsafePtr() + oldLen,
                                         reader.GetUnsafeReadOnlyPtr() + headerSize,
                                         reader.Length - headerSize);
-
-                                    var holders = commandBuffer.SetBuffer<SnapshotPacketHolder>(index, entity);
-                                    holders.Add(new SnapshotPacketHolder {Value = packet});
-                                    // As previous packets as last
-                                    holders.AddRange(snapshotHolders[entity].AsNativeArray());
                                     break;
                                 }
 
@@ -332,24 +319,25 @@ namespace Revolution.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            var concurrentFreeQueue = freeNetworkIds.ToConcurrent();
             inputDeps = m_Driver.ScheduleUpdate(inputDeps);
+
+            var cmdBuffer = m_Barrier.CreateCommandBuffer();
             if (m_DriverListening)
             {
                 // Schedule accept job
                 ConnectionAcceptJob acceptJob;
                 acceptJob.driver        = m_Driver;
-                acceptJob.commandBuffer = m_Barrier.CreateCommandBuffer();
+                acceptJob.commandBuffer = cmdBuffer;
                 inputDeps               = acceptJob.Schedule(inputDeps);
 
                 // Schedule job to assign network ids to new connections
                 AssignNetworkIdJob assignJob;
-                assignJob.commandBuffer  = m_Barrier.CreateCommandBuffer();
+                assignJob.commandBuffer  = cmdBuffer;
                 assignJob.numNetworkId   = numNetworkIds;
                 assignJob.freeNetworkIds = freeNetworkIds;
                 assignJob.rpcQueue       = rpcQueue.RpcQueue;
                 assignJob.rpcBuffer      = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>();
-                inputDeps                = assignJob.ScheduleSingle(this, inputDeps);
+                inputDeps                = assignJob.ScheduleSingle(m_AssignQuery, inputDeps);
             }
             else
             {
@@ -358,18 +346,18 @@ namespace Revolution.NetCode
 
             // Schedule parallel update job
             ConnectionReceiveJob recvJob;
-            recvJob.commandBuffer   = m_Barrier.CreateCommandBuffer().ToConcurrent();
-            recvJob.driver          = m_ConcurrentDriver;
-            recvJob.freeNetworkIds  = concurrentFreeQueue;
-            recvJob.networkId       = GetComponentDataFromEntity<NetworkIdComponent>();
-            recvJob.rpcBuffer       = GetBufferFromEntity<IncomingRpcDataStreamBufferComponent>();
-            recvJob.cmdBuffer       = GetBufferFromEntity<IncomingCommandDataStreamBufferComponent>();
-            recvJob.snapshotHolders = GetBufferFromEntity<SnapshotPacketHolder>();
-            recvJob.localTime       = NetworkTimeSystem.TimestampMS;
-            // FIXME: because it uses buffer from entity
-            var handle = recvJob.ScheduleSingle(this, inputDeps);
-            m_Barrier.AddJobHandleForProducer(handle);
-            return handle;
+            recvJob.commandBuffer  = cmdBuffer;
+            recvJob.driver         = m_ConcurrentDriver;
+            recvJob.freeNetworkIds = freeNetworkIds;
+            recvJob.networkId      = GetComponentDataFromEntity<NetworkIdComponent>();
+            recvJob.rpcBuffer      = GetBufferFromEntity<IncomingRpcDataStreamBufferComponent>();
+            recvJob.cmdBuffer      = GetBufferFromEntity<IncomingCommandDataStreamBufferComponent>();
+            recvJob.snapshotBuffer = GetBufferFromEntity<IncomingSnapshotStreamBufferComponent>();
+            recvJob.localTime      = NetworkTimeSystem.TimestampMS;
+
+            inputDeps = recvJob.ScheduleSingle(m_ConnectionReceiveQuery, inputDeps);
+            m_Barrier.AddJobHandleForProducer(inputDeps);
+            return inputDeps;
         }
     }
 }

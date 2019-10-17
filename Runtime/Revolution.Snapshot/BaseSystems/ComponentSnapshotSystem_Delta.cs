@@ -176,7 +176,7 @@ namespace Revolution
 			sharedData.Delta             = DeltaType;
 			sharedData.SystemVersion     = GlobalSystemVersion - 1;
 			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
-			sharedData.SetupData.BeginSetup(this);
+			sharedData.SetupData.BeginSetup(this, SafetyHandle);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)

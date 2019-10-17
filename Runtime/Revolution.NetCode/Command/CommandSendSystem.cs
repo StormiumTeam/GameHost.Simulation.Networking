@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using Debug = UnityEngine.Debug;
 
 namespace Revolution.NetCode
 {
@@ -37,7 +39,7 @@ namespace Revolution.NetCode
                 foreach (var chunk in chunks)
                 {
                     OnChunkProcess(chunk,
-                        m_TimeSystem.predictTargetTick, NetworkTimeSystem.TimestampMS,
+                        NetworkTimeSystem.TimestampMS, m_TimeSystem.predictTargetTick,
                         m_ReceiveSystem.Driver, m_ReceiveSystem.UnreliablePipeline);
                 }
             }

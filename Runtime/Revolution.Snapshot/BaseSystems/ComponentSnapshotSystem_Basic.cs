@@ -89,7 +89,7 @@ namespace Revolution
 		{
 			ref var sharedData = ref GetShared();
 			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>();
-			sharedData.SetupData.BeginSetup(this);
+			sharedData.SetupData.BeginSetup(this, SafetyHandle);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)
@@ -99,7 +99,7 @@ namespace Revolution
 
 			ref var sharedData = ref GetShared();
 			sharedData.SnapshotFromEntity = snapshotBuffer;
-			sharedData.SetupData.BeginSetup(this);
+			sharedData.SetupData.BeginSetup(this, SafetyHandle);
 		}
 	}
 

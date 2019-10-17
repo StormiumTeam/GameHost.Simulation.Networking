@@ -2,6 +2,7 @@ using System;
 using Collections.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace Revolution
 {
@@ -26,6 +27,8 @@ namespace Revolution
 		public ref T AllocateSystemData<T>(uint systemId)
 			where T : struct
 		{
+			Debug.Log("Allocating SystemData");
+			
 			var ptr = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), Allocator.Persistent);
 			UnsafeHashMap.Add(SystemData, systemId, (IntPtr) ptr);
 			return ref UnsafeUtilityEx.AsRef<T>(ptr);

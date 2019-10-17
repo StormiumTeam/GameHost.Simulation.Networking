@@ -355,7 +355,6 @@ namespace Revolution
 			if (!inChain)
 				throw new NotImplementedException("unchained operation for 'CreateSnapshot' is not available for now;");
 
-
 			baseline.BeginSerialize(this, chunks);
 
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);

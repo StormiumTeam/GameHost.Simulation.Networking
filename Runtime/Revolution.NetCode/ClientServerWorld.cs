@@ -8,7 +8,7 @@ namespace Revolution.NetCode
     public struct FixedTimeLoop
     {
         public       float accumulatedTime;
-        public const float fixedTimeStep = 1f / 30f;
+        public const float fixedTimeStep = 1f / 60f;
         public const int   maxTimeSteps  = 4;
         public       int   timeSteps;
 
@@ -266,6 +266,14 @@ namespace Revolution.NetCode
         public override void SortSystemUpdateList()
         {
         }
+
+        protected override void OnUpdate()
+        {
+            if (Input.GetKey(KeyCode.S) && Input.GetKey(KeyCode.Keypad0))
+                return;
+            
+            base.OnUpdate();
+        }
     }
 
     [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -275,6 +283,14 @@ namespace Revolution.NetCode
     {
         public override void SortSystemUpdateList()
         {
+        }
+        
+        protected override void OnUpdate()
+        {
+            if (Input.GetKey(KeyCode.I) && Input.GetKey(KeyCode.Keypad0))
+                return;
+            
+            base.OnUpdate();
         }
     }
 #endif
@@ -288,6 +304,14 @@ namespace Revolution.NetCode
     {
         public override void SortSystemUpdateList()
         {
+        }
+        
+        protected override void OnUpdate()
+        {
+            if (Input.GetKey(KeyCode.S) && Input.GetKey(KeyCode.Keypad1))
+                return;
+            
+            base.OnUpdate();
         }
     }
 
@@ -309,6 +333,14 @@ namespace Revolution.NetCode
         public override void SortSystemUpdateList()
         {
         } 
+        
+        protected override void OnUpdate()
+        {
+            if (Input.GetKey(KeyCode.I) && Input.GetKey(KeyCode.Keypad0))
+                return;
+            
+            base.OnUpdate();
+        }
     }
 #endif
 

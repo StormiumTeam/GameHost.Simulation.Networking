@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -102,6 +103,7 @@ namespace Revolution.NetCode
 		public override void ProcessReceive(uint tick, DataStreamReader reader, ref DataStreamReader.Context ctx)
 		{
 			var data = default(TCommand);
+			data.Tick = tick;
 			data.ReadFrom(reader, ref ctx);
 
 			var buffer = EntityManager.GetBuffer<TCommand>(CommandTarget);

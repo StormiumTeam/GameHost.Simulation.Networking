@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Collections;
+using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -41,6 +42,7 @@ namespace Revolution.NetCode
 
         private unsafe void OnArrayProcess(NativeArray<Entity> entities, NativeArray<CommandTargetComponent> targetArray)
         {
+            var tick = World.GetExistingSystem<ServerSimulationSystemGroup>().ServerTick;
             for (var ent = 0; ent < entities.Length; ent++)
             {
                 var target = targetArray[ent];
@@ -50,10 +52,9 @@ namespace Revolution.NetCode
                 var buffer = EntityManager.GetBuffer<IncomingCommandDataStreamBufferComponent>(entities[ent]);
                 if (buffer.Length <= 0)
                     continue;
-
+                
                 var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) buffer.GetUnsafePtr(), buffer.Length);
                 var ctx    = default(DataStreamReader.Context);
-                var tick   = reader.ReadUInt(ref ctx);
                 while (reader.GetBytesRead(ref ctx) < reader.Length)
                 {
                     var type = reader.ReadByte(ref ctx);
@@ -63,6 +64,8 @@ namespace Revolution.NetCode
                     processor.BeginDeserialize(target.targetEntity, type);
                     processor.ProcessReceive(tick, reader, ref ctx);
                 }
+                
+                buffer.Clear();
             }
         }
     }

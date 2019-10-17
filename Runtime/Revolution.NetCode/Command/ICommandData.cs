@@ -4,10 +4,13 @@ using Unity.Networking.Transport.Utilities;
 
 namespace Revolution.NetCode
 {
-    public interface ICommandData<T> : IBufferElementData where T : struct
+    public interface ICommandData : IBufferElementData
     {
-        uint Tick { get; set; }
-
+        uint Tick { get; set; }   
+    }
+    
+    public interface ICommandData<T> : ICommandData where T : struct
+    {
         void ReadFrom(DataStreamReader reader, ref DataStreamReader.Context ctx);
         void WriteTo(DataStreamWriter writer);
     }

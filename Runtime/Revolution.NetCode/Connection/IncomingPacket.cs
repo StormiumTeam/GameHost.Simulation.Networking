@@ -9,7 +9,7 @@ namespace Revolution.NetCode
 		public NetworkConnection Connection { get; set; }
 	}
 
-	public struct IncomingData : IBufferElementData
+	public struct IncomingSnapshotStreamBufferComponent : IBufferElementData
 	{
 		public byte Value;
 	}

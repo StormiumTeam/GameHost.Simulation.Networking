@@ -1,4 +1,5 @@
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
@@ -19,12 +20,20 @@ namespace Revolution
 
 	public interface ISetup
 	{
-		void BeginSetup(JobComponentSystem system);
+		void BeginSetup(JobComponentSystem system,
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+		                AtomicSafetyHandle safetyHandle
+#endif
+		);
 	}
 
 	public struct DefaultSetup : ISetup
 	{
-		public void BeginSetup(JobComponentSystem system)
+		public void BeginSetup(JobComponentSystem system,
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+		                       AtomicSafetyHandle safetyHandle
+#endif
+		)
 		{
 		}
 	}
