@@ -27,7 +27,7 @@ namespace Revolution
 			m_SystemToGhostIds = new Dictionary<uint, NativeList<uint>>();
 		}
 
-		[BurstCompile(CompileSynchronously = true)]
+		[BurstCompile(CompileSynchronously = false)]
 		public unsafe struct DeserializeJob : IJob
 		{
 			public NativeList<SortDelegate<OnDeserializeSnapshot>> Deserializers;

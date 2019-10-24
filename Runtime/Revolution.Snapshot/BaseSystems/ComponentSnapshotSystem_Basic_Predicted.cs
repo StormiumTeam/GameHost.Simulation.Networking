@@ -5,14 +5,14 @@ using Unity.Networking.Transport;
 
 namespace Revolution
 {
-	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
 		TSetup,
-		ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup>.SharedData
+		ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot, TSetup>.SharedData
 	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>, IPredictable<TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
@@ -21,6 +21,14 @@ namespace Revolution
 			public TSetup                                  SetupData;
 			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
 			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
+		}
+
+		public struct TripleBaseline
+		{
+			public uint Available;
+			public TSnapshot Baseline0;
+			public TSnapshot Baseline1;
+			public TSnapshot Baseline2;
 		}
 
 		[BurstCompile]
@@ -41,18 +49,28 @@ namespace Revolution
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(systemId, out var success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TripleBaseline>(systemId, out var success);
 					if (!success)
 					{
-						baseline = ref ghostSnapshot.AllocateSystemData<TSnapshot>(systemId);
+						baseline = ref ghostSnapshot.AllocateSystemData<TripleBaseline>(systemId);
 						baseline = default; // always set to default values!
 					}
 
 					var newSnapshot = default(TSnapshot);
+					newSnapshot.Tick = jobData.Tick;
 					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in jobData);
-					newSnapshot.WriteTo(writer, ref baseline, jobData.NetworkCompressionModel);
+					if (baseline.Available >= 3)
+					{
+						baseline.Available = 3;
+						baseline.Baseline0.PredictDelta(jobData.Tick, ref baseline.Baseline1, ref baseline.Baseline2);
+					}
 
-					baseline = newSnapshot;
+					newSnapshot.WriteTo(writer, ref baseline.Baseline0, jobData.NetworkCompressionModel);
+
+					baseline.Baseline2 = baseline.Baseline1;
+					baseline.Baseline1 = baseline.Baseline0;
+					baseline.Baseline0 = newSnapshot;
+					baseline.Available++;
 				}
 			}
 		}
@@ -67,6 +85,28 @@ namespace Revolution
 			{
 				var     snapshotArray = sharedData.SnapshotFromEntity[jobData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
+				var     baseline2     = baseline;
+				var     baseline3     = baseline;
+				var     available     = 0;
+				for (var i = 0; i != snapshotArray.Length; i++)
+				{
+					if (snapshotArray[i].Tick == tick - 2)
+					{
+						baseline2 = snapshotArray[i];
+						available++;
+					}
+
+					if (snapshotArray[i].Tick == tick - 3)
+					{
+						baseline3 = snapshotArray[i];
+						available++;
+					}
+				}
+
+				if (available == 2 && baseline.Tick > 0)
+				{
+					baseline.PredictDelta(tick, ref baseline2, ref baseline3);
+				}
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
@@ -111,13 +151,13 @@ namespace Revolution
 		}
 	}
 
-	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot> : ComponentSnapshotSystem_Basic
+	public abstract class ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot> : ComponentSnapshotSystem_Basic_Predicted
 	<
 		TComponent,
 		TSnapshot,
 		DefaultSetup
 	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IRwSnapshotComplement<TSnapshot>
+		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IRwSnapshotComplement<TSnapshot>, IPredictable<TSnapshot>
 		where TComponent : struct, IComponentData
 	{
 	}

@@ -2,6 +2,36 @@ using Unity.Mathematics;
 
 namespace Revolution.Utils
 {
+	public struct QuantizedFloat2
+	{
+		public int2 Result;
+
+		public int this[int i]
+		{
+			get => Result[i];
+			set => Result[i] = value;
+		}
+
+		public void Set(int quantization, float2 f)
+		{
+			for (var v = 0; v != 2; v++)
+				f[v] = math.isnan(f[v]) ? 0.0f : f[v];
+
+			Result = (int2) (f * quantization);
+		}
+
+		public float2 Get(float deQuantization)
+		{
+			return (float2) Result * deQuantization;
+		}
+
+		public override string ToString()
+		{
+			return $"qf2({Result.x}, {Result.y})";
+		}
+	}
+
+
 	public struct QuantizedFloat3
 	{
 		public int3 Result;

@@ -20,18 +20,18 @@ namespace Revolution
 
 	public interface ISetup
 	{
-		void BeginSetup(JobComponentSystem system,
+		void BeginSetup(JobComponentSystem system
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-		                AtomicSafetyHandle safetyHandle
+		                , AtomicSafetyHandle safetyHandle
 #endif
 		);
 	}
 
 	public struct DefaultSetup : ISetup
 	{
-		public void BeginSetup(JobComponentSystem system,
+		public void BeginSetup(JobComponentSystem system
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-		                       AtomicSafetyHandle safetyHandle
+		                       , AtomicSafetyHandle safetyHandle
 #endif
 		)
 		{
@@ -49,6 +49,12 @@ namespace Revolution
 	public interface ISynchronizeImpl<TComponent> : ISynchronizeImpl<TComponent, DefaultSetup>
 		where TComponent : struct, IComponentData
 	{
+	}
+
+	public interface IPredictable<T> : IInterpolatable<T>
+		where T : struct
+	{
+		void PredictDelta(uint tick, ref T baseline1, ref T baseline2);
 	}
 	
 	public abstract class ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData> :

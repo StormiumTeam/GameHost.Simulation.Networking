@@ -23,7 +23,7 @@ namespace Revolution
 			public uint            GhostArch;
 		}
 
-		[BurstCompile(CompileSynchronously = true)]
+		[BurstCompile(CompileSynchronously = false)]
 		public unsafe struct SerializeJob : IJob
 		{
 			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;

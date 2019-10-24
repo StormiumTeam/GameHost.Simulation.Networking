@@ -9,6 +9,7 @@ namespace Revolution.NetCode
 {
 	[AlwaysUpdateSystem]
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
+	[UpdateBefore(typeof(NetworkReceiveSnapshotSystemGroup))]
 	public unsafe class SnapshotReceiveSystem : ComponentSystem
 	{
 		private EntityQuery           m_PlayerQuery;
@@ -17,6 +18,8 @@ namespace Revolution.NetCode
 		private ApplySnapshotSystem m_ApplySnapshotSystem;
 
 		public DeserializeClientData JobData => m_DeserializeData;
+
+		private uint m_PreviousTick;
 
 		protected override void OnCreate()
 		{
@@ -28,6 +31,8 @@ namespace Revolution.NetCode
 			});
 
 			m_ApplySnapshotSystem = World.GetOrCreateSystem<ApplySnapshotSystem>();
+
+			m_PreviousTick = uint.MaxValue;
 		}
 
 		protected override void OnUpdate()
@@ -52,6 +57,13 @@ namespace Revolution.NetCode
 			while (reader.GetBytesRead(ref ctx) < reader.Length)
 			{
 				var tick = reader.ReadUInt(ref ctx);
+				if (m_PreviousTick != tick - 1 && m_PreviousTick != uint.MaxValue)
+				{
+					Debug.LogError($"Reliability issue {m_PreviousTick} {tick - 1}");
+					Application.Quit();
+				}
+
+				m_PreviousTick = tick;
 				m_DeserializeData.Tick = tick;
 
 				var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);

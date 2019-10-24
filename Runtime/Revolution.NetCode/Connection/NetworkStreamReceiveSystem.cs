@@ -58,9 +58,9 @@ namespace Revolution.NetCode
             if (m_UnreliablePipeline == NetworkPipeline.Null)
                 m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
             if (m_RpcPipeline == NetworkPipeline.Null)
-                m_RpcPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+                m_RpcPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
             if (m_SnapshotPipeline == NetworkPipeline.Null)
-                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
 
             // Switching to server mode
             if (m_Driver.Bind(endpoint) != 0)
@@ -77,17 +77,26 @@ namespace Revolution.NetCode
         {
             if (m_UnreliablePipeline == NetworkPipeline.Null)
             {
-                m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
+                if (m_ClientPacketDrop > 0 || m_ClientPacketDelay > 0)
+                    m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStage), typeof(SimulatorPipelineStageInSend));
+                else
+                    m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
             }
 
             if (m_RpcPipeline == NetworkPipeline.Null)
             {
-                m_RpcPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+                if (m_ClientPacketDelay > 0 || m_ClientPacketDrop > 0)
+                    m_RpcPipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStageInSend), typeof(ReliableSequencedPipelineStage), typeof(SimulatorPipelineStage));
+                else
+                    m_RpcPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
             }
 
             if (m_SnapshotPipeline == NetworkPipeline.Null)
             {
-                m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+                if (m_ClientPacketDelay > 0 || m_ClientPacketDrop > 0)
+                    m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(SimulatorPipelineStageInSend), typeof(ReliableSequencedPipelineStage), typeof(SimulatorPipelineStage));
+                else
+                    m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
             }
 
             var ent = EntityManager.CreateEntity();
@@ -106,7 +115,7 @@ namespace Revolution.NetCode
         {
             var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
-            if (UnityEngine.Debug.isDebugBuild && false == true)
+            if (UnityEngine.Debug.isDebugBuild)
             {
                 m_ClientPacketDelay = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDelay");
                 m_ClientPacketDrop  = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDropRate");
@@ -211,7 +220,7 @@ namespace Revolution.NetCode
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
             public            EntityCommandBuffer                                        commandBuffer;
-            public            UdpNetworkDriver.Concurrent                                driver;
+            public            UdpNetworkDriver                                driver;
             public            NativeQueue<int>                                           freeNetworkIds;
             public            BufferFromEntity<IncomingRpcDataStreamBufferComponent>     rpcBuffer;
             public            BufferFromEntity<IncomingCommandDataStreamBufferComponent> cmdBuffer;
@@ -347,7 +356,7 @@ namespace Revolution.NetCode
             // Schedule parallel update job
             ConnectionReceiveJob recvJob;
             recvJob.commandBuffer  = cmdBuffer;
-            recvJob.driver         = m_ConcurrentDriver;
+            recvJob.driver         = m_Driver;
             recvJob.freeNetworkIds = freeNetworkIds;
             recvJob.networkId      = GetComponentDataFromEntity<NetworkIdComponent>();
             recvJob.rpcBuffer      = GetBufferFromEntity<IncomingRpcDataStreamBufferComponent>();

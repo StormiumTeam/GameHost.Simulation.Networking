@@ -19,7 +19,7 @@ namespace Revolution
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
 	public interface IInterpolatable<T>
-		where T : struct, IInterpolatable<T>
+		where T : struct
 	{
 		void Interpolate(T target, float factor);
 	}
@@ -36,12 +36,22 @@ namespace Revolution
 			return ref UnsafeUtilityEx.ArrayElementAsRef<TSnapshot>(ptr, snapshotBuffer.Length - 1);
 		}
 
+		public static TSnapshot GetLastBaselineReadOnly<TSnapshot>(this DynamicBuffer<TSnapshot> snapshotBuffer)
+			where TSnapshot : struct, ISnapshotData<TSnapshot>
+		{
+			if (snapshotBuffer.Length == 0)
+				snapshotBuffer.Add(default(TSnapshot)); // needed or else we will read out of range on first execution
+
+			var ptr = snapshotBuffer.AsNativeArray().GetUnsafeReadOnlyPtr();
+			return UnsafeUtility.ReadArrayElement<TSnapshot>(ptr, snapshotBuffer.Length - 1);
+		}
+
 		public static bool GetDataAtTick<TSnapshot>(this DynamicBuffer<TSnapshot> snapshotBuffer, uint targetTick, out TSnapshot snapshotData)
 			where TSnapshot : struct, ISnapshotData<TSnapshot>, IInterpolatable<TSnapshot>
 		{
-			if (snapshotBuffer.Length > 0 && GetLastBaseline(snapshotBuffer).Tick == 0)
+			if (snapshotBuffer.Length > 0 && GetLastBaselineReadOnly(snapshotBuffer).Tick == 0)
 			{
-				snapshotData = GetLastBaseline(snapshotBuffer);
+				snapshotData = GetLastBaselineReadOnly(snapshotBuffer);
 				return true;
 			}
 

@@ -5,6 +5,15 @@ using UnityEngine;
 
 namespace Revolution.NetCode
 {
+    [Flags]
+    public enum WorldType
+    {
+        NoWorld      = 0,
+        DefaultWorld = 1,
+        ClientWorld  = 2,
+        ServerWorld  = 4
+    }
+    
     public struct FixedTimeLoop
     {
         public       float accumulatedTime;
@@ -348,6 +357,16 @@ namespace Revolution.NetCode
     {
     }
 
+    public class UpdateInWorldAttribute : Attribute
+    {
+        public WorldType WorldType;
+        
+        public UpdateInWorldAttribute(WorldType worldType)
+        {
+            WorldType = worldType;
+        }
+    }
+
     // Bootstrap of client and server worlds
     public class ClientServerBootstrap : ICustomBootstrap
     {
@@ -596,7 +615,18 @@ namespace Revolution.NetCode
                     }
                     else
                     {
+                        var worldAttributes = type.GetCustomAttributes(typeof(UpdateInWorldAttribute), true);
                         var mask = GetTopLevelWorldMask(group.GroupType);
+                        foreach (UpdateInWorldAttribute attr in worldAttributes)
+                        {
+                            if ((attr.WorldType & WorldType.ClientWorld) != 0)
+                                mask = WorldType.ClientWorld;
+                            if ((attr.WorldType & WorldType.ServerWorld) != 0)
+                                mask = WorldType.ServerWorld;
+                            if ((attr.WorldType & WorldType.DefaultWorld) != 0)
+                                mask = WorldType.DefaultWorld;
+                        }
+
                         if ((mask & WorldType.DefaultWorld) != 0)
                             defaultBootstrap.Add(type);
 #if !UNITY_SERVER
@@ -652,15 +682,6 @@ namespace Revolution.NetCode
             Debug.Log("finalized...");
             
             return defaultBootstrap;
-        }
-
-        [Flags]
-        enum WorldType
-        {
-            NoWorld      = 0,
-            DefaultWorld = 1,
-            ClientWorld  = 2,
-            ServerWorld  = 4
         }
 
         WorldType GetTopLevelWorldMask(Type type)

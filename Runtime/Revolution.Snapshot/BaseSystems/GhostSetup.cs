@@ -7,9 +7,9 @@ namespace Revolution
 	{
 		public ComponentDataFromEntity<GhostIdentifier> GhostIdentifierFromEntity;
 
-		public void BeginSetup(JobComponentSystem system,
+		public void BeginSetup(JobComponentSystem system
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-		                       AtomicSafetyHandle safetyHandle
+		                       , AtomicSafetyHandle safetyHandle
 #endif
 		)
 		{
