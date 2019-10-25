@@ -65,7 +65,6 @@ namespace Revolution.NetCode
 
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
 	[UpdateAfter(typeof(SnapshotReceiveSystem))]
-	[UpdateAfter(typeof(BeforeSimulationInterpolationSystem))]
 	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IInterpolatable<TSnapshot>
