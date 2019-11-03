@@ -8,9 +8,9 @@ using UnityEngine;
 
 namespace Revolution.NetCode
 {
-    public struct RpcQueue<T> where T : struct, IRpcCommand
+    public struct RpcQueue<T> where T : struct, IRpcCommandRequestComponentData
     {
-        public RpcQueue<T> Null => default(RpcQueue<T>);
+        public static RpcQueue<T> Null => default(RpcQueue<T>);
 
         public int RpcType { get; internal set; }
 
@@ -21,7 +21,7 @@ namespace Revolution.NetCode
 
             var writer = new DataStreamWriter(256, Allocator.Temp);
             writer.Write(RpcType);
-            data.WriteTo(writer);
+            data.Serialize(writer);
             var prevLen = buffer.Length;
             buffer.ResizeUninitialized(buffer.Length + writer.Length);
             var ptr = (byte*) buffer.GetUnsafePtr();

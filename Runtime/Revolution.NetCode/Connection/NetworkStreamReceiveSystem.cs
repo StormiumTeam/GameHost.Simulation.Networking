@@ -46,7 +46,7 @@ namespace Revolution.NetCode
         private NativeArray<int>                         numNetworkIds;
         private NativeQueue<int>                         freeNetworkIds;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
-        private DefaultRpcProcessSystem<RpcSetNetworkId> rpcQueue;
+        private RpcCommandRequest<RpcSetNetworkId>       rpcQueue;
         private int                                      m_ClientPacketDelay;
         private int                                      m_ClientPacketDrop;
 
@@ -138,7 +138,7 @@ namespace Revolution.NetCode
             m_Barrier            = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             numNetworkIds        = new NativeArray<int>(1, Allocator.Persistent);
             freeNetworkIds       = new NativeQueue<int>(Allocator.Persistent);
-            rpcQueue             = World.GetOrCreateSystem<DefaultRpcProcessSystem<RpcSetNetworkId>>();
+            rpcQueue             = World.GetOrCreateSystem<RpcCommandRequest<RpcSetNetworkId>>();
 
             m_AssignQuery = GetEntityQuery(new EntityQueryDesc
             {
@@ -220,7 +220,7 @@ namespace Revolution.NetCode
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
             public            EntityCommandBuffer                                        commandBuffer;
-            public            UdpNetworkDriver                                driver;
+            public            UdpNetworkDriver                                           driver;
             public            NativeQueue<int>                                           freeNetworkIds;
             public            BufferFromEntity<IncomingRpcDataStreamBufferComponent>     rpcBuffer;
             public            BufferFromEntity<IncomingCommandDataStreamBufferComponent> cmdBuffer;
@@ -344,7 +344,7 @@ namespace Revolution.NetCode
                 assignJob.commandBuffer  = cmdBuffer;
                 assignJob.numNetworkId   = numNetworkIds;
                 assignJob.freeNetworkIds = freeNetworkIds;
-                assignJob.rpcQueue       = rpcQueue.RpcQueue;
+                assignJob.rpcQueue       = rpcQueue.Queue;
                 assignJob.rpcBuffer      = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>();
                 inputDeps                = assignJob.ScheduleSingle(m_AssignQuery, inputDeps);
             }

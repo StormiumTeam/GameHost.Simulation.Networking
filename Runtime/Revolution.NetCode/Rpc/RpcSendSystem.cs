@@ -8,47 +8,49 @@ using UnityEngine;
 namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
-    public class RpcSendSystem : JobComponentSystem
+    public unsafe class RpcSendSystem : ComponentSystem
     {
+        private EntityQuery                m_IncomingDataQuery;
+        private RpcCollectionSystem        m_RpcCollectionSystem;
+        private NetworkTimeSystem          m_TimeSystem;
         private NetworkStreamReceiveSystem m_ReceiveSystem;
 
         protected override void OnCreate()
         {
-            m_ReceiveSystem = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
-        }
+            base.OnCreate();
 
-        //[BurstCompile]
-        [ExcludeComponent(typeof(NetworkStreamDisconnected))]
-        struct SendJob : IJobForEachWithEntity<NetworkStreamConnection>
-        {
-            public UdpNetworkDriver.Concurrent                            driver;
-            public NetworkPipeline                                        reliablePipeline;
-            public BufferFromEntity<OutgoingRpcDataStreamBufferComponent> rpcBufferFromEntity;
-
-            public unsafe void Execute(Entity entity, int index, ref NetworkStreamConnection connection)
+            m_IncomingDataQuery = GetEntityQuery(new EntityQueryDesc
             {
-                if (!connection.Value.IsCreated)
-                    return;
-                var buffer = rpcBufferFromEntity[entity];
-                if (buffer.Length > 0)
-                {
-                    DataStreamWriter tmp = new DataStreamWriter(buffer.Length + sizeof(byte), Allocator.Temp);
-                    tmp.Write((byte) NetworkStreamProtocol.Rpc);
-                    tmp.WriteBytes((byte*) buffer.GetUnsafePtr(), buffer.Length);
-                    driver.Send(reliablePipeline, connection.Value, tmp);
-                    buffer.Clear();
-                }
-            }
+                All = new ComponentType[] {typeof(NetworkStreamConnection), typeof(OutgoingRpcDataStreamBufferComponent)}
+            });
+            m_RpcCollectionSystem = World.GetOrCreateSystem<RpcCollectionSystem>();
+            m_ReceiveSystem       = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
+            m_TimeSystem          = World.GetOrCreateSystem<NetworkTimeSystem>();
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
-            var sendJob = new SendJob();
-            sendJob.driver              = m_ReceiveSystem.ConcurrentDriver;
-            sendJob.reliablePipeline    = m_ReceiveSystem.RpcPipeline;
-            sendJob.rpcBufferFromEntity = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>();
-            // FIXME: because the job gets buffer from entity
-            return sendJob.ScheduleSingle(this, inputDeps);
+            foreach (var system in m_RpcCollectionSystem.SystemProcessors.Values)
+                system.Prepare();
+
+            var connectionEntities = m_IncomingDataQuery.ToEntityArray(Allocator.TempJob);
+            foreach (var system in m_RpcCollectionSystem.SystemProcessors.Values)
+            {
+                system.ProcessSend(connectionEntities);
+            }
+            connectionEntities.Dispose();
+
+            Entities.With(m_IncomingDataQuery).ForEach((ref NetworkStreamConnection connection, DynamicBuffer<OutgoingRpcDataStreamBufferComponent> outgoingData) =>
+            {
+                if (outgoingData.Length == 0)
+                    return;
+
+                var tmp = new DataStreamWriter(outgoingData.Length + sizeof(byte), Allocator.Temp);
+                tmp.Write((byte) NetworkStreamProtocol.Rpc);
+                tmp.WriteBytes((byte*) outgoingData.GetUnsafePtr(), outgoingData.Length);
+                m_ReceiveSystem.Driver.Send(m_ReceiveSystem.RpcPipeline, connection.Value, tmp);
+                outgoingData.Clear();
+            });
         }
     }
 }

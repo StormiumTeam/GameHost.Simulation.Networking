@@ -72,8 +72,7 @@ namespace Revolution.NetCode
 					var uncompressedSize = reader.ReadInt(ref ctx);
 					var compressedMemory = new NativeArray<byte>(compressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 					reader.ReadBytes(ref ctx, (byte*) compressedMemory.GetUnsafePtr(), compressedSize);
-						
-						
+
 					var uncompressedMemory = new NativeArray<byte>(uncompressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory); 
 						
 					LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 

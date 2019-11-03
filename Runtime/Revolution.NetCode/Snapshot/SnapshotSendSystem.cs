@@ -104,7 +104,10 @@ namespace Revolution.NetCode
 				var compressed       = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
 				var compressedLength = LZ4Codec.MaximumOutputSize(buffer.Length);
 				{
-					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength);
+					var encoder = LZ4Level.L00_FAST; // default encoder
+					//encoder = LZ4Level.L12_MAX;
+					
+					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength, encoder);
 					m_DataStream.Write(size);
 					m_DataStream.Write(buffer.Length);
 

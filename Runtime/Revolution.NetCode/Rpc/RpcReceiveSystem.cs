@@ -8,6 +8,11 @@ using UnityEngine;
 
 namespace Revolution.NetCode
 {
+    public struct SendRpcCommandRequestComponent : IComponentData
+    {
+        public Entity TargetConnection;
+    }
+    
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
     [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
     public class RpcReceiveSystem : ComponentSystem

@@ -23,7 +23,7 @@ namespace Revolution
 			public uint            GhostArch;
 		}
 
-		[BurstCompile(CompileSynchronously = false)]
+		//[BurstCompile(CompileSynchronously = false)]
 		public unsafe struct SerializeJob : IJob
 		{
 			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;
@@ -41,7 +41,10 @@ namespace Revolution
 					var invoke     = serializer.Value.Invoke;
 
 					StreamWriter.Write(StreamWriter.Length);
+
+					var prevLen = StreamWriter.Length;
 					invoke((uint) serializer.SystemId, ref ClientData, ref StreamWriter);
+					//Debug.Log($"{serializer.SystemId} -> size={StreamWriter.Length - prevLen}");
 				}
 
 				StreamWriter.Write(0);
