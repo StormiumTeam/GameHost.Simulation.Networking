@@ -63,16 +63,19 @@ namespace Utilities
 					return new Quaternion(x, y, z, w);
 				}
 
-				var d = Mathf.Sqrt(1f - (A * A + B * B + C * C));
+				var a = A / FloatPrecision;
+				var b = B / FloatPrecision;
+				var c = C / FloatPrecision;
+				var d = Mathf.Sqrt(1f - (a * a + b * b + c * c));
 
 				if (MaxIndex == 0)
-					return new Quaternion(d, A, B, C);
+					return new Quaternion(d, a, b, c);
 				if (MaxIndex == 1)
-					return new Quaternion(A, d, B, C);
+					return new Quaternion(a, d, b, c);
 				if (MaxIndex == 2)
-					return new Quaternion(A, B, d, C);
+					return new Quaternion(a, b, d, c);
 
-				return new Quaternion(A, B, C, d);
+				return new Quaternion(a, b, c, d);
 			}
 			set
 			{

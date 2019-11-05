@@ -57,9 +57,9 @@ namespace Revolution.NetCode
 			while (reader.GetBytesRead(ref ctx) < reader.Length)
 			{
 				var tick = reader.ReadUInt(ref ctx);
-				if (m_PreviousTick != tick - 1 && m_PreviousTick != uint.MaxValue)
+				if (m_PreviousTick >= tick && m_PreviousTick != uint.MaxValue)
 				{
-					Debug.LogError($"Reliability issue {m_PreviousTick} {tick - 1}");
+					Debug.LogError($"Reliability issue,  p={m_PreviousTick} n={tick}");
 					Application.Quit();
 				}
 

@@ -235,7 +235,7 @@ namespace Revolution.NetCode
 
                 DataStreamReader  reader;
                 NetworkEvent.Type evt;
-
+                
                 while ((evt = driver.PopEventForConnection(connection.Value, out reader)) != NetworkEvent.Type.Empty)
                 {
                     switch (evt)
