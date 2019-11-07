@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -19,6 +20,7 @@ namespace Revolution.NetCode
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>
 		where TSetup : struct, ISetup
 	{
+		[BurstCompile]
 		private struct JobDirect : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
@@ -72,6 +74,7 @@ namespace Revolution.NetCode
 	{
 		protected virtual bool IsPredicted => false;
 		
+		[BurstCompile]
 		private struct JobInterpolated : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
@@ -84,8 +87,9 @@ namespace Revolution.NetCode
 				if (!snapshot.GetDataAtTick(TargetTick, out var snapshotData))
 					return;
 
-				if (snapshot.Length > 0)
-					snapshot[snapshot.Length - 1].SynchronizeTo(ref component, in JobData);
+				snapshotData.SynchronizeTo(ref component, JobData);
+				/*if (snapshot.Length > 0)
+					snapshot[snapshot.Length - 1].SynchronizeTo(ref component, in JobData);*/
 			}
 		}
 		

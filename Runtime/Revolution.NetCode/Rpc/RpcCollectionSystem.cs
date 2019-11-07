@@ -134,6 +134,9 @@ namespace Revolution.NetCode
 
 		public override void ProcessSend(NativeArray<Entity> connectionEntities)
 		{
+			if (m_RpcSendQuery.CalculateEntityCount() == 0)
+				return;
+			
 			var tmp = new DataStreamWriter(1024, Allocator.TempJob);
 			tmp.Write(SystemRpcId);
 

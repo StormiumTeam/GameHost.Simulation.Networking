@@ -232,8 +232,8 @@ namespace Revolution
 				    || archetype.EntityArch != chunk.Archetype)
 				{
 					var archId = m_SnapshotManager.FindArchetype(chunk);
-					if (archId <= 0)
-						continue;
+					/*if (archId <= 0) // todo: it is wrong if archId == empty?
+						continue;*/
 					
 					m_ChunkToGhostArchetype[chunk] = archetype = new ArchData
 					{
