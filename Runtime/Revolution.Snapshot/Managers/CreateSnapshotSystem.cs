@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -231,6 +229,7 @@ namespace Revolution
 				if (!m_ChunkToGhostArchetype.TryGetValue(chunk, out var archetype)
 				    || archetype.EntityArch != chunk.Archetype)
 				{
+					var archetypeChanged = archetype.EntityArch != chunk.Archetype;
 					var archId = m_SnapshotManager.FindArchetype(chunk);
 					/*if (archId <= 0) // todo: it is wrong if archId == empty?
 						continue;*/
@@ -240,8 +239,18 @@ namespace Revolution
 						EntityArch = chunk.Archetype,
 						GhostArch  = archId
 					};
-					
-					Debug.Log($"Create archId={archId} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
+
+					if (archetypeChanged)
+					{
+						var chunkEntities = chunk.GetNativeArray(GetArchetypeChunkEntityType());
+						foreach (var ent in chunkEntities)
+						{
+							if (!entityUpdate.Contains(ent))
+								entityUpdate.Add(ent);
+						}
+					}
+
+					// Debug.Log($"Set archId={archId} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
 				}
 
 				var systemIds = m_SnapshotManager.ArchetypeToSystems[archetype.GhostArch];

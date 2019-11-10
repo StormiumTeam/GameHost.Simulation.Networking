@@ -1,13 +1,12 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     [UpdateBefore(typeof(NetworkReceiveSnapshotSystemGroup))]
-    [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
+    [UpdateAfter(typeof(NetworkStreamReceiveSystemGroup))]
     public class NetworkTimeSystem : ComponentSystem
     {
         public static uint TimestampMS => (uint) (System.Diagnostics.Stopwatch.GetTimestamp() / System.TimeSpan.TicksPerMillisecond);

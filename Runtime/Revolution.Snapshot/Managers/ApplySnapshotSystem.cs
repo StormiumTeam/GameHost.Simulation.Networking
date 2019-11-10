@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -13,6 +11,11 @@ namespace Revolution
 {
 	public class AfterSnapshotIsAppliedSystemGroup : ComponentSystemGroup
 	{
+		protected override void OnUpdate()
+		{
+		}
+
+		public void ForceUpdate() => base.OnUpdate();
 	}
 
 	public class ApplySnapshotSystem : JobComponentSystem
@@ -312,7 +315,7 @@ namespace Revolution
 			delegateDeserializers.Dispose();
 			readCtxArray.Dispose();
 
-			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().Update();
+			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().ForceUpdate();
 		}
 	}
 }

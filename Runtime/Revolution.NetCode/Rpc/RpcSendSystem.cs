@@ -1,9 +1,6 @@
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -13,7 +10,7 @@ namespace Revolution.NetCode
         private EntityQuery                m_IncomingDataQuery;
         private RpcCollectionSystem        m_RpcCollectionSystem;
         private NetworkTimeSystem          m_TimeSystem;
-        private NetworkStreamReceiveSystem m_ReceiveSystem;
+        private NetworkStreamReceiveSystemGroup m_ReceiveSystem;
 
         protected override void OnCreate()
         {
@@ -24,7 +21,7 @@ namespace Revolution.NetCode
                 All = new ComponentType[] {typeof(NetworkStreamConnection), typeof(OutgoingRpcDataStreamBufferComponent)}
             });
             m_RpcCollectionSystem = World.GetOrCreateSystem<RpcCollectionSystem>();
-            m_ReceiveSystem       = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
+            m_ReceiveSystem       = World.GetOrCreateSystem<NetworkStreamReceiveSystemGroup>();
             m_TimeSystem          = World.GetOrCreateSystem<NetworkTimeSystem>();
         }
 
@@ -48,7 +45,7 @@ namespace Revolution.NetCode
                 var tmp = new DataStreamWriter(outgoingData.Length + sizeof(byte), Allocator.Temp);
                 tmp.Write((byte) NetworkStreamProtocol.Rpc);
                 tmp.WriteBytes((byte*) outgoingData.GetUnsafePtr(), outgoingData.Length);
-                m_ReceiveSystem.Driver.Send(m_ReceiveSystem.RpcPipeline, connection.Value, tmp);
+                m_ReceiveSystem.QueueData(PipelineType.Rpc, connection.Value, tmp);
                 outgoingData.Clear();
             });
         }

@@ -4,7 +4,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
@@ -14,7 +13,7 @@ namespace Revolution.NetCode
     }
     
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
-    [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
+    [UpdateAfter(typeof(NetworkStreamReceiveSystemGroup))]
     public class RpcReceiveSystem : ComponentSystem
     {
         private EntityQuery         m_IncomingDataQuery;

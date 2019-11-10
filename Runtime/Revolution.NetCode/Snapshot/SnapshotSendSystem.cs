@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using K4os.Compression.LZ4;
 using Unity.Collections;
@@ -17,9 +16,9 @@ namespace Revolution.NetCode
 		private EntityQuery m_ConnectionGroup;
 		private EntityQuery m_ConnectionWithoutSnapshotBufferGroup;
 
-		private ServerSimulationSystemGroup m_ServerSimulationSystemGroup;
-		private NetworkStreamReceiveSystem  m_ReceiveSystem;
-		private CreateSnapshotSystem        m_CreateSnapshotSystem;
+		private ServerSimulationSystemGroup     m_ServerSimulationSystemGroup;
+		private NetworkStreamReceiveSystemGroup m_ReceiveSystem;
+		private CreateSnapshotSystem            m_CreateSnapshotSystem;
 
 		private DataStreamWriter m_DataStream;
 
@@ -34,13 +33,13 @@ namespace Revolution.NetCode
 			});
 			m_ConnectionWithoutSnapshotBufferGroup = GetEntityQuery(new EntityQueryDesc
 			{
-				All  = new ComponentType[] {typeof(NetworkStreamConnection),/* typeof(NetworkStreamInGame)*/},
+				All  = new ComponentType[] {typeof(NetworkStreamConnection), /* typeof(NetworkStreamInGame)*/},
 				None = new ComponentType[] {typeof(ClientSnapshotBuffer)}
 			});
 			m_ServerSimulationSystemGroup = World.GetOrCreateSystem<ServerSimulationSystemGroup>();
-			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
+			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystemGroup>();
 			m_CreateSnapshotSystem        = World.GetOrCreateSystem<CreateSnapshotSystem>();
-			
+
 			m_DataStream = new DataStreamWriter(1440, Allocator.Persistent);
 		}
 
@@ -84,8 +83,6 @@ namespace Revolution.NetCode
 
 			m_CreateSnapshotSystem.CreateSnapshot(m_ServerSimulationSystemGroup.ServerTick, m_SerializeLookup);
 
-			var pipeline  = m_ReceiveSystem.SnapshotPipeline;
-			var driver    = m_ReceiveSystem.Driver;
 			var localTime = NetworkTimeSystem.TimestampMS;
 			for (var ent = 0; ent < connectionEntities.Length; ent++)
 			{
@@ -99,6 +96,7 @@ namespace Revolution.NetCode
 				m_DataStream.Write((byte) NetworkStreamProtocol.Snapshot);
 				m_DataStream.Write(localTime);
 				m_DataStream.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
+				m_DataStream.Write(byte.MaxValue);
 				m_DataStream.Write(m_ServerSimulationSystemGroup.ServerTick);
 
 				var compressed       = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
@@ -106,7 +104,7 @@ namespace Revolution.NetCode
 				{
 					var encoder = LZ4Level.L00_FAST; // default encoder
 					//encoder = LZ4Level.L12_MAX;
-					
+
 					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength, encoder);
 					m_DataStream.Write(size);
 					m_DataStream.Write(buffer.Length);
@@ -115,7 +113,7 @@ namespace Revolution.NetCode
 				}
 				UnsafeUtility.Free(compressed, Allocator.Temp);
 
-				driver.Send(pipeline, connection.Value, m_DataStream);
+				m_ReceiveSystem.QueueData(PipelineType.Snapshot, connection.Value, m_DataStream);
 			}
 
 			connectionEntities.Dispose();
@@ -125,8 +123,8 @@ namespace Revolution.NetCode
 
 		protected override void OnDestroy()
 		{
-			m_DataStream.Dispose(); 
-			
+			m_DataStream.Dispose();
+
 			foreach (var kvp in m_SerializeLookup)
 			{
 				kvp.Value.Dispose();

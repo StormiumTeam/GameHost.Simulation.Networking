@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -6,23 +7,63 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
+    public enum PipelineType
+    {
+        Unreliable,
+        Rpc,
+        Snapshot
+    }
+
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
+    public class NetworkStreamReceiveSystemGroup : ComponentSystemGroup
+    {
+        public void QueueData(PipelineType pipelineType, NetworkConnection connection, DataStreamWriter data)
+        {
+            foreach (var sys in Systems)
+            {
+                if (sys is NetworkStreamReceiveSystemBase receiveSystem)
+                {
+                    switch (pipelineType)
+                    {
+                        case PipelineType.Unreliable:
+                            receiveSystem.SendData(receiveSystem.UnreliablePipeline, connection, data);
+                            break;
+                        case PipelineType.Rpc:
+                            receiveSystem.SendData(receiveSystem.RpcPipeline, connection, data);
+                            break;
+                        case PipelineType.Snapshot:
+                            receiveSystem.SendData(receiveSystem.SnapshotPipeline, connection, data);
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    public abstract class NetworkStreamReceiveSystemBase : JobComponentSystem
+    {
+        public abstract NetworkPipeline UnreliablePipeline { get; }
+        public abstract NetworkPipeline RpcPipeline        { get; }
+        public abstract NetworkPipeline SnapshotPipeline   { get; }
+
+        public abstract void SendData(NetworkPipeline pipeline, NetworkConnection connection, DataStreamWriter data);
+    }
+
+    [UpdateInGroup(typeof(NetworkStreamReceiveSystemGroup))]
     [AlwaysUpdateSystem]
-    public class NetworkStreamReceiveSystem : JobComponentSystem
+    public abstract class NetworkStreamReceiveSystem<TDriver> : NetworkStreamReceiveSystemBase
+        where TDriver : struct, INetworkDriver
     {
         // --
         // Public fields
+        public TDriver Driver => m_Driver;
 
-        public   UdpNetworkDriver            Driver           => m_Driver;
-        internal UdpNetworkDriver.Concurrent ConcurrentDriver => m_ConcurrentDriver;
-
-        public NetworkPipeline UnreliablePipeline => m_UnreliablePipeline;
-        public NetworkPipeline RpcPipeline        => m_RpcPipeline;
-        public NetworkPipeline SnapshotPipeline   => m_SnapshotPipeline;
+        public override NetworkPipeline UnreliablePipeline => m_UnreliablePipeline;
+        public override NetworkPipeline RpcPipeline        => m_RpcPipeline;
+        public override NetworkPipeline SnapshotPipeline   => m_SnapshotPipeline;
 
         // --
         // Private fields
@@ -30,19 +71,18 @@ namespace Revolution.NetCode
         // --------- --------- --------- --------- //
         // Drivers
         // --------- --------- --------- --------- //
-        private UdpNetworkDriver            m_Driver;
-        private UdpNetworkDriver.Concurrent m_ConcurrentDriver;
+        protected TDriver m_Driver;
 
         // --------- --------- --------- --------- //
         // Pipelines
         // --------- --------- --------- --------- //
-        private NetworkPipeline m_UnreliablePipeline;
+        protected NetworkPipeline m_UnreliablePipeline;
 
         // Rpc and Snapshot stream possess the same pipeline type.
-        private NetworkPipeline m_RpcPipeline;
-        private NetworkPipeline m_SnapshotPipeline;
+        protected NetworkPipeline m_RpcPipeline;
+        protected NetworkPipeline m_SnapshotPipeline;
 
-        private bool                                     m_DriverListening;
+        protected bool                                     m_DriverListening;
         private NativeArray<int>                         numNetworkIds;
         private NativeQueue<int>                         freeNetworkIds;
         private BeginSimulationEntityCommandBufferSystem m_Barrier;
@@ -53,7 +93,12 @@ namespace Revolution.NetCode
         private EntityQuery m_AssignQuery;
         private EntityQuery m_ConnectionReceiveQuery;
 
-        public bool Listen(NetworkEndPoint endpoint)
+        public override void SendData(NetworkPipeline pipeline, NetworkConnection connection, DataStreamWriter data)
+        {
+            m_Driver.Send(pipeline, connection, data);
+        }
+        
+        public virtual bool Listen(IPEndPoint ip)
         {
             if (m_UnreliablePipeline == NetworkPipeline.Null)
                 m_UnreliablePipeline = m_Driver.CreatePipeline(typeof(NullPipelineStage));
@@ -63,17 +108,16 @@ namespace Revolution.NetCode
                 m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
 
             // Switching to server mode
+            var endpoint = NetworkEndPoint.Parse(ip.Address.ToString(), (ushort) ip.Port);
             if (m_Driver.Bind(endpoint) != 0)
                 return false;
             if (m_Driver.Listen() != 0)
                 return false;
             m_DriverListening = true;
-            // FIXME: Bind breaks all copies of the driver nad makes them send to the wrong socket
-            m_ConcurrentDriver = m_Driver.ToConcurrent();
             return true;
         }
 
-        public Entity Connect(NetworkEndPoint endpoint)
+        public virtual Entity Connect(IPEndPoint ip)
         {
             if (m_UnreliablePipeline == NetworkPipeline.Null)
             {
@@ -99,6 +143,7 @@ namespace Revolution.NetCode
                     m_SnapshotPipeline = m_Driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
             }
 
+            var endpoint = NetworkEndPoint.Parse(ip.Address.ToString(), (ushort) ip.Port);
             var ent = EntityManager.CreateEntity();
             EntityManager.AddComponentData(ent, new NetworkStreamConnection {Value = m_Driver.Connect(endpoint)});
             EntityManager.AddComponentData(ent, new NetworkSnapshotAckComponent());
@@ -111,11 +156,15 @@ namespace Revolution.NetCode
             return ent;
         }
 
+        protected abstract TDriver CreateDriver();
+
         protected override void OnCreate()
         {
-            var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
+            m_Driver = CreateDriver();
+            /*
+                         var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
-            if (UnityEngine.Debug.isDebugBuild)
+             if (UnityEngine.Debug.isDebugBuild)
             {
                 m_ClientPacketDelay = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDelay");
                 m_ClientPacketDrop  = UnityEngine.PlayerPrefs.GetInt("MultiplayerPlayMode_" + UnityEngine.Application.productName + "_ClientDropRate");
@@ -124,13 +173,12 @@ namespace Revolution.NetCode
                 int maxPackets = 2 * (networkRate * 3 * m_ClientPacketDelay + 999) / 1000;
                 var simulatorParams = new SimulatorUtility.Parameters
                     {MaxPacketSize = NetworkParameterConstants.MTU, MaxPacketCount = maxPackets, PacketDelayMs = m_ClientPacketDelay, PacketDropPercentage = m_ClientPacketDrop};
-                m_Driver = new UdpNetworkDriver(simulatorParams, reliabilityParams);
+                m_Driver = new TDriver(simulatorParams, reliabilityParams);
                 UnityEngine.Debug.Log("Using simulator with latency=" + m_ClientPacketDelay + " packet drop=" + m_ClientPacketDrop);
             }
             else
-                m_Driver = new UdpNetworkDriver(reliabilityParams);
+                m_Driver = new TDriver(reliabilityParams);*/
 
-            m_ConcurrentDriver   = m_Driver.ToConcurrent();
             m_UnreliablePipeline = NetworkPipeline.Null;
             m_RpcPipeline        = NetworkPipeline.Null;
             m_UnreliablePipeline = NetworkPipeline.Null;
@@ -162,7 +210,7 @@ namespace Revolution.NetCode
         struct ConnectionAcceptJob : IJob
         {
             public EntityCommandBuffer commandBuffer;
-            public UdpNetworkDriver    driver;
+            public TDriver             driver;
 
             public void Execute()
             {
@@ -220,7 +268,7 @@ namespace Revolution.NetCode
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
             public            EntityCommandBuffer                                        commandBuffer;
-            public            UdpNetworkDriver                                           driver;
+            public            TDriver                                                    driver;
             public            NativeQueue<int>                                           freeNetworkIds;
             public            BufferFromEntity<IncomingRpcDataStreamBufferComponent>     rpcBuffer;
             public            BufferFromEntity<IncomingCommandDataStreamBufferComponent> cmdBuffer;
@@ -235,7 +283,7 @@ namespace Revolution.NetCode
 
                 DataStreamReader  reader;
                 NetworkEvent.Type evt;
-                
+
                 while ((evt = driver.PopEventForConnection(connection.Value, out reader)) != NetworkEvent.Type.Empty)
                 {
                     switch (evt)

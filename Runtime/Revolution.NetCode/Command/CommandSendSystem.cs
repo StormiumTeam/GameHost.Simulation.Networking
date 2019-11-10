@@ -1,8 +1,6 @@
-using System.Diagnostics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using Debug = UnityEngine.Debug;
 
 namespace Revolution.NetCode
 {
@@ -14,7 +12,7 @@ namespace Revolution.NetCode
         private EntityQuery                m_IncomingDataQuery;
         private CommandCollectionSystem    m_CommandCollectionSystem;
         private NetworkTimeSystem          m_TimeSystem;
-        private NetworkStreamReceiveSystem m_ReceiveSystem;
+        private NetworkStreamReceiveSystemGroup m_ReceiveSystem;
 
         protected override void OnCreate()
         {
@@ -25,7 +23,7 @@ namespace Revolution.NetCode
                 All  = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)}
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
-            m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
+            m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystemGroup>();
             m_TimeSystem              = World.GetOrCreateSystem<NetworkTimeSystem>();
         }
 
@@ -38,14 +36,12 @@ namespace Revolution.NetCode
             {
                 foreach (var chunk in chunks)
                 {
-                    OnChunkProcess(chunk,
-                        NetworkTimeSystem.TimestampMS, m_TimeSystem.predictTargetTick,
-                        m_ReceiveSystem.Driver, m_ReceiveSystem.UnreliablePipeline);
+                    OnChunkProcess(chunk, NetworkTimeSystem.TimestampMS, m_TimeSystem.predictTargetTick);
                 }
             }
         }
 
-        private void OnChunkProcess(ArchetypeChunk chunk, in uint localTime, in uint targetTick, UdpNetworkDriver driver, NetworkPipeline unreliablePipeline)
+        private void OnChunkProcess(ArchetypeChunk chunk, in uint localTime, in uint targetTick)
         {
             var connectionArray  = chunk.GetNativeArray(GetArchetypeChunkComponentType<NetworkStreamConnection>(true));
             var snapshotAckArray = chunk.GetNativeArray(GetArchetypeChunkComponentType<NetworkSnapshotAckComponent>(true));
@@ -69,7 +65,7 @@ namespace Revolution.NetCode
                     systemKvp.Value.ProcessSend(targetTick, writer);
                 }
 
-                driver.Send(unreliablePipeline, connectionArray[ent].Value, writer);
+                m_ReceiveSystem.QueueData(PipelineType.Unreliable, connectionArray[ent].Value, writer);
             }
         }
     }

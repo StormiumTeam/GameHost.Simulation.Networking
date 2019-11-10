@@ -104,7 +104,7 @@ public class MultiplayerPlayModeWindow : EditorWindow
 }
 
 [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
-[UpdateBefore(typeof(NetworkStreamReceiveSystem))]
+[UpdateBefore(typeof(NetworkStreamReceiveSystemGroup))]
 [AlwaysUpdateSystem]
 public class MultiplayerPlayModeConnectionSystem : ComponentSystem
 {
@@ -137,10 +137,10 @@ public class MultiplayerPlayModeConnectionSystem : ComponentSystem
         if (ClientConnectionState == ConnectionState.TriggerDisconnect && isConnected)
         {
             var con = m_clientConnectionGroup.ToComponentDataArray<NetworkStreamConnection>(Allocator.TempJob);
-            m_prevEndPoint = World.GetExistingSystem<NetworkStreamReceiveSystem>().Driver.RemoteEndPoint(con[0].Value);
+            //m_prevEndPoint = World.GetExistingSystem<NetworkStreamReceiveSystem>().Driver.RemoteEndPoint(con[0].Value);
             for (int i = 0; i < con.Length; ++i)
             {
-                World.GetExistingSystem<NetworkStreamReceiveSystem>().Driver.Disconnect(con[i].Value);
+                //World.GetExistingSystem<NetworkStreamReceiveSystem>().Driver.Disconnect(con[i].Value);
             }
 
             con.Dispose();
@@ -152,7 +152,7 @@ public class MultiplayerPlayModeConnectionSystem : ComponentSystem
         }*/
         else if (ClientConnectionState == ConnectionState.TriggerConnect && !isConnected && m_prevEndPoint.IsValid)
         {
-            World.GetExistingSystem<NetworkStreamReceiveSystem>().Connect(m_prevEndPoint);
+            //World.GetExistingSystem<NetworkStreamReceiveSystem>().Connect(m_prevEndPoint);
         }
         // Update connection status
         ClientConnectionState = isConnected ? ConnectionState.Connected : (m_prevEndPoint.IsValid ? ConnectionState.NotConnected : ConnectionState.Uninitialized);

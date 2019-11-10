@@ -3,12 +3,11 @@ using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Collections;
-using UnityEngine;
 
 namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
-    [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
+    [UpdateAfter(typeof(NetworkStreamReceiveSystemGroup))]
     public sealed class CommandReceiveSystem : ComponentSystem
     {
         private EntityQuery             m_IncomingDataQuery;

@@ -2,7 +2,6 @@ using System;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {

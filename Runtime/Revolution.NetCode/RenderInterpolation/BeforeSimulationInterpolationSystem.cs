@@ -7,7 +7,7 @@ using Unity.Transforms;
 namespace Revolution.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
-    [UpdateBefore(typeof(NetworkStreamReceiveSystem))]
+    [UpdateBefore(typeof(NetworkStreamReceiveSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
     public class BeforeSimulationInterpolationSystem : JobComponentSystem
     {

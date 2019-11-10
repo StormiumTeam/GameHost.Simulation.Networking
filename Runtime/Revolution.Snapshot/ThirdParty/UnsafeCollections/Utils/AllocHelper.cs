@@ -24,7 +24,6 @@ THE SOFTWARE.
 
 using System;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 
 namespace Collections.Unsafe {
   static unsafe class AllocHelper {
