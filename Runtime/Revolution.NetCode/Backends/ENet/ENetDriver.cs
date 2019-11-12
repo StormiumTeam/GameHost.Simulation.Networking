@@ -187,6 +187,7 @@ namespace ENet
 							break;
 						case NetEventType.Receive:
 							connection.AddMessage(netEvent.Packet.Data, netEvent.Packet.Length);
+							netEvent.Packet.Dispose();
 							break;
 						case NetEventType.Disconnect:
 						case NetEventType.Timeout:

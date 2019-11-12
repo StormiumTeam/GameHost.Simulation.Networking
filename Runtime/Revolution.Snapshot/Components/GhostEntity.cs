@@ -29,6 +29,11 @@ namespace Revolution
 	public struct GhostIdentifier : ISystemStateComponentData
 	{
 		public uint Value;
+
+		public override string ToString()
+		{
+			return Value.ToString();
+		}
 	}
 
 	public static class GhostIdentifierExtensions

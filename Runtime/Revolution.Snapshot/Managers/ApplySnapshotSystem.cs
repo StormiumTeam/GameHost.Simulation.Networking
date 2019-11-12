@@ -39,25 +39,33 @@ namespace Revolution
 			public NativeArray<byte>                     StreamData;
 			public NativeArray<DataStreamReader.Context> ReadContext;
 
+			public bool DebugRange;
+
 			public void Execute()
 			{
 				var reader  = new DataStreamReader(StreamData);
 				var readCtx = ReadContext[0];
 
 				Deserializers.Sort();
+				
 				for (var i = 0; i < Deserializers.Length; i++)
 				{
 					var serializer = Deserializers[i];
 					var invoke     = serializer.Value.Invoke;
 
-					var byteRead = reader.GetBytesRead(ref readCtx);
-					var currLength = reader.ReadInt(ref readCtx);
-					if (currLength != byteRead)
+					if (DebugRange)
 					{
-						Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.SystemId}");
-						return;
+						var byteRead   = reader.GetBytesRead(ref readCtx);
+						var currLength = reader.ReadInt(ref readCtx);
+						if (currLength != byteRead)
+						{
+							Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.SystemId}");
+							return;
+						}
 					}
-					
+
+					//reader.ReadByte(ref readCtx);
+					reader.Flush(ref readCtx);
 					invoke((uint) serializer.SystemId, ClientData.Tick, ref ClientData, ref reader, ref readCtx);
 				}
 
@@ -124,6 +132,7 @@ namespace Revolution
 			
 			var entityLength    = reader.ReadInt(ref ctx);
 			var ghostUpdate     = new NativeList<uint>(entityLength, Allocator.TempJob);
+			var ghostIndexUpdate     = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var entityUpdate    = new NativeList<Entity>(entityLength, Allocator.TempJob);
 			var archetypeUpdate = new NativeList<uint>(entityLength, Allocator.TempJob);
 
@@ -168,12 +177,20 @@ namespace Revolution
 						isNew = true;
 					}
 
-					// The archetype got changed (or it's a new entity)
-					if (EntityManager.GetComponentData<ReplicatedEntity>(targetWorldEntity).Archetype != archetype || isNew)
+					// The archetype got changed
+					if (EntityManager.GetComponentData<ReplicatedEntity>(targetWorldEntity).Archetype != archetype 
+					    // or it's a new entity...
+					    || isNew)
 					{
 						ghostUpdate.Add(ghostId);
 						entityUpdate.Add(targetWorldEntity);
 						archetypeUpdate.Add(archetype);
+					} 
+					// or if the ghost was sorted and is not at the same position...
+					else if (ent != ghostIndex)
+					{
+						// we don't update the archetype nor the entity here
+						ghostIndexUpdate.Add(ghostId);
 					}
 
 					newGhostArray[ent]  = ghostId;
@@ -288,8 +305,29 @@ namespace Revolution
 					}
 				}
 			}
+			else if (ghostIndexUpdate.Length > 0)
+			{
+				foreach (var kvp in m_SystemToGhostIds)
+				{
+					var ghostList = kvp.Value;
+					ghostList.Clear();
+				}
+				
+				for (var index = 0; index < baseline.Entities.Length; index++)
+				{
+					var entity  = baseline.Entities[index];
+					var repl    = EntityManager.GetComponentData<ReplicatedEntity>(entity);
+					var systems = m_SnapshotManager.ArchetypeToSystems[repl.Archetype];
+
+					foreach (var sys in systems)
+					{
+						m_SystemToGhostIds[sys].Add(baseline.GhostIds[index]);
+					}
+				}
+			}
 
 			ghostUpdate.Dispose();
+			ghostIndexUpdate.Dispose();
 			entityUpdate.Dispose();
 			archetypeUpdate.Dispose();
 

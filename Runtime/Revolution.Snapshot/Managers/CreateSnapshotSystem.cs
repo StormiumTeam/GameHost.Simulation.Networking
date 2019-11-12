@@ -24,22 +24,28 @@ namespace Revolution
 		//[BurstCompile(CompileSynchronously = false)]
 		public unsafe struct SerializeJob : IJob
 		{
+			public bool DebugRange;
+
 			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;
 			public SerializeClientData                           ClientData;
-			
+
 			public DataStreamWriter StreamWriter;
 			public NativeList<byte> OutgoingData;
 
 			public void Execute()
 			{
 				Serializers.Sort();
+				
 				for (var i = 0; i < Serializers.Length; i++)
 				{
 					var serializer = Serializers[i];
 					var invoke     = serializer.Value.Invoke;
 
-					StreamWriter.Write(StreamWriter.Length);
-
+					if (DebugRange)
+						StreamWriter.Write(StreamWriter.Length);
+					//StreamWriter.Write((byte) 0);
+					StreamWriter.Flush();
+					
 					var prevLen = StreamWriter.Length;
 					invoke((uint) serializer.SystemId, ref ClientData, ref StreamWriter);
 					//Debug.Log($"{serializer.SystemId} -> size={StreamWriter.Length - prevLen}");
@@ -367,6 +373,11 @@ namespace Revolution
 			if (!inChain)
 				throw new NotImplementedException("unchained operation for 'CreateSnapshot' is not available for now;");
 
+			if (!baseline.TryGetSnapshot(0, out _))
+			{
+				baseline.CreateSnapshotFor(0);
+			}
+			
 			baseline.BeginSerialize(this, chunks);
 
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);
@@ -388,7 +399,7 @@ namespace Revolution
 						break;
 					}
 				}
-
+				
 				if (remake)
 				{
 					if (sizeof(GhostIdentifier) != sizeof(uint))

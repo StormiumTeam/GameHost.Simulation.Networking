@@ -49,12 +49,6 @@ namespace Revolution
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
 				var ghostArray = chunk.GetNativeArray(jobData.GhostType);
 
-				/*if (chunk.Count != componentArray.Length)
-				{
-					var comps = chunk.Archetype.GetComponentTypes();
-					Debug.Log($"[{GetSerializerChunkData().SystemId} - {systemId}] {typeof(SharedData)} {chunk.Count} {componentArray.Length} -> {string.Join(",", comps)}");
-				}*/
-
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
 					if (!jobData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))

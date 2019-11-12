@@ -1,35 +1,16 @@
 using System;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {
-	[Flags]
-	public enum DeltaChangeType
-	{
-		Invalid = 0,
-		Chunk     = 1,
-		Component = 2,
-		Both      = 3,
-	}
 
-	public interface ISnapshotDelta<in TSnapshot>
-		where TSnapshot : ISnapshotDelta<TSnapshot>
-	{
-		bool DidChange(TSnapshot baseline);
-	}
-
-	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
-	<
+	public abstract class MixedComponentSnapshotSystem_Delta<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem_Delta<TComponent, TSetup>,
 		TComponent,
-		TSnapshot,
-		TSetup,
-		ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup>.SharedData
-	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
-		where TComponent : struct, IComponentData
+		MixedComponentSnapshotSystem_Delta<TComponent, TSetup>.SharedData>
+		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>, ISnapshotDelta<TComponent>
 		where TSetup : struct, ISetup
 	{
 		public struct SharedData
@@ -40,13 +21,19 @@ namespace Revolution
 			public DeltaChangeType Delta;
 
 			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
+			public ComponentDataFromEntity<TComponent>     SnapshotFromEntity;
 		}
 
 		private struct ClientData
 		{
 			public uint Version;
 		}
+
+		public override NativeArray<ComponentType> EntityComponents =>
+			new NativeArray<ComponentType>(1, Allocator.Temp)
+			{
+				[0] = typeof(TComponent)
+			};
 
 		[BurstCompile]
 		public static void Serialize(uint systemId, ref SerializeClientData jobData, ref DataStreamWriter writer)
@@ -64,11 +51,11 @@ namespace Revolution
 			{
 				throw new InvalidOperationException();
 			}
-			
+
 			ref var clientData = ref clientSnapshot.TryGetSystemData<ClientData>(systemId, out success);
 			if (!success)
 			{
-				clientData            = ref clientSnapshot.AllocateSystemData<ClientData>(systemId);
+				clientData         = ref clientSnapshot.AllocateSystemData<ClientData>(systemId);
 				clientData.Version = 0;
 			}
 
@@ -77,7 +64,7 @@ namespace Revolution
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
 				var ghostArray     = chunk.GetNativeArray(jobData.GhostType);
-				
+
 				var shouldSkip = false;
 				if (deltaOnChunk)
 				{
@@ -98,15 +85,14 @@ namespace Revolution
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(systemId, out success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(systemId, out success);
 					if (!success)
 					{
-						baseline = ref ghostSnapshot.AllocateSystemData<TSnapshot>(systemId);
+						baseline = ref ghostSnapshot.AllocateSystemData<TComponent>(systemId);
 						baseline = default; // always set to default values!
 					}
 
-					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent], in sharedData.SetupData, in jobData);
+					var component = componentArray[ent];
 
 					// If we must check for delta change on components and
 					// If the snapshot didn't changed since the previous baseline and
@@ -114,7 +100,7 @@ namespace Revolution
 					if (deltaOnComponent)
 					{
 						// no change? skip
-						if (!newSnapshot.DidChange(baseline) && success)
+						if (!component.DidChange(baseline) && success)
 						{
 							writer.WriteBitBool(true);
 							continue;
@@ -123,10 +109,9 @@ namespace Revolution
 						// don't skip
 						writer.WriteBitBool(false);
 					}
-	
-					newSnapshot.WriteTo(writer, ref baseline, jobData.NetworkCompressionModel);
 
-					baseline = newSnapshot;
+					component.WriteTo(writer, ref baseline, sharedData.SetupData, jobData);
+					baseline = component;
 				}
 			}
 
@@ -168,18 +153,14 @@ namespace Revolution
 					if (shouldSkip)
 						continue;
 				}
-				
-				var     snapshotArray = sharedData.SnapshotFromEntity[jobData.GhostToEntityMap[ghostArray[ent]]];
-				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
-				if (snapshotArray.Length >= SnapshotHistorySize)
-					snapshotArray.RemoveAt(0);
+				var entity      = jobData.GhostToEntityMap[ghostArray[ent]];
+				var baseline    = sharedData.SnapshotFromEntity[entity];
+				var newSnapshot = default(TComponent);
 
-				var newSnapshot = default(TSnapshot);
-				newSnapshot.Tick = tick;
-				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData.NetworkCompressionModel);
+				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData);
 
-				snapshotArray.Add(newSnapshot);
+				sharedData.SnapshotFromEntity[entity] = newSnapshot;
 			}
 		}
 
@@ -191,12 +172,11 @@ namespace Revolution
 			onDeserialize = new BurstDelegate<OnDeserializeSnapshot>(Deserialize);
 		}
 
-		internal override void SystemBeginSerialize(Entity entity)
+		public override void OnBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
-			sharedData.Delta             = DeltaType;
-			sharedData.SystemVersion     = GlobalSystemVersion - 1;
-			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
+			sharedData.ComponentTypeArch  = GetArchetypeChunkComponentType<TComponent>();
+			sharedData.SnapshotFromEntity = GetComponentDataFromEntity<TComponent>();
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 				, SafetyHandle
@@ -204,25 +184,29 @@ namespace Revolution
 			);
 		}
 
-		internal override void SystemBeginDeserialize(Entity entity)
+		public override void OnBeginDeserialize(Entity entity)
 		{
-			var snapshotBuffer = GetBufferFromEntity<TSnapshot>();
-			SetEmptySafetyHandle(ref snapshotBuffer);
+			var snapshotBuffer = GetComponentDataFromEntity<TComponent>();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			SafetyUtility.Replace(ref snapshotBuffer, SafetyHandle);
+#endif
 
 			ref var sharedData = ref GetShared();
-			sharedData.Delta              = DeltaType;
 			sharedData.SnapshotFromEntity = snapshotBuffer;
+			sharedData.SetupData.BeginSetup(this
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+				, SafetyHandle
+#endif
+			);
 		}
 	}
 
-	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot> : ComponentSnapshotSystem_Delta
+	public abstract class MixedComponentSnapshotSystem_Delta<TComponent> : MixedComponentSnapshotSystem_Delta
 	<
 		TComponent,
-		TSnapshot,
 		DefaultSetup
 	>
-		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
-		where TComponent : struct, IComponentData
+		where TComponent : struct, IReadWriteComponentSnapshot<TComponent, DefaultSetup>, ISnapshotDelta<TComponent>
 	{
 	}
 }
