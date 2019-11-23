@@ -49,10 +49,13 @@ namespace Revolution.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            return new AddJob
+            inputDeps = new AddJob
             {
                 Ecb = m_EndBarrier.CreateCommandBuffer().ToConcurrent()
             }.Schedule(this, inputDeps);
+
+            m_EndBarrier.AddJobHandleForProducer(inputDeps);
+            return inputDeps;
         }
     }
 }

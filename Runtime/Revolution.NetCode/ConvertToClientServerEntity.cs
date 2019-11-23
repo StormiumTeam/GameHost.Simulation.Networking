@@ -21,6 +21,19 @@ namespace Revolution.NetCode
         [HideInInspector]
         public bool canDestroy = false;
 
+        private void Convert()
+        {
+            if (World.DefaultGameObjectInjectionWorld != null)
+            {
+                var system = World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<ConvertToEntitySystem>();
+                system.AddToBeConverted(World.DefaultGameObjectInjectionWorld, this);
+            }
+            else
+            {
+                UnityEngine.Debug.LogWarning($"{nameof(ConvertToEntity)} failed because there is no {nameof(World.DefaultGameObjectInjectionWorld)}", this);
+            }
+        }
+
         void Awake()
         {
 #if !UNITY_SERVER
@@ -47,64 +60,23 @@ namespace Revolution.NetCode
                 return;
 
             var defaultWorld = World.Active;
-            if (ConversionMode == Mode.ConvertAndDestroy)
-            {
-                if (canDestroy)
-                {
-                    ConvertHierarchy(gameObject);
-                }
-                else if (!convertToClient && !convertToServer)
-                {
-                    Destroy(gameObject);
-                }
-                else
-                {
-                    canDestroy = true;
 #if !UNITY_SERVER
-                    if (convertToClient)
-                    {
-                        int numClientsToConvert = ClientServerBootstrap.clientWorld.Length;
-                        if (!convertToServer)
-                            --numClientsToConvert;
-                        for (int i = 0; i < numClientsToConvert; ++i)
-                        {
-                            World.Active = ClientServerBootstrap.clientWorld[i];
-                            Instantiate(gameObject);
-                        }
-
-                        if (!convertToServer)
-                            World.Active = ClientServerBootstrap.clientWorld[numClientsToConvert];
-                    }
-#endif
-#if !UNITY_CLIENT || UNITY_SERVER || UNITY_EDITOR
-                    if (convertToServer)
-                        World.Active = ClientServerBootstrap.serverWorld;
-#endif
-                    ConvertHierarchy(gameObject);
-
-                    canDestroy = false;
+            if (convertToClient)
+            {
+                for (int i = 0; i < ClientServerBootstrap.clientWorld.Length; ++i)
+                {
+                    World.Active = ClientServerBootstrap.clientWorld[i];
+                    Convert();
                 }
             }
-            else
-            {
-#if !UNITY_SERVER
-                if (convertToClient)
-                {
-                    for (int i = 0; i < ClientServerBootstrap.clientWorld.Length; ++i)
-                    {
-                        World.Active = ClientServerBootstrap.clientWorld[i];
-                        ConvertAndInjectOriginal(gameObject);
-                    }
-                }
 #endif
 #if !UNITY_CLIENT || UNITY_SERVER || UNITY_EDITOR
-                if (convertToServer)
-                {
-                    World.Active = ClientServerBootstrap.serverWorld;
-                    ConvertAndInjectOriginal(gameObject);
-                }
-#endif
+            if (convertToServer)
+            {
+                World.Active = ClientServerBootstrap.serverWorld;
+                Convert();
             }
+#endif
 
             World.Active = defaultWorld;
         }

@@ -370,37 +370,32 @@ namespace Revolution.NetCode
     // Bootstrap of client and server worlds
     public class ClientServerBootstrap : ICustomBootstrap
     {
-        [RuntimeInitializeOnLoadMethod]
-        private static void OnInit()
+        private void CreateDefaultWorld()
         {
-           PlayerLoopManager.RegisterDomainUnload(OnQuit, 1001);
-        }
+            var world = new World("Default world");
+            World.DefaultGameObjectInjectionWorld = world;
+            var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
 
-        private static void OnQuit()
-        {
-            clientWorld = null;
-            serverWorld = null;
+            DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, systems);
+            ScriptBehaviourUpdateOrder.UpdatePlayerLoop(world);
         }
         
-        public List<Type> Initialize(List<Type> systems)
+        public bool Initialize(string defaultWorldName)
         {
+            if (!Application.isPlaying)
+                return false;
+            
             Debug.Log("call...");
             
-            // Workaround for initialization being called multiple times when using game object conversion
-#if !UNITY_SERVER
-            if (clientWorld != null)
-                return systems;
-#endif
-#if !UNITY_CLIENT || UNITY_SERVER || UNITY_EDITOR
-            if (serverWorld != null)
-                return systems;
-#endif
-            Debug.Log("Creeper, aww man, " + Application.isPlaying);
+            // create default world ofc
+            // (would it be really a good idea to keep a default world though?
+            // pros:
+            // better menu abstraction (make a difference between gameplay world and menu world)
+            // cons:
+            // complicated for masterserver stuff
+            CreateDefaultWorld();
 
-            if (!Application.isPlaying)
-                return systems;
-            
-            
+            var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
 
 #if !UNITY_SERVER
 #if UNITY_EDITOR
@@ -680,8 +675,7 @@ namespace Revolution.NetCode
             }
 #endif
             Debug.Log("finalized...");
-            
-            return defaultBootstrap;
+            return true;
         }
 
         WorldType GetTopLevelWorldMask(Type type)

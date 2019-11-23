@@ -298,6 +298,9 @@ namespace ENet
 
 		public JobHandle ScheduleUpdate(JobHandle dep = default(JobHandle))
 		{
+			if (!IsCreated)
+				return dep;
+			
 			dep = new CleanJob {driver = this}.Schedule(dep);
 			dep = new UpdateJob {driver = this}.Schedule(dep);
 			return dep;
