@@ -39,7 +39,7 @@ namespace Revolution
 			};
 
 		[BurstCompile]
-		public static void Serialize(uint systemId, ref SerializeClientData jobData, ref DataStreamWriter writer)
+		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var chunks     = GetSerializerChunkData().Array;
@@ -48,41 +48,41 @@ namespace Revolution
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray = chunk.GetNativeArray(jobData.GhostType);
+				var ghostArray = chunk.GetNativeArray(parameters.ClientData.GhostType);
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!jobData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
 					{
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(systemId, out var success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(parameters.SystemId, out var success);
 					if (!success)
 					{
-						baseline = ref ghostSnapshot.AllocateSystemData<TComponent>(systemId);
+						baseline = ref ghostSnapshot.AllocateSystemData<TComponent>(parameters.SystemId);
 						baseline = default; // always set to default values!
 					}
 		
-					componentArray[ent].WriteTo(writer, ref baseline, sharedData.SetupData, jobData);
+					componentArray[ent].WriteTo(parameters.Stream, ref baseline, sharedData.SetupData, parameters.ClientData);
 					baseline = componentArray[ent];
 				}
 			}
 		}
 
 		[BurstCompile]
-		public static void Deserialize(uint systemId, uint tick, ref DeserializeClientData jobData, ref DataStreamReader reader, ref DataStreamReader.Context ctx)
+		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var ghostArray = GetDeserializerGhostData().Array;
 
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++)
 			{
-				var entity      = jobData.GhostToEntityMap[ghostArray[ent]];
+				var entity      = parameters.ClientData.GhostToEntityMap[ghostArray[ent]];
 				var baseline    = sharedData.ComponentFromEntity[entity];
 				var newSnapshot = default(TComponent);
-				
-				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData);
+
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.ClientData);
 
 				sharedData.ComponentFromEntity[entity] = newSnapshot;
 			}

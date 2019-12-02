@@ -33,7 +33,7 @@ namespace Revolution
 		}
 
 		[BurstCompile]
-		public static void Serialize(uint systemId, ref SerializeClientData jobData, ref DataStreamWriter writer)
+		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var chunks     = GetSerializerChunkData().Array;
@@ -42,31 +42,31 @@ namespace Revolution
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(jobData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!jobData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
 					{
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TripleBaseline>(systemId, out var success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TripleBaseline>(parameters.SystemId, out var success);
 					if (!success)
 					{
-						baseline = ref ghostSnapshot.AllocateSystemData<TripleBaseline>(systemId);
+						baseline = ref ghostSnapshot.AllocateSystemData<TripleBaseline>(parameters.SystemId);
 						baseline = default; // always set to default values!
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.Tick = jobData.Tick;
-					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in jobData);
+					newSnapshot.Tick = parameters.Tick;
+					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in parameters.ClientData);
 					if (baseline.Available >= 3)
 					{
 						baseline.Available = 3;
-						baseline.Baseline0.PredictDelta(jobData.Tick, ref baseline.Baseline1, ref baseline.Baseline2);
+						baseline.Baseline0.PredictDelta(parameters.Tick, ref baseline.Baseline1, ref baseline.Baseline2);
 					}
 
-					newSnapshot.WriteTo(writer, ref baseline.Baseline0, jobData.NetworkCompressionModel);
+					newSnapshot.WriteTo(parameters.Stream, ref baseline.Baseline0, parameters.NetworkCompressionModel);
 
 					baseline.Baseline2 = baseline.Baseline1;
 					baseline.Baseline1 = baseline.Baseline0;
@@ -77,27 +77,27 @@ namespace Revolution
 		}
 
 		[BurstCompile]
-		public static void Deserialize(uint systemId, uint tick, ref DeserializeClientData jobData, ref DataStreamReader reader, ref DataStreamReader.Context ctx)
+		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var ghostArray = GetDeserializerGhostData().Array;
 
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++)
 			{
-				var     snapshotArray = sharedData.SnapshotFromEntity[jobData.GhostToEntityMap[ghostArray[ent]]];
+				var     snapshotArray = sharedData.SnapshotFromEntity[parameters.ClientData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 				var     baseline2     = baseline;
 				var     baseline3     = baseline;
 				var     available     = 0;
 				for (var i = 0; i != snapshotArray.Length; i++)
 				{
-					if (snapshotArray[i].Tick == tick - 2)
+					if (snapshotArray[i].Tick == parameters.Tick - 2)
 					{
 						baseline2 = snapshotArray[i];
 						available++;
 					}
 
-					if (snapshotArray[i].Tick == tick - 3)
+					if (snapshotArray[i].Tick == parameters.Tick - 3)
 					{
 						baseline3 = snapshotArray[i];
 						available++;
@@ -106,15 +106,15 @@ namespace Revolution
 
 				if (available == 2 && baseline.Tick > 0)
 				{
-					baseline.PredictDelta(tick, ref baseline2, ref baseline3);
+					baseline.PredictDelta(parameters.Tick, ref baseline2, ref baseline3);
 				}
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
 
 				var newSnapshot = default(TSnapshot);
-				newSnapshot.Tick = tick;
-				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData.NetworkCompressionModel);
+				newSnapshot.Tick = parameters.Tick;
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
 
 				snapshotArray.Add(newSnapshot);
 			}

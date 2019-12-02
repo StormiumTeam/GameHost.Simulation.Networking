@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Collections.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -6,7 +7,7 @@ using Unity.Entities;
 using Unity.Networking.Transport;
 
 namespace Revolution
-{
+{	
 	public struct SerializeClientData : IDisposable
 	{
 		internal NativeHashMap<uint, IntPtr> m_GhostSnapshots;

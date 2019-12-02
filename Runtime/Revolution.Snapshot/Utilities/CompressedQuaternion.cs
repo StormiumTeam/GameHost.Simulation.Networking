@@ -33,6 +33,11 @@ namespace Utilities
 
 	public struct CompressedQuaternion
 	{
+		private static bool approximately(float a, float b)
+		{
+			return math.abs(b - a) < (double) math.max(1E-06f * math.max(math.abs(a), math.abs(b)), math.FLT_MIN_NORMAL * 8f);
+		}
+		
 		public byte  MaxIndex;
 		public short A;
 		public short B;
@@ -100,7 +105,7 @@ namespace Utilities
 					}
 				}
 
-				if (Mathf.Approximately(maxValue, 1f))
+				if (approximately(maxValue, 1))
 				{
 					MaxIndex += 4;
 					A        =  0;

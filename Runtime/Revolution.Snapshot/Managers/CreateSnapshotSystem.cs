@@ -35,7 +35,12 @@ namespace Revolution
 			public void Execute()
 			{
 				Serializers.Sort();
-				
+
+				var parameters = new SerializeParameters
+				{
+					m_ClientData = new Blittable<SerializeClientData>(ref ClientData),
+					m_Stream     = new Blittable<DataStreamWriter>(ref StreamWriter)
+				};
 				for (var i = 0; i < Serializers.Length; i++)
 				{
 					var serializer = Serializers[i];
@@ -45,9 +50,11 @@ namespace Revolution
 						StreamWriter.Write(StreamWriter.Length);
 					//StreamWriter.Write((byte) 0);
 					StreamWriter.Flush();
-					
+
 					var prevLen = StreamWriter.Length;
-					invoke((uint) serializer.SystemId, ref ClientData, ref StreamWriter);
+
+					parameters.SystemId = (uint) serializer.SystemId;
+					invoke(ref parameters);
 					//Debug.Log($"{serializer.SystemId} -> size={StreamWriter.Length - prevLen}");
 				}
 

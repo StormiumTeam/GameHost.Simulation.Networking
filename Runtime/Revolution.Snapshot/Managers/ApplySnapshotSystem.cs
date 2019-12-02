@@ -47,7 +47,13 @@ namespace Revolution
 				var readCtx = ReadContext[0];
 
 				Deserializers.Sort();
-				
+
+				var parameters = new DeserializeParameters
+				{
+					m_ClientData = new Blittable<DeserializeClientData>(ref ClientData),
+					Stream       = reader,
+					Ctx          = readCtx
+				};
 				for (var i = 0; i < Deserializers.Length; i++)
 				{
 					var serializer = Deserializers[i];
@@ -66,7 +72,9 @@ namespace Revolution
 
 					//reader.ReadByte(ref readCtx);
 					reader.Flush(ref readCtx);
-					invoke((uint) serializer.SystemId, ClientData.Tick, ref ClientData, ref reader, ref readCtx);
+
+					parameters.SystemId = (uint) serializer.SystemId;
+					invoke(ref parameters);
 				}
 
 				ReadContext[0] = readCtx;

@@ -27,7 +27,7 @@ namespace Revolution
 		}
 
 		[BurstCompile]
-		public static void Serialize(uint systemId, ref SerializeClientData jobData, ref DataStreamWriter writer)
+		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var chunks     = GetSerializerChunkData().Array;
@@ -36,24 +36,24 @@ namespace Revolution
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(jobData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!jobData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
 					{
 						throw new InvalidOperationException("A ghost should have a snapshot.");
 					}
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(systemId, out var success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out var success);
 					if (!success)
 					{
-						baseline = ref ghostSnapshot.AllocateSystemData<TSnapshot>(systemId);
+						baseline = ref ghostSnapshot.AllocateSystemData<TSnapshot>(parameters.SystemId);
 						baseline = default; // always set to default values!
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in jobData);
-					newSnapshot.WriteTo(writer, ref baseline, jobData.NetworkCompressionModel);
+					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in parameters.ClientData);
+					newSnapshot.WriteTo(parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
 
 					baseline = newSnapshot;
 				}
@@ -61,22 +61,22 @@ namespace Revolution
 		}
 
 		[BurstCompile]
-		public static void Deserialize(uint systemId, uint tick, ref DeserializeClientData jobData, ref DataStreamReader reader, ref DataStreamReader.Context ctx)
+		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
 			var ghostArray = GetDeserializerGhostData().Array;
 
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++)
 			{
-				var     snapshotArray = sharedData.SnapshotFromEntity[jobData.GhostToEntityMap[ghostArray[ent]]];
+				var     snapshotArray = sharedData.SnapshotFromEntity[parameters.ClientData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
 
 				var newSnapshot = default(TSnapshot);
-				newSnapshot.Tick = tick;
-				newSnapshot.ReadFrom(ref ctx, reader, ref baseline, jobData.NetworkCompressionModel);
+				newSnapshot.Tick = parameters.Tick;
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
 
 				snapshotArray.Add(newSnapshot);
 			}
@@ -97,7 +97,7 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
-			
+
 			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 

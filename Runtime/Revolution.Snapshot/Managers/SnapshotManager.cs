@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
@@ -60,10 +61,50 @@ namespace Revolution
 		public NativeList<uint>  Ghosts;
 		public NativeArray<uint> Array => Ghosts;
 	}
-	
-	public delegate void OnSerializeSnapshot(uint systemId, ref SerializeClientData serializeData, ref DataStreamWriter writer);
 
-	public delegate void OnDeserializeSnapshot(uint systemId, uint tick, ref DeserializeClientData deserializeData, ref DataStreamReader reader, ref DataStreamReader.Context ctx);
+	public unsafe struct Blittable<T>
+	{
+		private IntPtr m_Ptr;
+		
+		public ref T Value => ref Unsafe.AsRef<T>(m_Ptr.ToPointer());
+
+		public Blittable(ref T value)
+		{
+			m_Ptr = (IntPtr) Unsafe.AsPointer(ref value);
+		}
+	}
+
+	public struct SerializeParameters
+	{
+		internal Blittable<SerializeClientData> m_ClientData;
+		internal Blittable<DataStreamWriter>    m_Stream;
+
+		public uint SystemId;
+
+		public ref SerializeClientData ClientData => ref m_ClientData.Value;
+		public ref DataStreamWriter    Stream     => ref m_Stream.Value;
+
+		public uint                    Tick                    => ClientData.Tick;
+		public NetworkCompressionModel NetworkCompressionModel => ClientData.NetworkCompressionModel;
+	}
+
+	public struct DeserializeParameters
+	{
+		internal Blittable<DeserializeClientData> m_ClientData;
+		
+		public uint                     SystemId;
+		public DataStreamReader         Stream;
+		public DataStreamReader.Context Ctx;
+
+		public ref DeserializeClientData ClientData => ref m_ClientData.Value;
+		
+		public uint Tick => ClientData.Tick;
+		public NetworkCompressionModel NetworkCompressionModel => ClientData.NetworkCompressionModel;
+	}
+
+	public delegate void OnSerializeSnapshot(ref SerializeParameters parameters);
+
+	public delegate void OnDeserializeSnapshot(ref DeserializeParameters parameters);
 
 	public class SnapshotManager : ComponentSystem
 	{
