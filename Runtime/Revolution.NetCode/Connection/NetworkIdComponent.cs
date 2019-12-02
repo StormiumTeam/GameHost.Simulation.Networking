@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
+using Unity.Transforms;
 
 namespace Revolution.NetCode
 {
@@ -29,17 +30,6 @@ namespace Revolution.NetCode
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     public class SetNetworkIdSystem : JobComponentSystem
     {
-        private struct AddJob : IJobForEachWithEntity_EC<RpcSetNetworkId>
-        {
-            public EntityCommandBuffer.Concurrent Ecb;
-
-            public void Execute(Entity reqEnt, int i, ref RpcSetNetworkId req)
-            {
-                Ecb.AddComponent(i, req.SourceConnection, new NetworkIdComponent {Value = req.nid});
-                Ecb.DestroyEntity(i, reqEnt);
-            }
-        }
-
         private EndSimulationEntityCommandBufferSystem m_EndBarrier;
 
         protected override void OnCreate()
@@ -49,10 +39,12 @@ namespace Revolution.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            inputDeps = new AddJob
+            var ecb = m_EndBarrier.CreateCommandBuffer().ToConcurrent();
+            inputDeps = Entities.ForEach((Entity reqEnt, int nativeThreadIndex, in RpcSetNetworkId req) =>
             {
-                Ecb = m_EndBarrier.CreateCommandBuffer().ToConcurrent()
-            }.Schedule(this, inputDeps);
+                ecb.AddComponent(nativeThreadIndex, req.SourceConnection, new NetworkIdComponent {Value = req.nid});
+                ecb.DestroyEntity(nativeThreadIndex, reqEnt);
+            }).Schedule(inputDeps);
 
             m_EndBarrier.AddJobHandleForProducer(inputDeps);
             return inputDeps;

@@ -394,7 +394,7 @@ namespace Revolution.NetCode
             // cons:
             // complicated for masterserver stuff
             CreateDefaultWorld();
-
+            
             var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
 
 #if !UNITY_SERVER

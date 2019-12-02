@@ -20,7 +20,7 @@ namespace Revolution.NetCode
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>
 		where TSetup : struct, ISetup
 	{
-		[BurstCompile]
+		//[BurstCompile]
 		private struct JobDirect : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
@@ -74,7 +74,7 @@ namespace Revolution.NetCode
 	{
 		protected virtual bool IsPredicted => false;
 		
-		[BurstCompile]
+		//[BurstCompile]
 		private struct JobInterpolated : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
