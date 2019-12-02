@@ -20,6 +20,11 @@ namespace Revolution
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, IBufferElementData
 		where TSharedData : struct
 	{
+		public override string ToString()
+		{
+			return $"EntitySerializer<{typeof(TSerializer)}, {typeof(TSnapshot)}, {typeof(TSharedData)}>";
+		}
+
 		public const uint                                 SnapshotHistorySize = 16;
 		private      BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 

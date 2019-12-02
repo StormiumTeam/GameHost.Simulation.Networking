@@ -16,6 +16,11 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
+		public override string ToString()
+		{
+			return $"ComponentSnapshotSystemBasicPredicted<{typeof(TComponent)}>";
+		}
+		
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
 		{

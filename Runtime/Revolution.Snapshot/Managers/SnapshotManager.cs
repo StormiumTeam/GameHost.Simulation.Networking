@@ -41,6 +41,7 @@ namespace Revolution
 				castSys.OnBeginDeserialize(client);
 				deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
 				{
+					Name     = castSys.ToString(),
 					Value    = castSys.DeserializeDelegate,
 					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(castSys)
 				});

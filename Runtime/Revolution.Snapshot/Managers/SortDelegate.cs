@@ -1,5 +1,6 @@
 using System;
 using Unity.Burst;
+using Unity.Collections;
 
 namespace Revolution
 {
@@ -7,6 +8,7 @@ namespace Revolution
 	{
 		public FunctionPointer<T> Value;
 		public int                SystemId;
+		public NativeString512     Name;
 
 		public int CompareTo(SortDelegate<T> other)
 		{

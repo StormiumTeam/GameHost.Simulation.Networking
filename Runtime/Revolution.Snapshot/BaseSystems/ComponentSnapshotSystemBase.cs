@@ -66,6 +66,11 @@ namespace Revolution
 		where TSetup : struct, ISetup
 		where TSharedData : struct
 	{
+		public override string ToString()
+		{
+			return $"ComponentSnapshotSystemBase<{typeof(TComponent)}>";
+		}
+
 		private EntityQuery m_EntityWithoutComponentQuery;
 
 		public override NativeArray<ComponentType> EntityComponents =>

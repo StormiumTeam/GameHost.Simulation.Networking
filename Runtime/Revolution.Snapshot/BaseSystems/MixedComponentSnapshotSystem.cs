@@ -25,6 +25,11 @@ namespace Revolution
 		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>
 		where TSetup : struct, ISetup
 	{
+		public override string ToString()
+		{
+			return $"MixedComponentSnapshotSystemBasic<{typeof(TComponent)}>";
+		}
+		
 		public override NativeArray<ComponentType> EntityComponents =>
 			new NativeArray<ComponentType>(1, Allocator.Temp)
 			{

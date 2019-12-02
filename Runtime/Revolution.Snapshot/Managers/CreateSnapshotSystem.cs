@@ -428,7 +428,9 @@ namespace Revolution
 				ClientData   = baseline,
 				Serializers  = delegateSerializers,
 				StreamWriter = writer,
-				OutgoingData = outgoing
+				OutgoingData = outgoing,
+				
+				DebugRange = true
 			}.Schedule(inputDeps);
 			inputDeps = delegateSerializers.Dispose(inputDeps);
 			inputDeps.Complete();

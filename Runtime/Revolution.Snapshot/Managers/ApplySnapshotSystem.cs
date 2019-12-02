@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using UnityEngine;
@@ -287,7 +288,9 @@ namespace Revolution
 				Deserializers = delegateDeserializers,
 				ClientData    = baseline,
 				StreamData    = data,
-				ReadContext   = readCtxArray
+				ReadContext   = readCtxArray,
+				
+				DebugRange = true
 			}.Run();
 
 			ctx = readCtxArray[0];
@@ -312,15 +315,14 @@ namespace Revolution
 			public void Execute()
 			{
 				var reader  = new DataStreamReader(StreamData);
-				var readCtx = ReadContext[0];
-
+				
 				Deserializers.Sort();
 
 				var parameters = new DeserializeParameters
 				{
 					m_ClientData = new Blittable<DeserializeClientData>(ref ClientData),
 					Stream       = reader,
-					Ctx          = readCtx
+					Ctx          = ReadContext[0]
 				};
 				for (var i = 0; i < Deserializers.Length; i++)
 				{
@@ -329,23 +331,23 @@ namespace Revolution
 
 					if (DebugRange)
 					{
-						var byteRead   = reader.GetBytesRead(ref readCtx);
-						var currLength = reader.ReadInt(ref readCtx);
+						var byteRead   = reader.GetBytesRead(ref parameters.Ctx);
+						var currLength = reader.ReadInt(ref parameters.Ctx);
 						if (currLength != byteRead)
 						{
-							Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.SystemId}");
+							Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.Name.ToString()}, previous system {Deserializers[math.max(i - 1, 0)].Name.ToString()}");
 							return;
 						}
 					}
 
 					//reader.ReadByte(ref readCtx);
-					reader.Flush(ref readCtx);
+					reader.Flush(ref parameters.Ctx);
 
 					parameters.SystemId = (uint) serializer.SystemId;
 					invoke(ref parameters);
 				}
 
-				ReadContext[0] = readCtx;
+				ReadContext[0] = parameters.Ctx;
 			}
 		}
 	}

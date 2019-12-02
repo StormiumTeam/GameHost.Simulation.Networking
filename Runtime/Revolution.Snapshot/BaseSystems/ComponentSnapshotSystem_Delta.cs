@@ -31,6 +31,11 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
+		public override string ToString()
+		{
+			return $"ComponentSnapshotSystemDelta<{typeof(TComponent)}>";
+		}
+		
 		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
 		[BurstCompile]
