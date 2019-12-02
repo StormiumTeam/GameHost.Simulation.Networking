@@ -4,14 +4,16 @@ using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Collections;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
-    [UpdateInGroup(typeof(ServerSimulationSystemGroup))]
-    [UpdateAfter(typeof(NetworkStreamReceiveSystemGroup))]
+    [UpdateInWorld(UpdateInWorld.TargetWorld.Server)]
+    [UpdateInGroup(typeof(NetworkReceiveSystemGroup))]
+    [UpdateAfter(typeof(NetworkStreamReceiveSystem))]
     public sealed class CommandReceiveSystem : ComponentSystem
     {
         private EntityQuery             m_IncomingDataQuery;
         private CommandCollectionSystem m_CommandCollectionSystem;
+        private NetworkCompressionModel m_NetworkCompressionModel;
 
         protected override void OnCreate()
         {
@@ -22,6 +24,8 @@ namespace Revolution.NetCode
                 All = new ComponentType[] {typeof(CommandTargetComponent), typeof(IncomingCommandDataStreamBufferComponent)}
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
+
+            m_NetworkCompressionModel = new NetworkCompressionModel(Allocator.Persistent);
         }
 
         protected override void OnUpdate()
@@ -41,7 +45,7 @@ namespace Revolution.NetCode
 
         private unsafe void OnArrayProcess(NativeArray<Entity> entities, NativeArray<CommandTargetComponent> targetArray)
         {
-            var tick = World.GetExistingSystem<ServerSimulationSystemGroup>().ServerTick;
+            var serverTick = World.GetExistingSystem<ServerSimulationSystemGroup>().ServerTick;
             for (var ent = 0; ent < entities.Length; ent++)
             {
                 var target = targetArray[ent];
@@ -51,9 +55,18 @@ namespace Revolution.NetCode
                 var buffer = EntityManager.GetBuffer<IncomingCommandDataStreamBufferComponent>(entities[ent]);
                 if (buffer.Length <= 0)
                     continue;
-                
+
                 var reader = DataStreamUnsafeUtility.CreateReaderFromExistingData((byte*) buffer.GetUnsafePtr(), buffer.Length);
                 var ctx    = default(DataStreamReader.Context);
+
+                var tick = reader.ReadUInt(ref ctx);
+                var age  = (int) (serverTick - tick);
+                age *= 256;
+
+                var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(entities[ent]);
+                snapshotAck.ServerCommandAge = (snapshotAck.ServerCommandAge * 7 + age) / 8;
+                EntityManager.SetComponentData(entities[ent], snapshotAck);
+
                 while (reader.GetBytesRead(ref ctx) < reader.Length)
                 {
                     var type = reader.ReadByte(ref ctx);
@@ -61,9 +74,9 @@ namespace Revolution.NetCode
                         throw new KeyNotFoundException($"No processor with type '{type}' found!");
 
                     processor.BeginDeserialize(target.targetEntity, type);
-                    processor.ProcessReceive(tick, reader, ref ctx);
+                    processor.ProcessReceive(serverTick, reader, ref ctx, m_NetworkCompressionModel);
                 }
-                
+
                 buffer.Clear();
             }
         }

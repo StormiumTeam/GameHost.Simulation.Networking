@@ -1,11 +1,12 @@
 using K4os.Compression.LZ4;
+using Revolution;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using UnityEngine;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
 	[AlwaysUpdateSystem]
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
@@ -67,7 +68,7 @@ namespace Revolution.NetCode
 			}
 
 			var player = m_PlayerQuery.GetSingletonEntity();
-			var incomingData = EntityManager.GetBuffer<IncomingSnapshotStreamBufferComponent>(player).Reinterpret<byte>();
+			var incomingData = EntityManager.GetBuffer<IncomingSnapshotDataStreamBufferComponent>(player).Reinterpret<byte>();
 			if (incomingData.Length == 0)
 			{
 				return;
@@ -185,7 +186,7 @@ namespace Revolution.NetCode
 				EntityManager.SetComponentData(player, snapshotAck);
 			}
 
-			EntityManager.GetBuffer<IncomingSnapshotStreamBufferComponent>(player).Clear();
+			EntityManager.GetBuffer<IncomingSnapshotDataStreamBufferComponent>(player).Clear();
 			snapshot.Dispose();
 		}
 

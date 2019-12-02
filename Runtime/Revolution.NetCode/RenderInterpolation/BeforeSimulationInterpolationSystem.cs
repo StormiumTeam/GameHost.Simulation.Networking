@@ -4,10 +4,10 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Transforms;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
-    [UpdateBefore(typeof(NetworkStreamReceiveSystemGroup))]
+    [UpdateBefore(typeof(GhostSimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
     public class BeforeSimulationInterpolationSystem : JobComponentSystem
     {
@@ -28,19 +28,20 @@ namespace Revolution.NetCode
         [BurstCompile]
         struct UpdatePos : IJobChunk
         {
-            public            ArchetypeChunkComponentType<Translation>               positionType;
-            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedPosition>  curPositionType;
-            public            ArchetypeChunkComponentType<PreviousSimulatedPosition> prevPositionType;
-            public            uint                                                   simStartComponentVersion;
-            public            uint                                                   simEndComponentVersion;
+            public ArchetypeChunkComponentType<Translation> positionType;
+            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
+            public ArchetypeChunkComponentType<PreviousSimulatedPosition> prevPositionType;
+            public uint simStartComponentVersion;
+            public uint simEndComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where currentTrans is newer than previousTrans
                 // Copy currentTrans to previous trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curPositionType), simStartComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curPositionType),
+                    simStartComponentVersion))
                 {
-                    var curPos  = chunk.GetNativeArray(curPositionType);
+                    var curPos = chunk.GetNativeArray(curPositionType);
                     var prevPos = chunk.GetNativeArray(prevPositionType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curPos.Length; ++ent)
@@ -55,7 +56,7 @@ namespace Revolution.NetCode
                 {
                     // Transform was interpolated by the rendering system
                     var curPos = chunk.GetNativeArray(curPositionType);
-                    var pos    = chunk.GetNativeArray(positionType);
+                    var pos = chunk.GetNativeArray(positionType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curPos.Length; ++ent)
                     {
@@ -68,19 +69,20 @@ namespace Revolution.NetCode
         [BurstCompile]
         struct UpdateRot : IJobChunk
         {
-            public            ArchetypeChunkComponentType<Rotation>                  rotationType;
-            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedRotation>  curRotationType;
-            public            ArchetypeChunkComponentType<PreviousSimulatedRotation> prevRotationType;
-            public            uint                                                   simStartComponentVersion;
-            public            uint                                                   simEndComponentVersion;
+            public ArchetypeChunkComponentType<Rotation> rotationType;
+            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
+            public ArchetypeChunkComponentType<PreviousSimulatedRotation> prevRotationType;
+            public uint simStartComponentVersion;
+            public uint simEndComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where currentTrans is newer than previousTrans
                 // Copy currentTrans to previous trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curRotationType), simStartComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curRotationType),
+                    simStartComponentVersion))
                 {
-                    var curRot  = chunk.GetNativeArray(curRotationType);
+                    var curRot = chunk.GetNativeArray(curRotationType);
                     var prevRot = chunk.GetNativeArray(prevRotationType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curRot.Length; ++ent)
@@ -95,7 +97,7 @@ namespace Revolution.NetCode
                 {
                     // Transform was interpolated by the rendering system
                     var curRot = chunk.GetNativeArray(curRotationType);
-                    var rot    = chunk.GetNativeArray(rotationType);
+                    var rot = chunk.GetNativeArray(rotationType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curRot.Length; ++ent)
                     {
@@ -107,23 +109,22 @@ namespace Revolution.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            var topGroup = World.GetExistingSystem<ClientSimulationSystemGroup>();
-            RenderInterpolationSystem.parameters.startTime      = topGroup.UpdateTime;
-            RenderInterpolationSystem.parameters.fixedDeltaTime = topGroup.UpdateDeltaTime;
+            RenderInterpolationSystem.parameters.startTime = Time.ElapsedTime;
+            RenderInterpolationSystem.parameters.fixedDeltaTime = Time.DeltaTime;
 
             var posJob = new UpdatePos();
-            posJob.positionType             = GetArchetypeChunkComponentType<Translation>();
-            posJob.curPositionType          = GetArchetypeChunkComponentType<CurrentSimulatedPosition>(true);
-            posJob.prevPositionType         = GetArchetypeChunkComponentType<PreviousSimulatedPosition>();
+            posJob.positionType = GetArchetypeChunkComponentType<Translation>();
+            posJob.curPositionType = GetArchetypeChunkComponentType<CurrentSimulatedPosition>(true);
+            posJob.prevPositionType = GetArchetypeChunkComponentType<PreviousSimulatedPosition>();
             posJob.simStartComponentVersion = simStartComponentVersion;
-            posJob.simEndComponentVersion   = simEndComponentVersion;
+            posJob.simEndComponentVersion = simEndComponentVersion;
 
             var rotJob = new UpdateRot();
-            rotJob.rotationType             = GetArchetypeChunkComponentType<Rotation>();
-            rotJob.curRotationType          = GetArchetypeChunkComponentType<CurrentSimulatedRotation>(true);
-            rotJob.prevRotationType         = GetArchetypeChunkComponentType<PreviousSimulatedRotation>();
+            rotJob.rotationType = GetArchetypeChunkComponentType<Rotation>();
+            rotJob.curRotationType = GetArchetypeChunkComponentType<CurrentSimulatedRotation>(true);
+            rotJob.prevRotationType = GetArchetypeChunkComponentType<PreviousSimulatedRotation>();
             rotJob.simStartComponentVersion = simStartComponentVersion;
-            rotJob.simEndComponentVersion   = simEndComponentVersion;
+            rotJob.simEndComponentVersion = simEndComponentVersion;
 
             var handles = new NativeArray<JobHandle>(2, Allocator.Temp);
             handles[0] = posJob.Schedule(positionInterpolationGroup, inputDeps);

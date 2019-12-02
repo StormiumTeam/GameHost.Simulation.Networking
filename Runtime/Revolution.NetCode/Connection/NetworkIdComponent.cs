@@ -1,53 +1,57 @@
+using Unity.Burst;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Networking.Transport;
-using Unity.Transforms;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     public struct NetworkIdComponent : IComponentData
     {
         public int Value;
     }
 
-    internal struct RpcSetNetworkId : IRpcCommandRequestComponentData
+    [BurstCompile]
+    internal struct RpcSetNetworkId : IRpcCommand
     {
         public int nid;
+        public int simTickRate;
+        public int netTickRate;
+        public int simMaxSteps;
 
         public void Serialize(DataStreamWriter writer)
         {
             writer.Write(nid);
+            writer.Write(simTickRate);
+            writer.Write(netTickRate);
+            writer.Write(simMaxSteps);
         }
 
         public void Deserialize(DataStreamReader reader, ref DataStreamReader.Context ctx)
         {
             nid = reader.ReadInt(ref ctx);
+            simTickRate = reader.ReadInt(ref ctx);
+            netTickRate = reader.ReadInt(ref ctx);
+            simMaxSteps = reader.ReadInt(ref ctx);
         }
 
-        public Entity SourceConnection { get; set; }
-    }
-
-    [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
-    public class SetNetworkIdSystem : JobComponentSystem
-    {
-        private EndSimulationEntityCommandBufferSystem m_EndBarrier;
-
-        protected override void OnCreate()
+        [BurstCompile]
+        private static void InvokeExecute(ref RpcExecutor.Parameters parameters)
         {
-            m_EndBarrier = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
-        }
+            var rpcData = default(RpcSetNetworkId);
+            rpcData.Deserialize(parameters.Reader, ref parameters.ReaderContext);
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
-        {
-            var ecb = m_EndBarrier.CreateCommandBuffer().ToConcurrent();
-            inputDeps = Entities.ForEach((Entity reqEnt, int nativeThreadIndex, in RpcSetNetworkId req) =>
+            parameters.CommandBuffer.AddComponent(parameters.JobIndex, parameters.Connection, new NetworkIdComponent {Value = rpcData.nid});
+            var ent = parameters.CommandBuffer.CreateEntity(parameters.JobIndex);
+            parameters.CommandBuffer.AddComponent(parameters.JobIndex, ent, new ClientServerTickRate
             {
-                ecb.AddComponent(nativeThreadIndex, req.SourceConnection, new NetworkIdComponent {Value = req.nid});
-                ecb.DestroyEntity(nativeThreadIndex, reqEnt);
-            }).Schedule(inputDeps);
+                MaxSimulationStepsPerFrame = rpcData.simMaxSteps,
+                NetworkTickRate = rpcData.netTickRate,
+                SimulationTickRate = rpcData.simTickRate
+            });
+        }
 
-            m_EndBarrier.AddJobHandleForProducer(inputDeps);
-            return inputDeps;
+        public PortableFunctionPointer<RpcExecutor.ExecuteDelegate> CompileExecute()
+        {
+            return new PortableFunctionPointer<RpcExecutor.ExecuteDelegate>(InvokeExecute);
         }
     }
 }

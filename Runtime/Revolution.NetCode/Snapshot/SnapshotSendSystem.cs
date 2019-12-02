@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using K4os.Compression.LZ4;
+using Revolution;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using UnityEngine;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
 	[UpdateInGroup(typeof(ServerSimulationSystemGroup))]
 	public unsafe class SnapshotSendSystem : ComponentSystem
@@ -17,7 +18,7 @@ namespace Revolution.NetCode
 		private EntityQuery m_ConnectionWithoutSnapshotBufferGroup;
 
 		private ServerSimulationSystemGroup     m_ServerSimulationSystemGroup;
-		private NetworkStreamReceiveSystemGroup m_ReceiveSystem;
+		private NetworkStreamReceiveSystem m_ReceiveSystem;
 		private CreateSnapshotSystem            m_CreateSnapshotSystem;
 
 		private DataStreamWriter m_DataStream;
@@ -37,7 +38,7 @@ namespace Revolution.NetCode
 				None = new ComponentType[] {typeof(ClientSnapshotBuffer)}
 			});
 			m_ServerSimulationSystemGroup = World.GetOrCreateSystem<ServerSimulationSystemGroup>();
-			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystemGroup>();
+			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
 			m_CreateSnapshotSystem        = World.GetOrCreateSystem<CreateSnapshotSystem>();
 
 			m_DataStream = new DataStreamWriter(1440, Allocator.Persistent);
@@ -113,7 +114,7 @@ namespace Revolution.NetCode
 				}
 				UnsafeUtility.Free(compressed, Allocator.Temp);
 
-				m_ReceiveSystem.QueueData(PipelineType.Snapshot, connection.Value, m_DataStream);
+				m_ReceiveSystem.Driver.Send(m_ReceiveSystem.ReliablePipeline, connection.Value, m_DataStream);
 			}
 
 			connectionEntities.Dispose();

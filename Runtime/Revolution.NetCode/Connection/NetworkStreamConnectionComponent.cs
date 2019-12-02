@@ -11,23 +11,42 @@
 using Unity.Entities;
 using Unity.Networking.Transport;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
-	public struct NetworkStreamConnection : IComponentData
-	{
-		public NetworkConnection Value;
-	}
+    public struct NetworkStreamConnection : IComponentData
+    {
+        public NetworkConnection Value;
+    }
 
-	public struct NetworkStreamInGame : IComponentData
-	{
-	}
+    public struct NetworkStreamInGame : IComponentData
+    {
+    }
 
-	public struct NetworkStreamDisconnected : IComponentData
-	{
-	}
+    public enum NetworkStreamDisconnectReason
+    {
+        Unknown,
+        ConnectionClose,
+        BadProtocolVersion
+    }
 
-	public struct IncomingCommandDataStreamBufferComponent : IBufferElementData
-	{
-		public byte Value;
-	}
+    public struct NetworkStreamDisconnected : IComponentData
+    {
+
+        public NetworkStreamDisconnectReason Reason;
+    }
+    public struct NetworkStreamRequestDisconnect : IComponentData
+    {
+
+        public NetworkStreamDisconnectReason Reason;
+    }
+
+    public struct IncomingCommandDataStreamBufferComponent : IBufferElementData
+    {
+        public byte Value;
+    }
+
+    public struct IncomingSnapshotDataStreamBufferComponent : IBufferElementData
+    {
+        public byte Value;
+    }
 }

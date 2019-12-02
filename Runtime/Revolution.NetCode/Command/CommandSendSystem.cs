@@ -2,7 +2,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
     // dependency just for acking
@@ -12,7 +12,8 @@ namespace Revolution.NetCode
         private EntityQuery                m_IncomingDataQuery;
         private CommandCollectionSystem    m_CommandCollectionSystem;
         private NetworkTimeSystem          m_TimeSystem;
-        private NetworkStreamReceiveSystemGroup m_ReceiveSystem;
+        private NetworkStreamReceiveSystem m_ReceiveSystem;
+        private NetworkCompressionModel    m_NetworkCompressionModel;
 
         protected override void OnCreate()
         {
@@ -20,11 +21,13 @@ namespace Revolution.NetCode
 
             m_IncomingDataQuery = GetEntityQuery(new EntityQueryDesc
             {
-                All  = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)}
+                All = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)}
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
-            m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystemGroup>();
+            m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
             m_TimeSystem              = World.GetOrCreateSystem<NetworkTimeSystem>();
+
+            m_NetworkCompressionModel = new NetworkCompressionModel(Allocator.Persistent);
         }
 
         protected override void OnUpdate()
@@ -53,19 +56,27 @@ namespace Revolution.NetCode
                     continue;
 
                 var ack    = snapshotAckArray[ent];
-                var writer = new DataStreamWriter(256, Allocator.Temp);
+                var writer = new DataStreamWriter(512, Allocator.Temp);
                 writer.Write((byte) NetworkStreamProtocol.Command);
                 writer.Write(ack.LastReceivedSnapshotByLocal);
                 writer.Write(localTime);
-                writer.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
+
+                uint returnTime = ack.LastReceivedRemoteTime;
+                if (returnTime != 0)
+                    returnTime -= localTime - ack.LastReceiveTimestamp;
+                writer.Write(returnTime);
+                writer.Write(targetTick);
 
                 foreach (var systemKvp in m_CommandCollectionSystem.SystemProcessors)
                 {
                     systemKvp.Value.BeginSerialize(target.targetEntity, systemKvp.Key);
-                    systemKvp.Value.ProcessSend(targetTick, writer);
+                    systemKvp.Value.ProcessSend(targetTick, writer, m_NetworkCompressionModel);
                 }
+                
+                writer.Flush();
 
-                m_ReceiveSystem.QueueData(PipelineType.Unreliable, connectionArray[ent].Value, writer);
+                var driver = m_ReceiveSystem.Driver;
+                driver.Send(m_ReceiveSystem.UnreliablePipeline, connectionArray[ent].Value, writer);
             }
         }
     }

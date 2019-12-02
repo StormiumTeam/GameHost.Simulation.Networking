@@ -1,9 +1,8 @@
-
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Collections;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
     public class NetworkStreamCloseSystem : JobComponentSystem
@@ -28,7 +27,7 @@ namespace Revolution.NetCode
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            var job    = new CloseJob {commandBuffer = m_Barrier.CreateCommandBuffer()};
+            var job = new CloseJob {commandBuffer = m_Barrier.CreateCommandBuffer()};
             var handle = job.ScheduleSingle(this, inputDeps);
             m_Barrier.AddJobHandleForProducer(handle);
             return handle;

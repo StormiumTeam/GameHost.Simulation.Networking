@@ -1,7 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     public struct CurrentSimulatedPosition : IComponentData
     {

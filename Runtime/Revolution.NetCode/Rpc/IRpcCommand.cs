@@ -1,18 +1,13 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Networking.Transport;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
-    public interface IRpcCommandRequestComponentData : IComponentData
+    public interface IRpcCommand : IComponentData
     {
-        void Serialize(DataStreamWriter   writer);
+        void Serialize(DataStreamWriter writer);
         void Deserialize(DataStreamReader reader, ref DataStreamReader.Context ctx);
-        
-        Entity SourceConnection { get; set; }
-    }
-
-    public interface IRpcCommandRequestExecuteNow : IRpcCommandRequestComponentData
-    {
-        void Execute(EntityManager em);
+        PortableFunctionPointer<RpcExecutor.ExecuteDelegate> CompileExecute();
     }
 }

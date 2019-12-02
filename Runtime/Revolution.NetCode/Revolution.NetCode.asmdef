@@ -2,6 +2,7 @@
   "name": "Revolution.NetCode",
   "references": [
     "Unity.Burst",
+    "Unity.Build",
     "Unity.Entities",
     "Unity.Entities.Hybrid",
     "Unity.Scenes.Hybrid",

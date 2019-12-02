@@ -1,6 +1,6 @@
 using Unity.Entities;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     public struct CommandTargetComponent : IComponentData
     {

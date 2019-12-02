@@ -1,9 +1,10 @@
+using Revolution;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
 	[UpdateAfter(typeof(SnapshotReceiveSystem))]

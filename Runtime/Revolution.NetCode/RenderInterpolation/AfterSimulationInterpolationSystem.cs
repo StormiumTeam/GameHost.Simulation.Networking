@@ -4,11 +4,10 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Transforms;
 
-namespace Revolution.NetCode
+namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientSimulationSystemGroup))]
-    [UpdateAfter(typeof(RpcSendSystem))]
-    [UpdateAfter(typeof(NetworkReceiveSnapshotSystemGroup))]
+    [UpdateAfter(typeof(GhostSimulationSystemGroup))]
     [UpdateAfter(typeof(TransformSystemGroup))]
     public class AfterSimulationInterpolationSystem : JobComponentSystem
     {
@@ -16,10 +15,10 @@ namespace Revolution.NetCode
 
         // Commands needs to be applied before next simulation is run
         private BeginSimulationEntityCommandBufferSystem barrier;
-        private EntityQuery                              positionInterpolationGroup;
-        private EntityQuery                              rotationInterpolationGroup;
-        private EntityQuery                              newPositionInterpolationGroup;
-        private EntityQuery                              newRotationInterpolationGroup;
+        private EntityQuery positionInterpolationGroup;
+        private EntityQuery rotationInterpolationGroup;
+        private EntityQuery newPositionInterpolationGroup;
+        private EntityQuery newRotationInterpolationGroup;
 
         protected override void OnCreate()
         {
@@ -29,25 +28,28 @@ namespace Revolution.NetCode
                 ComponentType.ReadOnly<PreviousSimulatedRotation>(), ComponentType.ReadWrite<Rotation>());
             newPositionInterpolationGroup = GetEntityQuery(new EntityQueryDesc
             {
-                All  = new[] {ComponentType.ReadWrite<Translation>(), ComponentType.ReadOnly<CurrentSimulatedPosition>()},
+                All = new[]
+                {
+                    ComponentType.ReadWrite<Translation>(), ComponentType.ReadOnly<CurrentSimulatedPosition>()
+                },
                 None = new[] {ComponentType.ReadWrite<PreviousSimulatedPosition>()}
             });
             newRotationInterpolationGroup = GetEntityQuery(new EntityQueryDesc
             {
-                All  = new[] {ComponentType.ReadWrite<Rotation>(), ComponentType.ReadOnly<CurrentSimulatedRotation>()},
+                All = new[] {ComponentType.ReadWrite<Rotation>(), ComponentType.ReadOnly<CurrentSimulatedRotation>()},
                 None = new[] {ComponentType.ReadWrite<PreviousSimulatedRotation>()}
             });
 
-            barrier      = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
+            barrier = World.GetOrCreateSystem<BeginSimulationEntityCommandBufferSystem>();
             beforeSystem = World.GetOrCreateSystem<BeforeSimulationInterpolationSystem>();
         }
 
         [BurstCompile]
         struct UpdateCurrentPosJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkComponentType<Translation>              positionType;
-            public            ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
-            public            uint                                                  simStartComponentVersion;
+            [ReadOnly] public ArchetypeChunkComponentType<Translation> positionType;
+            public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
+            public uint simStartComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
@@ -57,7 +59,7 @@ namespace Revolution.NetCode
                 {
                     // Transform was interpolated by the rendering system
                     var curPos = chunk.GetNativeArray(curPositionType);
-                    var pos    = chunk.GetNativeArray(positionType);
+                    var pos = chunk.GetNativeArray(positionType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curPos.Length; ++ent)
                     {
@@ -70,9 +72,9 @@ namespace Revolution.NetCode
         [BurstCompile]
         struct UpdateCurrentRotJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkComponentType<Rotation>                 rotationType;
-            public            ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
-            public            uint                                                  simStartComponentVersion;
+            [ReadOnly] public ArchetypeChunkComponentType<Rotation> rotationType;
+            public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
+            public uint simStartComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
@@ -82,7 +84,7 @@ namespace Revolution.NetCode
                 {
                     // Transform was interpolated by the rendering system
                     var curRot = chunk.GetNativeArray(curRotationType);
-                    var rot    = chunk.GetNativeArray(rotationType);
+                    var rot = chunk.GetNativeArray(rotationType);
                     // FIXME: use a memcopy since size and layout must be identical
                     for (int ent = 0; ent < curRot.Length; ++ent)
                     {
@@ -94,79 +96,82 @@ namespace Revolution.NetCode
 
         struct InitCurrentPosJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkEntityType                              entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<Translation>              positionType;
-            public            ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
-            public            EntityCommandBuffer.Concurrent                        commandBuffer;
+            [ReadOnly] public ArchetypeChunkEntityType entityType;
+            [ReadOnly] public ArchetypeChunkComponentType<Translation> positionType;
+            public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
+            public EntityCommandBuffer.Concurrent commandBuffer;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 var curPos = chunk.GetNativeArray(curPositionType);
-                var pos    = chunk.GetNativeArray(positionType);
+                var pos = chunk.GetNativeArray(positionType);
                 var entity = chunk.GetNativeArray(entityType);
                 // FIXME: use a memcopy since size and layout must be identical
                 for (int ent = 0; ent < curPos.Length; ++ent)
                 {
                     var cp = pos[ent];
                     curPos[ent] = new CurrentSimulatedPosition {Value = cp.Value};
-                    commandBuffer.AddComponent(chunkIndex, entity[ent], new PreviousSimulatedPosition {Value = cp.Value});
+                    commandBuffer.AddComponent(chunkIndex, entity[ent],
+                        new PreviousSimulatedPosition {Value = cp.Value});
                 }
             }
         }
 
         struct InitCurrentRotJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkEntityType                              entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<Rotation>                 rotationType;
-            public            ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
-            public            EntityCommandBuffer.Concurrent                        commandBuffer;
+            [ReadOnly] public ArchetypeChunkEntityType entityType;
+            [ReadOnly] public ArchetypeChunkComponentType<Rotation> rotationType;
+            public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
+            public EntityCommandBuffer.Concurrent commandBuffer;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 var curRot = chunk.GetNativeArray(curRotationType);
-                var rot    = chunk.GetNativeArray(rotationType);
+                var rot = chunk.GetNativeArray(rotationType);
                 var entity = chunk.GetNativeArray(entityType);
                 // FIXME: use a memcopy since size and layout must be identical
                 for (int ent = 0; ent < curRot.Length; ++ent)
                 {
                     var cr = rot[ent];
                     curRot[ent] = new CurrentSimulatedRotation {Value = cr.Value};
-                    commandBuffer.AddComponent(chunkIndex, entity[ent], new PreviousSimulatedRotation {Value = cr.Value});
+                    commandBuffer.AddComponent(chunkIndex, entity[ent],
+                        new PreviousSimulatedRotation {Value = cr.Value});
                 }
             }
         }
 
         protected override JobHandle OnUpdate(JobHandle inputDeps)
         {
-            var handles   = new NativeArray<JobHandle>(2, Allocator.Temp);
+            var handles = new NativeArray<JobHandle>(2, Allocator.Temp);
             var curPosJob = new UpdateCurrentPosJob();
-            curPosJob.positionType             = GetArchetypeChunkComponentType<Translation>(true);
-            curPosJob.curPositionType          = GetArchetypeChunkComponentType<CurrentSimulatedPosition>();
+            curPosJob.positionType = GetArchetypeChunkComponentType<Translation>(true);
+            curPosJob.curPositionType = GetArchetypeChunkComponentType<CurrentSimulatedPosition>();
             curPosJob.simStartComponentVersion = beforeSystem.simStartComponentVersion;
-            handles[0]                         = curPosJob.Schedule(positionInterpolationGroup, inputDeps);
+            handles[0] = curPosJob.Schedule(positionInterpolationGroup, inputDeps);
 
             var curRotJob = new UpdateCurrentRotJob();
-            curRotJob.rotationType             = GetArchetypeChunkComponentType<Rotation>(true);
-            curRotJob.curRotationType          = GetArchetypeChunkComponentType<CurrentSimulatedRotation>();
+            curRotJob.rotationType = GetArchetypeChunkComponentType<Rotation>(true);
+            curRotJob.curRotationType = GetArchetypeChunkComponentType<CurrentSimulatedRotation>();
             curRotJob.simStartComponentVersion = beforeSystem.simStartComponentVersion;
-            handles[1]                         = curRotJob.Schedule(rotationInterpolationGroup, inputDeps);
+            handles[1] = curRotJob.Schedule(rotationInterpolationGroup, inputDeps);
 
             var initPosJob = new InitCurrentPosJob();
-            initPosJob.positionType    = curPosJob.positionType;
+            initPosJob.positionType = curPosJob.positionType;
             initPosJob.curPositionType = curPosJob.curPositionType;
-            initPosJob.entityType      = GetArchetypeChunkEntityType();
+            initPosJob.entityType = GetArchetypeChunkEntityType();
 
             var initRotJob = new InitCurrentRotJob();
-            initRotJob.rotationType    = curRotJob.rotationType;
+            initRotJob.rotationType = curRotJob.rotationType;
             initRotJob.curRotationType = curRotJob.curRotationType;
-            initRotJob.entityType      = initPosJob.entityType;
+            initRotJob.entityType = initPosJob.entityType;
 
-            if (!newPositionInterpolationGroup.IsEmptyIgnoreFilter || !newRotationInterpolationGroup.IsEmptyIgnoreFilter)
+            if (!newPositionInterpolationGroup.IsEmptyIgnoreFilter ||
+                !newRotationInterpolationGroup.IsEmptyIgnoreFilter)
             {
                 initPosJob.commandBuffer = barrier.CreateCommandBuffer().ToConcurrent();
                 initRotJob.commandBuffer = barrier.CreateCommandBuffer().ToConcurrent();
-                handles[0]               = initPosJob.Schedule(newPositionInterpolationGroup, handles[0]);
-                handles[1]               = initRotJob.Schedule(newRotationInterpolationGroup, handles[1]);
+                handles[0] = initPosJob.Schedule(newPositionInterpolationGroup, handles[0]);
+                handles[1] = initRotJob.Schedule(newRotationInterpolationGroup, handles[1]);
             }
 
             beforeSystem.simEndComponentVersion = GlobalSystemVersion;
