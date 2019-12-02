@@ -17,9 +17,9 @@ namespace Unity.NetCode
 		private EntityQuery m_ConnectionGroup;
 		private EntityQuery m_ConnectionWithoutSnapshotBufferGroup;
 
-		private ServerSimulationSystemGroup     m_ServerSimulationSystemGroup;
-		private NetworkStreamReceiveSystem m_ReceiveSystem;
-		private CreateSnapshotSystem            m_CreateSnapshotSystem;
+		private ServerSimulationSystemGroup m_ServerSimulationSystemGroup;
+		private NetworkStreamReceiveSystem  m_ReceiveSystem;
+		private CreateSnapshotSystem        m_CreateSnapshotSystem;
 
 		private DataStreamWriter m_DataStream;
 
@@ -96,7 +96,11 @@ namespace Unity.NetCode
 				m_DataStream.Clear();
 				m_DataStream.Write((byte) NetworkStreamProtocol.Snapshot);
 				m_DataStream.Write(localTime);
-				m_DataStream.Write(ack.LastReceivedRemoteTime - (localTime - ack.LastReceiveTimestamp));
+				var returnTime = ack.LastReceivedRemoteTime;
+				if (returnTime != 0)
+					returnTime -= (localTime - ack.LastReceiveTimestamp);
+				m_DataStream.Write(returnTime);
+				m_DataStream.Write(ack.ServerCommandAge);
 				m_DataStream.Write(byte.MaxValue);
 				m_DataStream.Write(m_ServerSimulationSystemGroup.ServerTick);
 

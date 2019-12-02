@@ -258,9 +258,6 @@ namespace Unity.NetCode
             public            BufferFromEntity<IncomingCommandDataStreamBufferComponent>  cmdBuffer;
             public            BufferFromEntity<IncomingSnapshotDataStreamBufferComponent> snapshotBuffer;
             public            uint                                                        localTime;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            public NativeArray<uint> netStats;
-#endif
 
             public unsafe void Execute(Entity                          entity, int index, ref NetworkStreamConnection connection,
                                        ref NetworkSnapshotAckComponent snapshotAck)
@@ -270,7 +267,6 @@ namespace Unity.NetCode
                 DataStreamReader  reader;
                 NetworkEvent.Type evt;
                 cmdBuffer[entity].Clear();
-                snapshotBuffer[entity].Clear();
                 while ((evt = driver.PopEventForConnection(connection.Value, out reader)) != NetworkEvent.Type.Empty)
                 {
                     switch (evt)
@@ -297,14 +293,10 @@ namespace Unity.NetCode
                                 case NetworkStreamProtocol.Command:
                                 {
                                     var buffer = cmdBuffer[entity];
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                                    if (buffer.Length > 0)
-                                        netStats[0] = netStats[0] + 1;
-#endif
+                                    
                                     // FIXME: should be handle by a custom command stream system
                                     uint snapshot     = reader.ReadUInt(ref ctx);
-                                    uint snapshotMask = reader.ReadUInt(ref ctx);
-                                    snapshotAck.UpdateReceivedByRemote(snapshot, snapshotMask);
+                                    snapshotAck.UpdateReceivedByRemote(snapshot);
                                     uint remoteTime        = reader.ReadUInt(ref ctx);
                                     uint localTimeMinusRTT = reader.ReadUInt(ref ctx);
                                     snapshotAck.UpdateRemoteTime(remoteTime, localTimeMinusRTT, localTime);
@@ -325,22 +317,12 @@ namespace Unity.NetCode
                                     snapshotAck.UpdateRemoteTime(remoteTime, localTimeMinusRTT, localTime);
                                     int headerSize = 1 + 4 * 3;
 
-                                    var buffer = snapshotBuffer[entity];
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                                    if (buffer.Length > 0)
-                                        netStats[0] = netStats[0] + 1;
-#endif
-                                    buffer.Reinterpret<byte>()
-                                          .AddRange
-                                          (
-                                              NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>
-                                              (
-                                                  reader.GetUnsafeReadOnlyPtr() + headerSize,
-                                                  reader.Length - headerSize,
-                                                  Allocator.Invalid
-                                              )
-                                          );
+                                    var temporaryArray = new NativeArray<byte>(reader.Length - headerSize, Allocator.Temp);
+                                    UnsafeUtility.MemCpy(temporaryArray.GetUnsafePtr(), reader.GetUnsafeReadOnlyPtr() + headerSize, temporaryArray.Length);
 
+                                    var buffer = snapshotBuffer[entity];
+                                    buffer.Reinterpret<byte>()
+                                          .AddRange(temporaryArray);
                                     break;
                                 }
                                 case NetworkStreamProtocol.Rpc:

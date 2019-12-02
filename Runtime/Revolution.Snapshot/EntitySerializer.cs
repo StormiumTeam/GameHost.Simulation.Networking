@@ -181,6 +181,13 @@ namespace Revolution
 			SafetyUtility.Replace(ref bfe, m_BufferSafetyHandle);
 #endif
 		}
+		
+		public unsafe void SetEmptySafetyHandle<TComponent>(ref ArchetypeChunkComponentType<TComponent> comp) where TComponent : struct, IComponentData
+		{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			SafetyUtility.Replace(ref comp, m_BufferSafetyHandle);
+#endif
+		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{

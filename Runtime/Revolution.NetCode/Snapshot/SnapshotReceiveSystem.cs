@@ -3,6 +3,7 @@ using Revolution;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Networking.Transport;
 using UnityEngine;
 
@@ -33,7 +34,8 @@ namespace Unity.NetCode
 		public DeserializeClientData JobData => m_DeserializeData;
 
 		private uint m_PreviousTick;
-
+		private JobHandle m_Dependency;
+		
 		protected override void OnCreate()
 		{
 			m_DeserializeData = new DeserializeClientData(Allocator.Persistent);
@@ -56,6 +58,12 @@ namespace Unity.NetCode
 			m_PreviousTick = tick;
 		}
 
+		public JobHandle AddDependency(JobHandle inputDeps)
+		{
+			m_Dependency = JobHandle.CombineDependencies(m_Dependency, inputDeps);
+			return inputDeps;
+		}
+
 		protected override void OnUpdate()
 		{
 			if (m_PlayerQuery.IsEmptyIgnoreFilter)
@@ -73,6 +81,9 @@ namespace Unity.NetCode
 			{
 				return;
 			}
+			
+			m_Dependency.Complete();
+			m_Dependency = default;
 
 			var snapshot = incomingData.ToNativeArray(Allocator.TempJob);
 			var reader = new DataStreamReader(snapshot);

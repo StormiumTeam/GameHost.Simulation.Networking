@@ -47,17 +47,17 @@ namespace Unity.NetCode
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
-			return new JobDirect
+			return m_ReceiveSystem.AddDependency(new JobDirect
 			{
 				JobData = m_ReceiveSystem.JobData
-			}.Schedule(m_UpdateQuery, inputDeps);
+			}.Schedule(m_UpdateQuery, inputDeps));
 		}
 	}
-	
+
 	// -------------------------------------------------------------- //
 	// INTERPOLATED
 	// -------------------------------------------------------------- //
-	
+
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
 	[UpdateAfter(typeof(SnapshotReceiveSystem))]
 	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot> : ComponentUpdateSystemInterpolated<TComponent, TSnapshot, DefaultSetup>
@@ -74,7 +74,7 @@ namespace Unity.NetCode
 		where TSetup : struct, ISetup
 	{
 		protected virtual bool IsPredicted => false;
-		
+
 		//[BurstCompile]
 		private struct JobInterpolated : IJobForEach_BC<TSnapshot, TComponent>
 		{
@@ -93,27 +93,27 @@ namespace Unity.NetCode
 					snapshot[snapshot.Length - 1].SynchronizeTo(ref component, in JobData);*/
 			}
 		}
-		
+
 		private EntityQuery           m_UpdateQuery;
 		private SnapshotReceiveSystem m_ReceiveSystem;
-		private NetworkTimeSystem m_NetworkTimeSystem;
+		private NetworkTimeSystem     m_NetworkTimeSystem;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			m_UpdateQuery   = GetEntityQuery(typeof(TSnapshot), typeof(TComponent));
-			m_ReceiveSystem = World.GetOrCreateSystem<SnapshotReceiveSystem>();
+			m_UpdateQuery       = GetEntityQuery(typeof(TSnapshot), typeof(TComponent));
+			m_ReceiveSystem     = World.GetOrCreateSystem<SnapshotReceiveSystem>();
 			m_NetworkTimeSystem = World.GetOrCreateSystem<NetworkTimeSystem>();
 		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
-			return new JobInterpolated
+			return m_ReceiveSystem.AddDependency(new JobInterpolated
 			{
 				JobData    = m_ReceiveSystem.JobData,
 				TargetTick = IsPredicted ? m_NetworkTimeSystem.predictTargetTick : m_NetworkTimeSystem.interpolateTargetTick
-			}.Schedule(m_UpdateQuery, inputDeps);
+			}.Schedule(m_UpdateQuery, inputDeps));
 		}
 	}
 }

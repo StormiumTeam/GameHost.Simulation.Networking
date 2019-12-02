@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Revolution
 {
+	[BurstCompile]
 	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
@@ -90,12 +91,14 @@ namespace Revolution
 		internal override void SystemBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
-			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>();
+			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 				, SafetyHandle
 #endif
 			);
+			
+			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)

@@ -21,6 +21,7 @@ namespace Revolution
 		bool DidChange(TSnapshot baseline);
 	}
 
+	[BurstCompile]
 	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
@@ -202,6 +203,8 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
+			
+			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
 		internal override void SystemBeginDeserialize(Entity entity)

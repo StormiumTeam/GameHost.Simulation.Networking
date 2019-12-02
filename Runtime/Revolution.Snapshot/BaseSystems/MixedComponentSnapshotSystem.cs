@@ -18,6 +18,7 @@ namespace Revolution
 	{
 	}
 
+	[BurstCompile]
 	public abstract class MixedComponentSnapshotSystem<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem<TComponent, TSetup>,
 		TComponent,
 		MixedComponentSnapshotSystem<TComponent, TSetup>.SharedData>
@@ -96,12 +97,14 @@ namespace Revolution
 		public override void OnBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
-			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>();
+			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 				, SafetyHandle
 #endif
 			);
+			
+			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
 		public override void OnBeginDeserialize(Entity entity)

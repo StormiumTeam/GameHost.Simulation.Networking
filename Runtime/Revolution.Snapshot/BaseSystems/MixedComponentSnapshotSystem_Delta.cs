@@ -7,6 +7,7 @@ using Unity.Networking.Transport;
 namespace Revolution
 {
 
+	[BurstCompile]
 	public abstract class MixedComponentSnapshotSystem_Delta<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem_Delta<TComponent, TSetup>,
 		TComponent,
 		MixedComponentSnapshotSystem_Delta<TComponent, TSetup>.SharedData>
@@ -175,13 +176,15 @@ namespace Revolution
 		public override void OnBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
-			sharedData.ComponentTypeArch  = GetArchetypeChunkComponentType<TComponent>();
+			sharedData.ComponentTypeArch  = GetArchetypeChunkComponentType<TComponent>(true);
 			sharedData.SnapshotFromEntity = GetComponentDataFromEntity<TComponent>();
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 				, SafetyHandle
 #endif
 			);
+			
+			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
 		public override void OnBeginDeserialize(Entity entity)

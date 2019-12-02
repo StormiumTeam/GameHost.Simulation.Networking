@@ -25,6 +25,14 @@ namespace Revolution
 		public abstract ComponentType              ExcludeComponent { get; }
 
 		public const uint SnapshotHistorySize = 16;
+		
+		public unsafe void SetEmptySafetyHandle<TComponent>(ref ArchetypeChunkComponentType<TComponent> comp) where TComponent : struct, IComponentData
+		{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			SafetyUtility.Replace(ref comp, m_BufferSafetyHandle);
+#endif
+		}
+
 
 
 		protected virtual void SetSystemGroup()
