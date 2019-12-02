@@ -3,28 +3,28 @@ using Unity.Entities;
 namespace Revolution
 {
 	/// <summary>
-	/// An entity that is replicated to clients
+	///     An entity that is replicated to clients
 	/// </summary>
 	public struct GhostEntity : IComponentData
 	{
 	}
 
 	/// <summary>
-	/// Indicate to the snapshot that this entity will be manually destroyed by another system
+	///     Indicate to the snapshot that this entity will be manually destroyed by another system
 	/// </summary>
 	public struct ManualDestroy : IComponentData
 	{
 	}
 
 	/// <summary>
-	/// Is this entity destroyed on the snapshot?
+	///     Is this entity destroyed on the snapshot?
 	/// </summary>
 	public struct IsDestroyedOnSnapshot : IComponentData
 	{
 	}
 
 	/// <summary>
-	/// The ghost identifier of this entity. This component is automatically added.
+	///     The ghost identifier of this entity. This component is automatically added.
 	/// </summary>
 	public struct GhostIdentifier : ISystemStateComponentData
 	{

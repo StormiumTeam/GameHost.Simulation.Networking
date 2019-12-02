@@ -2,11 +2,9 @@ using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Networking.Transport;
 
 namespace Revolution
 {
-
 	[BurstCompile]
 	public abstract class MixedComponentSnapshotSystem_Delta<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem_Delta<TComponent, TSetup>,
 		TComponent,
@@ -14,27 +12,13 @@ namespace Revolution
 		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>, ISnapshotDelta<TComponent>
 		where TSetup : struct, ISetup
 	{
-		public struct SharedData
-		{
-			public TSetup SetupData;
-
-			public uint            SystemVersion;
-			public DeltaChangeType Delta;
-
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public ComponentDataFromEntity<TComponent>     SnapshotFromEntity;
-		}
-
-		private struct ClientData
-		{
-			public uint Version;
-		}
-
 		public override NativeArray<ComponentType> EntityComponents =>
 			new NativeArray<ComponentType>(1, Allocator.Temp)
 			{
 				[0] = typeof(TComponent)
 			};
+
+		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
@@ -48,10 +32,7 @@ namespace Revolution
 			var previousChunkCount = 0u;
 
 			bool success;
-			if (!parameters.ClientData.TryGetSnapshot(0, out var clientSnapshot))
-			{
-				throw new InvalidOperationException();
-			}
+			if (!parameters.ClientData.TryGetSnapshot(0, out var clientSnapshot)) throw new InvalidOperationException();
 
 			ref var clientData = ref clientSnapshot.TryGetSystemData<ClientData>(parameters.SystemId, out success);
 			if (!success)
@@ -81,10 +62,7 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
-					{
-						throw new InvalidOperationException("A ghost should have a snapshot.");
-					}
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(parameters.SystemId, out success);
 					if (!success)
@@ -165,8 +143,6 @@ namespace Revolution
 			}
 		}
 
-		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
-
 		protected override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
 		{
 			onSerialize   = new BurstDelegate<OnSerializeSnapshot>(Serialize);
@@ -183,7 +159,7 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
-			
+
 			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
@@ -201,6 +177,22 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
+		}
+
+		public struct SharedData
+		{
+			public TSetup SetupData;
+
+			public uint            SystemVersion;
+			public DeltaChangeType Delta;
+
+			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public ComponentDataFromEntity<TComponent>     SnapshotFromEntity;
+		}
+
+		private struct ClientData
+		{
+			public uint Version;
 		}
 	}
 

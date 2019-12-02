@@ -9,7 +9,7 @@ using Unity.Jobs;
 namespace Revolution
 {
 	/// <summary>
-	/// Base class for doing entity standard snapshot operations
+	///     Base class for doing entity standard snapshot operations
 	/// </summary>
 	/// <typeparam name="TSerializer"></typeparam>
 	/// <typeparam name="TSnapshot"></typeparam>
@@ -20,42 +20,11 @@ namespace Revolution
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, IBufferElementData
 		where TSharedData : struct
 	{
-		public abstract NativeArray<ComponentType> EntityComponents { get; }
-		public abstract ComponentType              ExcludeComponent { get; }
+		public const uint                                 SnapshotHistorySize = 16;
+		private      BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
-		public const uint SnapshotHistorySize = 16;
-
-		protected virtual void SetSystemGroup()
-		{
-			var delegateGroup = World.GetOrCreateSystem<SnapshotWithDelegateSystemGroup>();
-			if (!delegateGroup.Systems.Contains(this))
-				delegateGroup.AddSystemToUpdateList(this);
-		}
-		
-		
-		protected override void OnCreate()
-		{
-			base.OnCreate();
-
-			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
-
-			SetSystemGroup();
-			
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-			m_BufferSafetyHandle = AtomicSafetyHandle.Create();
-#endif
-			
-			GetDelegates(out m_SerializeDelegate, out m_DeserializeDelegate);
-		}
-		
-		protected override void OnDestroy()
-		{
-			base.OnDestroy();
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-			AtomicSafetyHandle.Release(m_BufferSafetyHandle);
-#endif
-		}
+		private         BurstDelegate<OnSerializeSnapshot> m_SerializeDelegate;
+		public abstract ComponentType                      ExcludeComponent { get; }
 
 		public ref SharedSystemChunk GetSharedChunk()
 		{
@@ -83,10 +52,8 @@ namespace Revolution
 					return false;
 
 				for (var j = 0; j < ownLength; j++)
-				{
 					if (componentTypes[i].TypeIndex == ownComponents[j].TypeIndex)
 						match++;
-				}
 			}
 
 			return match == ownLength;
@@ -104,7 +71,6 @@ namespace Revolution
 
 				// Search if this entity has our system from the model list
 				foreach (var model in models)
-				{
 					// Bingo! This entity got our system
 					if (model == systemId)
 					{
@@ -119,7 +85,6 @@ namespace Revolution
 						hasModel = true;
 						break;
 					}
-				}
 
 				if (hasModel)
 					continue;
@@ -158,52 +123,66 @@ namespace Revolution
 			}
 		}
 
-		protected abstract void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize);
+		public abstract NativeArray<ComponentType> EntityComponents { get; }
 
-		public FunctionPointer<OnSerializeSnapshot> SerializeDelegate => m_SerializeDelegate.Get();
+		public FunctionPointer<OnSerializeSnapshot>   SerializeDelegate   => m_SerializeDelegate.Get();
 		public FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate => m_DeserializeDelegate.Get();
-		
-		private BurstDelegate<OnSerializeSnapshot>   m_SerializeDelegate;
-		private BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
 		public abstract void OnBeginSerialize(Entity entity);
 
 		public abstract void OnBeginDeserialize(Entity entity);
 
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-		private AtomicSafetyHandle m_BufferSafetyHandle;
-
-		protected AtomicSafetyHandle SafetyHandle => m_BufferSafetyHandle;
-#endif
-		public unsafe void SetEmptySafetyHandle(ref BufferFromEntity<TSnapshot> bfe)
+		protected virtual void SetSystemGroup()
 		{
+			var delegateGroup = World.GetOrCreateSystem<SnapshotWithDelegateSystemGroup>();
+			if (!delegateGroup.Systems.Contains(this))
+				delegateGroup.AddSystemToUpdateList(this);
+		}
+
+
+		protected override void OnCreate()
+		{
+			base.OnCreate();
+
+			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+
+			SetSystemGroup();
+
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-			SafetyUtility.Replace(ref bfe, m_BufferSafetyHandle);
+			SafetyHandle = AtomicSafetyHandle.Create();
+#endif
+
+			GetDelegates(out m_SerializeDelegate, out m_DeserializeDelegate);
+		}
+
+		protected override void OnDestroy()
+		{
+			base.OnDestroy();
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			AtomicSafetyHandle.Release(SafetyHandle);
 #endif
 		}
-		
-		public unsafe void SetEmptySafetyHandle<TComponent>(ref ArchetypeChunkComponentType<TComponent> comp) where TComponent : struct, IComponentData
+
+		protected abstract void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize);
+
+		public void SetEmptySafetyHandle(ref BufferFromEntity<TSnapshot> bfe)
 		{
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-			SafetyUtility.Replace(ref comp, m_BufferSafetyHandle);
+			SafetyUtility.Replace(ref bfe, SafetyHandle);
+#endif
+		}
+
+		public void SetEmptySafetyHandle<TComponent>(ref ArchetypeChunkComponentType<TComponent> comp) where TComponent : struct, IComponentData
+		{
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+			SafetyUtility.Replace(ref comp, SafetyHandle);
 #endif
 		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
 			return inputDeps;
-		}
-
-		class SharedKey__
-		{
-		}
-
-		class ChunkKey__
-		{
-		}
-
-		class GhostKey__
-		{
 		}
 
 		protected static ref TSharedData GetShared()
@@ -220,5 +199,22 @@ namespace Revolution
 		{
 			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey__>().Data;
 		}
+
+		private class SharedKey__
+		{
+		}
+
+		private class ChunkKey__
+		{
+		}
+
+		private class GhostKey__
+		{
+		}
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+
+		protected AtomicSafetyHandle SafetyHandle { get; private set; }
+#endif
 	}
 }

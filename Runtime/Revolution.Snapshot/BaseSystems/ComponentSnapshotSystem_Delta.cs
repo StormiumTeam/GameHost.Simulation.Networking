@@ -1,18 +1,16 @@
 using System;
 using Unity.Burst;
 using Unity.Entities;
-using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {
 	[Flags]
 	public enum DeltaChangeType
 	{
-		Invalid = 0,
+		Invalid   = 0,
 		Chunk     = 1,
 		Component = 2,
-		Both      = 3,
+		Both      = 3
 	}
 
 	public interface ISnapshotDelta<in TSnapshot>
@@ -33,21 +31,7 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
-		public struct SharedData
-		{
-			public TSetup SetupData;
-
-			public uint            SystemVersion;
-			public DeltaChangeType Delta;
-
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
-		}
-
-		private struct ClientData
-		{
-			public uint Version;
-		}
+		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
@@ -61,15 +45,12 @@ namespace Revolution
 			var previousChunkCount = 0u;
 
 			bool success;
-			if (!parameters.ClientData.TryGetSnapshot(0, out var clientSnapshot))
-			{
-				throw new InvalidOperationException();
-			}
-			
+			if (!parameters.ClientData.TryGetSnapshot(0, out var clientSnapshot)) throw new InvalidOperationException();
+
 			ref var clientData = ref clientSnapshot.TryGetSystemData<ClientData>(parameters.SystemId, out success);
 			if (!success)
 			{
-				clientData            = ref clientSnapshot.AllocateSystemData<ClientData>(parameters.SystemId);
+				clientData         = ref clientSnapshot.AllocateSystemData<ClientData>(parameters.SystemId);
 				clientData.Version = 0;
 			}
 
@@ -78,7 +59,7 @@ namespace Revolution
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
 				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
-				
+
 				var shouldSkip = false;
 				if (deltaOnChunk)
 				{
@@ -94,10 +75,7 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
-					{
-						throw new InvalidOperationException("A ghost should have a snapshot.");
-					}
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)
@@ -124,7 +102,7 @@ namespace Revolution
 						// don't skip
 						parameters.Stream.WriteBitBool(false);
 					}
-	
+
 					newSnapshot.WriteTo(parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
 
 					baseline = newSnapshot;
@@ -169,7 +147,7 @@ namespace Revolution
 					if (shouldSkip)
 						continue;
 				}
-				
+
 				var     snapshotArray = sharedData.SnapshotFromEntity[parameters.ClientData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
@@ -183,8 +161,6 @@ namespace Revolution
 				snapshotArray.Add(newSnapshot);
 			}
 		}
-
-		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
 
 		protected override void GetDelegates(out BurstDelegate<OnSerializeSnapshot> onSerialize, out BurstDelegate<OnDeserializeSnapshot> onDeserialize)
 		{
@@ -203,7 +179,7 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
-			
+
 			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
@@ -215,6 +191,22 @@ namespace Revolution
 			ref var sharedData = ref GetShared();
 			sharedData.Delta              = DeltaType;
 			sharedData.SnapshotFromEntity = snapshotBuffer;
+		}
+
+		public struct SharedData
+		{
+			public TSetup SetupData;
+
+			public uint            SystemVersion;
+			public DeltaChangeType Delta;
+
+			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
+		}
+
+		private struct ClientData
+		{
+			public uint Version;
 		}
 	}
 

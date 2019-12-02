@@ -56,18 +56,23 @@ namespace Revolution
 	{
 		void PredictDelta(uint tick, ref T baseline1, ref T baseline2);
 	}
-	
+
 	public abstract class ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData> :
 		EntitySerializer<ComponentSnapshotSystemBase<TComponent, TSnapshot, TSetup, TSharedData>,
 			TSnapshot,
 			TSharedData>
-
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 		where TSharedData : struct
 	{
 		private EntityQuery m_EntityWithoutComponentQuery;
+
+		public override NativeArray<ComponentType> EntityComponents =>
+			new NativeArray<ComponentType>(1, Allocator.Temp, NativeArrayOptions.UninitializedMemory)
+			{
+				[0] = ComponentType.ReadWrite<TComponent>()
+			};
 
 		internal abstract void SystemBeginSerialize(Entity   entity);
 		internal abstract void SystemBeginDeserialize(Entity entity);
@@ -85,19 +90,10 @@ namespace Revolution
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
-			if (!m_EntityWithoutComponentQuery.IsEmptyIgnoreFilter)
-			{
-				EntityManager.AddComponent(m_EntityWithoutComponentQuery, typeof(TComponent));
-			}
+			if (!m_EntityWithoutComponentQuery.IsEmptyIgnoreFilter) EntityManager.AddComponent(m_EntityWithoutComponentQuery, typeof(TComponent));
 
 			return base.OnUpdate(inputDeps);
 		}
-
-		public override NativeArray<ComponentType> EntityComponents =>
-			new NativeArray<ComponentType>(1, Allocator.Temp, NativeArrayOptions.UninitializedMemory)
-			{
-				[0] = ComponentType.ReadWrite<TComponent>()
-			};
 
 		public sealed override void OnBeginSerialize(Entity entity)
 		{

@@ -1,7 +1,6 @@
 using System;
 using Unity.Burst;
 using Unity.Entities;
-using Unity.Networking.Transport;
 
 namespace Revolution
 {
@@ -17,21 +16,6 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
-		public struct SharedData
-		{
-			public TSetup                                  SetupData;
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
-		}
-
-		public struct TripleBaseline
-		{
-			public uint Available;
-			public TSnapshot Baseline0;
-			public TSnapshot Baseline1;
-			public TSnapshot Baseline2;
-		}
-
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
 		{
@@ -45,10 +29,7 @@ namespace Revolution
 				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
-					{
-						throw new InvalidOperationException("A ghost should have a snapshot.");
-					}
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TripleBaseline>(parameters.SystemId, out var success);
 					if (!success)
@@ -104,10 +85,7 @@ namespace Revolution
 					}
 				}
 
-				if (available == 2 && baseline.Tick > 0)
-				{
-					baseline.PredictDelta(parameters.Tick, ref baseline2, ref baseline3);
-				}
+				if (available == 2 && baseline.Tick > 0) baseline.PredictDelta(parameters.Tick, ref baseline2, ref baseline3);
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
@@ -135,7 +113,7 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
-			
+
 			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
@@ -151,6 +129,21 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
+		}
+
+		public struct SharedData
+		{
+			public TSetup                                  SetupData;
+			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
+		}
+
+		public struct TripleBaseline
+		{
+			public uint      Available;
+			public TSnapshot Baseline0;
+			public TSnapshot Baseline1;
+			public TSnapshot Baseline2;
 		}
 	}
 

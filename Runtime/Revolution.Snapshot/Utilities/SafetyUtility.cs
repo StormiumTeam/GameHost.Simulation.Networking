@@ -1,6 +1,4 @@
-using System;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 
@@ -20,7 +18,6 @@ namespace Revolution
 			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + sizeof(AtomicSafetyHandle),
 				UnsafeUtility.AddressOf(ref safetyHandle),
 				sizeof(AtomicSafetyHandle));
-
 		}
 
 		public static void Replace<T>(ref ComponentDataFromEntity<T> bfe, AtomicSafetyHandle safetyHandle)
@@ -37,10 +34,7 @@ namespace Revolution
 		public static void Replace<T>(ref ArchetypeChunkComponentType<T> bfe, AtomicSafetyHandle safetyHandle)
 			where T : struct, IComponentData
 		{
-			if (m_ArchetypeComponentSafetyVarPos < 0)
-			{
-				Init();
-			}
+			if (m_ArchetypeComponentSafetyVarPos < 0) Init();
 
 			// remove safety... (the array goes only writeonly for some weird reasons)
 			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + m_ArchetypeComponentSafetyVarPos,

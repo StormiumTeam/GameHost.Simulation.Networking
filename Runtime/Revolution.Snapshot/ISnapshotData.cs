@@ -5,7 +5,7 @@ using Unity.Networking.Transport.Utilities;
 namespace Revolution
 {
 	/// <summary>
-	/// A typical snapshot buffer
+	///     A typical snapshot buffer
 	/// </summary>
 	/// <typeparam name="T">Snapshot Type</typeparam>
 	public interface ISnapshotData<T> : IBufferElementData
@@ -15,7 +15,7 @@ namespace Revolution
 	}
 
 	/// <summary>
-	/// Represent a data that can be interpolated with another of the same type
+	///     Represent a data that can be interpolated with another of the same type
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
 	public interface IInterpolatable<T>
@@ -30,7 +30,7 @@ namespace Revolution
 			where TSnapshot : struct, ISnapshotData<TSnapshot>
 		{
 			if (snapshotBuffer.Length == 0)
-				snapshotBuffer.Add(default(TSnapshot)); // needed or else we will read out of range on first execution
+				snapshotBuffer.Add(default); // needed or else we will read out of range on first execution
 
 			var ptr = snapshotBuffer.GetUnsafePtr();
 			return ref UnsafeUtilityEx.ArrayElementAsRef<TSnapshot>(ptr, snapshotBuffer.Length - 1);
@@ -40,7 +40,7 @@ namespace Revolution
 			where TSnapshot : struct, ISnapshotData<TSnapshot>
 		{
 			if (snapshotBuffer.Length == 0)
-				snapshotBuffer.Add(default(TSnapshot)); // needed or else we will read out of range on first execution
+				snapshotBuffer.Add(default); // needed or else we will read out of range on first execution
 
 			var ptr = snapshotBuffer.AsNativeArray().GetUnsafeReadOnlyPtr();
 			return UnsafeUtility.ReadArrayElement<TSnapshot>(ptr, snapshotBuffer.Length - 1);
@@ -55,13 +55,13 @@ namespace Revolution
 				return true;
 			}
 
-			int  beforeIdx  = 0;
+			var  beforeIdx  = 0;
 			uint beforeTick = 0;
-			int  afterIdx   = 0;
+			var  afterIdx   = 0;
 			uint afterTick  = 0;
-			for (int i = 0; i < snapshotBuffer.Length; ++i)
+			for (var i = 0; i < snapshotBuffer.Length; ++i)
 			{
-				uint tick = snapshotBuffer[i].Tick;
+				var tick = snapshotBuffer[i].Tick;
 				if (!SequenceHelpers.IsNewer(tick, targetTick) && (beforeTick == 0 || SequenceHelpers.IsNewer(tick, beforeTick)))
 				{
 					beforeIdx  = i;
@@ -77,15 +77,15 @@ namespace Revolution
 
 			if (beforeTick == 0)
 			{
-				snapshotData = default(TSnapshot);
+				snapshotData = default;
 				return false;
 			}
 
 			snapshotData = snapshotBuffer[beforeIdx];
 			if (afterTick == 0)
 				return true;
-			var   after       = snapshotBuffer[afterIdx];
-			float afterWeight = (float) (targetTick - beforeTick) / (float) (afterTick - beforeTick);
+			var after       = snapshotBuffer[afterIdx];
+			var afterWeight = (targetTick - beforeTick) / (float) (afterTick - beforeTick);
 			snapshotData.Interpolate(after, afterWeight);
 			return true;
 		}

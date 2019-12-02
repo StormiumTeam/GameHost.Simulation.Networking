@@ -26,207 +26,224 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Collections.Unsafe {
-  public unsafe partial struct UnsafeHashMap {
+namespace Collections.Unsafe
+{
+	public unsafe partial struct UnsafeHashMap
+	{
+		public  UnsafeHashCollection _collection;
+		private int                  _valueOffset;
 
+		public static int Capacity(UnsafeHashMap* map)
+		{
+			return map->_collection.Entries.Length;
+		}
 
-    public UnsafeHashCollection _collection;
-    int                  _valueOffset;
+		public static int Count(UnsafeHashMap* map)
+		{
+			return map->_collection.UsedCount - map->_collection.FreeCount;
+		}
 
-    public static int Capacity(UnsafeHashMap* map) {
-      return map->_collection.Entries.Length;
-    }
+		public static UnsafeHashMap* Allocate<K, V>(int capacity, bool fixedSize = false)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			return Allocate(capacity, sizeof(K), sizeof(V), fixedSize);
+		}
 
-    public static int Count(UnsafeHashMap* map) {
-      return map->_collection.UsedCount - map->_collection.FreeCount;
-    }
+		public static void Free(UnsafeHashMap* map)
+		{
+			AllocHelper.Free(map->_collection.Buckets);
+			AllocHelper.Free(map->_collection.FreeHead);
+			UnsafeBuffer.Free(&map->_collection.Entries);
+		}
 
-    public static UnsafeHashMap* Allocate<K, V>(int capacity, bool fixedSize = false)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      return Allocate(capacity, sizeof(K), sizeof(V), fixedSize);
-    }
+		public static UnsafeHashMap* Allocate(int capacity, int keyStride, int valStride, bool fixedSize = false)
+		{
+			var entryStride = sizeof(UnsafeHashCollection.Entry);
 
-    public static void Free(UnsafeHashMap* map)
-    {
-      AllocHelper.Free(map->_collection.Buckets);
-      AllocHelper.Free(map->_collection.FreeHead);
-      UnsafeBuffer.Free(&map->_collection.Entries);
-    }
+			// round capacity up to next prime 
+			capacity = UnsafeHashCollection.GetNextPrime(capacity);
 
-    public static UnsafeHashMap* Allocate(int capacity, int keyStride, int valStride, bool fixedSize = false) {
-      var entryStride = sizeof(UnsafeHashCollection.Entry);
+			// this has to be true
+			Assert.Check(entryStride == 16);
 
-      // round capacity up to next prime 
-      capacity = UnsafeHashCollection.GetNextPrime(capacity);
+			var keyAlignment = AllocHelper.GetAlignmentForArrayElement(keyStride);
+			var valAlignment = AllocHelper.GetAlignmentForArrayElement(valStride);
 
-      // this has to be true
-      Assert.Check(entryStride == 16);
+			// the alignment for entry/key/val, we can't have less than ENTRY_ALIGNMENT
+			// bytes alignment because entries are 8 bytes with 2 x 32 bit integers
+			var alignment = Math.Max(UnsafeHashCollection.Entry.ALIGNMENT, Math.Max(keyAlignment, valAlignment));
 
-      var keyAlignment = AllocHelper.GetAlignmentForArrayElement(keyStride);
-      var valAlignment = AllocHelper.GetAlignmentForArrayElement(valStride);
+			// calculate strides for all elements
+			keyStride   = AllocHelper.RoundUpToAlignment(keyStride, alignment);
+			valStride   = AllocHelper.RoundUpToAlignment(valStride, alignment);
+			entryStride = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashCollection.Entry), alignment);
 
-      // the alignment for entry/key/val, we can't have less than ENTRY_ALIGNMENT
-      // bytes alignment because entries are 8 bytes with 2 x 32 bit integers
-      var alignment = Math.Max(UnsafeHashCollection.Entry.ALIGNMENT, Math.Max(keyAlignment, valAlignment));
+			// map ptr
+			UnsafeHashMap* map;
 
-      // calculate strides for all elements
-      keyStride   = AllocHelper.RoundUpToAlignment(keyStride,                          alignment);
-      valStride   = AllocHelper.RoundUpToAlignment(valStride,                          alignment);
-      entryStride = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashCollection.Entry), alignment);
+			if (fixedSize)
+			{
+				var sizeOfHeader        = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashMap), alignment);
+				var sizeOfBucketsBuffer = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashCollection.Entry**) * capacity, alignment);
+				var sizeofEntriesBuffer = (entryStride + keyStride + valStride) * capacity;
 
-      // map ptr
-      UnsafeHashMap* map;
+				// allocate memory
+				var ptr = AllocHelper.MallocAndClear(sizeOfHeader + sizeOfBucketsBuffer + sizeofEntriesBuffer, alignment);
 
-      if (fixedSize) {
-        var sizeOfHeader        = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashMap),                           alignment);
-        var sizeOfBucketsBuffer = AllocHelper.RoundUpToAlignment(sizeof(UnsafeHashCollection.Entry**) * capacity, alignment);
-        var sizeofEntriesBuffer = (entryStride + keyStride + valStride) * capacity;
+				// start of memory is the dict itself
+				map = (UnsafeHashMap*) ptr;
 
-        // allocate memory
-        var ptr = AllocHelper.MallocAndClear(sizeOfHeader + sizeOfBucketsBuffer + sizeofEntriesBuffer, alignment);
+				// buckets are offset by header size
+				map->_collection.Buckets = (UnsafeHashCollection.Entry**) ((byte*) ptr + sizeOfHeader);
 
-        // start of memory is the dict itself
-        map = (UnsafeHashMap*)ptr;
+				// initialize fixed buffer
+				UnsafeBuffer.InitFixed(&map->_collection.Entries, (byte*) ptr + (sizeOfHeader + sizeOfBucketsBuffer), capacity, entryStride + keyStride + valStride);
+			}
+			else
+			{
+				// allocate dict, buckets and entries buffer separately
+				map                      = AllocHelper.MallocAndClear<UnsafeHashMap>();
+				map->_collection.Buckets = (UnsafeHashCollection.Entry**) AllocHelper.MallocAndClear(sizeof(UnsafeHashCollection.Entry**) * capacity, sizeof(UnsafeHashCollection.Entry**));
 
-        // buckets are offset by header size
-        map->_collection.Buckets = (UnsafeHashCollection.Entry**)((byte*)ptr + sizeOfHeader);
+				// init dynamic buffer
+				UnsafeBuffer.InitDynamic(&map->_collection.Entries, capacity, entryStride + keyStride + valStride);
+			}
 
-        // initialize fixed buffer
-        UnsafeBuffer.InitFixed(&map->_collection.Entries, (byte*)ptr + (sizeOfHeader + sizeOfBucketsBuffer), capacity, entryStride + keyStride + valStride);
-      }
-      else {
-        // allocate dict, buckets and entries buffer separately
-        map                      = AllocHelper.MallocAndClear<UnsafeHashMap>();
-        map->_collection.Buckets = (UnsafeHashCollection.Entry**)AllocHelper.MallocAndClear(sizeof(UnsafeHashCollection.Entry**) * capacity, sizeof(UnsafeHashCollection.Entry**));
+			// header init
+			map->_collection.FreeCount = 0;
+			map->_collection.UsedCount = 0;
+			map->_collection.KeyOffset = entryStride;
 
-        // init dynamic buffer
-        UnsafeBuffer.InitDynamic(&map->_collection.Entries, capacity, entryStride + keyStride + valStride);
-      }
+			map->_valueOffset = entryStride + keyStride;
 
-      // header init
-      map->_collection.FreeCount = 0;
-      map->_collection.UsedCount = 0;
-      map->_collection.KeyOffset = entryStride;
+			return map;
+		}
 
-      map->_valueOffset = entryStride + keyStride;
+		public static Iterator<K, V> GetIterator<K, V>(UnsafeHashMap* map)
+			where K : unmanaged
+			where V : unmanaged
+		{
+			return new Iterator<K, V>(map);
+		}
 
-      return map;
-    }
+		public static bool ContainsKey<K>(UnsafeHashMap* map, K key) where K : unmanaged, IEquatable<K>
+		{
+			return UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode()) != null;
+		}
 
-    public static Iterator<K, V> GetIterator<K, V>(UnsafeHashMap* map)
-      where K : unmanaged
-      where V : unmanaged {
-      return new Iterator<K, V>(map);
-    }
+		public static void AddOrGet<K, V>(UnsafeHashMap* map, K key, ref V value)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var hash  = key.GetHashCode();
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, hash);
+			if (entry == null)
+			{
+				// insert new entry for key
+				entry = UnsafeHashCollection.Insert(&map->_collection, key, hash);
 
-    public static bool ContainsKey<K>(UnsafeHashMap* map, K key) where K : unmanaged, IEquatable<K> {
-      return UnsafeHashCollection.Find<K>(&map->_collection, key, key.GetHashCode()) != null;
-    }
+				// assign value to entry
+				*(V*) GetValue(map, entry) = value;
+			}
+			else
+			{
+				value = *(V*) GetValue(map, entry);
+			}
+		}
 
-    public static void AddOrGet<K, V>(UnsafeHashMap* map, K key, ref V value)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var hash  = key.GetHashCode();
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, hash);
-      if (entry == null) {
-        // insert new entry for key
-        entry = UnsafeHashCollection.Insert<K>(&map->_collection, key, hash);
+		public static void Add<K, V>(UnsafeHashMap* map, K key, V value)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var hash  = key.GetHashCode();
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, hash);
+			if (entry == null)
+			{
+				// insert new entry for key
+				entry = UnsafeHashCollection.Insert(&map->_collection, key, hash);
 
-        // assign value to entry
-        *(V*)GetValue(map, entry) = value;
-      }
-      else {
-        value = *(V*)GetValue(map, entry);
-      }
-    }
+				// assign value to entry
+				*(V*) GetValue(map, entry) = value;
+			}
+			else
+			{
+				throw new InvalidOperationException();
+			}
+		}
 
-    public static void Add<K, V>(UnsafeHashMap* map, K key, V value)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var hash  = key.GetHashCode();
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, hash);
-      if (entry == null) {
-        // insert new entry for key
-        entry = UnsafeHashCollection.Insert<K>(&map->_collection, key, hash);
+		public static void Set<K, V>(UnsafeHashMap* map, K key, V value)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var hash  = key.GetHashCode();
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, hash);
+			if (entry == null) // insert new entry for key
+				entry = UnsafeHashCollection.Insert(&map->_collection, key, hash);
 
-        // assign value to entry
-        *(V*)GetValue(map, entry) = value;
-      }
-      else {
-        throw new InvalidOperationException();
-      }
-    }
+			// assign value to entry
+			*(V*) GetValue(map, entry) = value;
+		}
 
-    public static void Set<K, V>(UnsafeHashMap* map, K key, V value)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var hash  = key.GetHashCode();
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, hash);
-      if (entry == null) {
-        // insert new entry for key
-        entry = UnsafeHashCollection.Insert<K>(&map->_collection, key, hash);
-      }
+		public static V Get<K, V>(UnsafeHashMap* map, K key)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode());
+			if (entry == null) throw new KeyNotFoundException(key.ToString());
 
-      // assign value to entry
-      *(V*)GetValue(map, entry) = value;
-    }
+			return *(V*) GetValue(map, entry);
+		}
 
-    public static V Get<K, V>(UnsafeHashMap* map, K key)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, key.GetHashCode());
-      if (entry == null) {
-        throw new KeyNotFoundException(key.ToString());
-      }
+		public static V* GetPtr<K, V>(UnsafeHashMap* map, K key)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode());
+			if (entry == null) throw new KeyNotFoundException(key.ToString());
 
-      return *(V*)GetValue(map, entry);
-    }
+			return (V*) GetValue(map, entry);
+		}
 
-    public static V* GetPtr<K, V>(UnsafeHashMap* map, K key)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, key.GetHashCode());
-      if (entry == null) {
-        throw new KeyNotFoundException(key.ToString());
-      }
+		public static bool TryGetValue<K, V>(UnsafeHashMap* map, K key, out V val)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode());
+			if (entry != null)
+			{
+				val = *(V*) GetValue(map, entry);
+				return true;
+			}
 
-      return (V*)GetValue(map, entry);
-    }
+			val = default;
+			return false;
+		}
 
-    public static bool TryGetValue<K, V>(UnsafeHashMap* map, K key, out V val)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, key.GetHashCode());
-      if (entry != null) {
-        val = *(V*)GetValue(map, entry);
-        return true;
-      }
+		public static bool TryGetValuePtr<K, V>(UnsafeHashMap* map, K key, out V* val)
+			where K : unmanaged, IEquatable<K>
+			where V : unmanaged
+		{
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode());
+			if (entry != null)
+			{
+				val = (V*) GetValue(map, entry);
+				return true;
+			}
 
-      val = default;
-      return false;
-    }
+			val = null;
+			return false;
+		}
 
-    public static bool TryGetValuePtr<K, V>(UnsafeHashMap* map, K key, out V* val)
-      where K : unmanaged, IEquatable<K>
-      where V : unmanaged {
-      var entry = UnsafeHashCollection.Find<K>(&map->_collection, key, key.GetHashCode());
-      if (entry != null) {
-        val = (V*)GetValue(map, entry);
-        return true;
-      }
+		public static bool Remove<K>(UnsafeHashMap* map, K key) where K : unmanaged, IEquatable<K>
+		{
+			return UnsafeHashCollection.Remove(&map->_collection, key, key.GetHashCode());
+		}
 
-      val = null;
-      return false;
-    }
-
-    public static bool Remove<K>(UnsafeHashMap* map, K key) where K : unmanaged, IEquatable<K> {
-      return UnsafeHashCollection.Remove<K>(&map->_collection, key, key.GetHashCode());
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void* GetValue(UnsafeHashMap* map, UnsafeHashCollection.Entry* entry) {
-      return (byte*)entry + map->_valueOffset;
-    }
-  }
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static void* GetValue(UnsafeHashMap* map, UnsafeHashCollection.Entry* entry)
+		{
+			return (byte*) entry + map->_valueOffset;
+		}
+	}
 }

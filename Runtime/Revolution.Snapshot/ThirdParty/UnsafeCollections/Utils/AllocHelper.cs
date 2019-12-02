@@ -23,84 +23,102 @@ THE SOFTWARE.
 */
 
 using System;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace Collections.Unsafe {
-  static unsafe class AllocHelper {
-    public const int CACHE_LINE_SIZE = 64;
-    
-    public static void MemMove(void* destination, void* source, long size) {
-      UnsafeUtility.MemMove(destination, source, size);
-    }
+namespace Collections.Unsafe
+{
+	internal static unsafe class AllocHelper
+	{
+		public const int CACHE_LINE_SIZE = 64;
 
-    public static void MemCpy(void* destination, void* source, long size) {
-      UnsafeUtility.MemCpy(destination, source, size);
-    }
+		public static void MemMove(void* destination, void* source, long size)
+		{
+			UnsafeUtility.MemMove(destination, source, size);
+		}
 
-    public static void Copy(void* source, int sourceIndex, void* destination, int destinationIndex, int count, int elementSize) {
-      UnsafeUtility.MemCpy(((byte*)destination) + (destinationIndex * elementSize), ((byte*)source) + (sourceIndex * elementSize), count * elementSize);
-    }
+		public static void MemCpy(void* destination, void* source, long size)
+		{
+			UnsafeUtility.MemCpy(destination, source, size);
+		}
 
-    public static void* MallocAndClear(long size) {
-      var memory = UnsafeUtility.Malloc(size, 4, Unity.Collections.Allocator.Persistent);
-      UnsafeUtility.MemClear(memory, size);
-      return memory;
-    }
+		public static void Copy(void* source, int sourceIndex, void* destination, int destinationIndex, int count, int elementSize)
+		{
+			UnsafeUtility.MemCpy((byte*) destination + destinationIndex * elementSize, (byte*) source + sourceIndex * elementSize, count * elementSize);
+		}
 
-    public static void* MallocAndClear(long size, int alignment) {
-      var memory = UnsafeUtility.Malloc(size, alignment, Unity.Collections.Allocator.Persistent);
-      UnsafeUtility.MemClear(memory, size);
-      return memory;
-    }
+		public static void* MallocAndClear(long size)
+		{
+			var memory = UnsafeUtility.Malloc(size, 4, Allocator.Persistent);
+			UnsafeUtility.MemClear(memory, size);
+			return memory;
+		}
 
-    public static void* Malloc(long size) {
-      return UnsafeUtility.Malloc(size, 4, Unity.Collections.Allocator.Persistent);
-    }
+		public static void* MallocAndClear(long size, int alignment)
+		{
+			var memory = UnsafeUtility.Malloc(size, alignment, Allocator.Persistent);
+			UnsafeUtility.MemClear(memory, size);
+			return memory;
+		}
 
-    public static void MemClear(void* ptr, long size) {
-      UnsafeUtility.MemClear(ptr, size);
-    }
+		public static void* Malloc(long size)
+		{
+			return UnsafeUtility.Malloc(size, 4, Allocator.Persistent);
+		}
 
-    public static T* MallocAndClear<T>() where T : unmanaged {
-      var memory = UnsafeUtility.Malloc(sizeof(T), 4, Unity.Collections.Allocator.Persistent);
-      UnsafeUtility.MemClear(memory, sizeof(T));
-      return (T*)memory;
-    }
+		public static void MemClear(void* ptr, long size)
+		{
+			UnsafeUtility.MemClear(ptr, size);
+		}
 
-    public static T* Malloc<T>() where T : unmanaged {
-      return (T*)UnsafeUtility.Malloc(sizeof(T), 4, Unity.Collections.Allocator.Persistent);
-    }
+		public static T* MallocAndClear<T>() where T : unmanaged
+		{
+			var memory = UnsafeUtility.Malloc(sizeof(T), 4, Allocator.Persistent);
+			UnsafeUtility.MemClear(memory, sizeof(T));
+			return (T*) memory;
+		}
 
-    public static void Free(void* memory) {
-      UnsafeUtility.Free(memory, Unity.Collections.Allocator.Persistent);
-    }
+		public static T* Malloc<T>() where T : unmanaged
+		{
+			return (T*) UnsafeUtility.Malloc(sizeof(T), 4, Allocator.Persistent);
+		}
 
-    public static int RoundUpToAlignment(int value) {
-      return RoundUpToAlignment(value, 4);
-    }
+		public static void Free(void* memory)
+		{
+			UnsafeUtility.Free(memory, Allocator.Persistent);
+		}
 
-    public static int RoundUpToAlignment(int size, int alignment) {
-      switch (alignment) {
-        case 1:  return size;
-        case 2:  return ((size + 1) >> 1) * 4;
-        case 4:  return ((size + 3) >> 2) * 4;
-        case 8:  return ((size + 7) >> 3) * 8;
-        case 16: return ((size + 15) >> 4) * 16;
-        case 32: return ((size + 31) >> 5) * 32;
-        case 64: return ((size + 63) >> 6) * 64;
-        default:
-          throw new InvalidOperationException($"Invalid Alignment: {alignment}");
-      }
-    }
+		public static int RoundUpToAlignment(int value)
+		{
+			return RoundUpToAlignment(value, 4);
+		}
 
-    public static int GetAlignmentForArrayElement(int elementSize) {
-      switch (elementSize) {
-        case 8:  return 8;
-        case 16: return 16;
-        case 32: return 32;
-        case 64: return 64;
-        default: return 4;
-      }
-    }
-  }
+		public static int RoundUpToAlignment(int size, int alignment)
+		{
+			switch (alignment)
+			{
+				case 1:  return size;
+				case 2:  return ((size + 1) >> 1) * 4;
+				case 4:  return ((size + 3) >> 2) * 4;
+				case 8:  return ((size + 7) >> 3) * 8;
+				case 16: return ((size + 15) >> 4) * 16;
+				case 32: return ((size + 31) >> 5) * 32;
+				case 64: return ((size + 63) >> 6) * 64;
+				default:
+					throw new InvalidOperationException($"Invalid Alignment: {alignment}");
+			}
+		}
+
+		public static int GetAlignmentForArrayElement(int elementSize)
+		{
+			switch (elementSize)
+			{
+				case 8:  return 8;
+				case 16: return 16;
+				case 32: return 32;
+				case 64: return 64;
+				default: return 4;
+			}
+		}
+	}
 }

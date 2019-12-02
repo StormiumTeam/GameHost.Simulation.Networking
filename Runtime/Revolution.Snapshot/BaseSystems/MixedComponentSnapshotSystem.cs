@@ -25,13 +25,6 @@ namespace Revolution
 		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>
 		where TSetup : struct, ISetup
 	{
-		public struct SharedData
-		{
-			public TSetup                                  SetupData;
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public ComponentDataFromEntity<TComponent>     ComponentFromEntity;
-		}
-
 		public override NativeArray<ComponentType> EntityComponents =>
 			new NativeArray<ComponentType>(1, Allocator.Temp)
 			{
@@ -43,19 +36,16 @@ namespace Revolution
 		{
 			var sharedData = GetShared();
 			var chunks     = GetSerializerChunkData().Array;
-			
+
 			for (int c = 0, length = chunks.Length; c < length; c++)
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray = chunk.GetNativeArray(parameters.ClientData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
-					{
-						throw new InvalidOperationException("A ghost should have a snapshot.");
-					}
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(parameters.SystemId, out var success);
 					if (!success)
@@ -63,7 +53,7 @@ namespace Revolution
 						baseline = ref ghostSnapshot.AllocateSystemData<TComponent>(parameters.SystemId);
 						baseline = default; // always set to default values!
 					}
-		
+
 					componentArray[ent].WriteTo(parameters.Stream, ref baseline, sharedData.SetupData, parameters.ClientData);
 					baseline = componentArray[ent];
 				}
@@ -103,7 +93,7 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
-			
+
 			SetEmptySafetyHandle(ref sharedData.ComponentTypeArch);
 		}
 
@@ -121,6 +111,13 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
+		}
+
+		public struct SharedData
+		{
+			public TSetup                                  SetupData;
+			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public ComponentDataFromEntity<TComponent>     ComponentFromEntity;
 		}
 	}
 }

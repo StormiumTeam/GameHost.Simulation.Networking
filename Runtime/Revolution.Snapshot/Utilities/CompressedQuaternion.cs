@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Utilities
 {
 	[StructLayout(LayoutKind.Explicit)]
-	struct ShortToUIntUnion
+	internal struct ShortToUIntUnion
 	{
 		[FieldOffset(0)]
 		public uint UIntValue;
@@ -19,7 +19,7 @@ namespace Utilities
 	}
 
 	[StructLayout(LayoutKind.Explicit)]
-	struct ShortByteToUIntUnion
+	internal struct ShortByteToUIntUnion
 	{
 		[FieldOffset(0)]
 		public uint UIntValue;
@@ -37,7 +37,7 @@ namespace Utilities
 		{
 			return math.abs(b - a) < (double) math.max(1E-06f * math.max(math.abs(a), math.abs(b)), math.FLT_MIN_NORMAL * 8f);
 		}
-		
+
 		public byte  MaxIndex;
 		public short A;
 		public short B;
@@ -47,11 +47,11 @@ namespace Utilities
 
 		public CompressedQuaternion(quaternion quaternion)
 		{
-			MaxIndex = 0;
-			A        = 0;
-			B        = 0;
-			C        = 0;
-			Quaternion    = quaternion;
+			MaxIndex   = 0;
+			A          = 0;
+			B          = 0;
+			C          = 0;
+			Quaternion = quaternion;
 		}
 
 		public quaternion Quaternion

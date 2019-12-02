@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using Collections.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -7,7 +6,7 @@ using Unity.Entities;
 using Unity.Networking.Transport;
 
 namespace Revolution
-{	
+{
 	public struct SerializeClientData : IDisposable
 	{
 		internal NativeHashMap<uint, IntPtr> m_GhostSnapshots;
@@ -66,7 +65,7 @@ namespace Revolution
 			var     ptr  = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<GhostSnapshot>(), UnsafeUtility.AlignOf<GhostSnapshot>(), Allocator.Persistent);
 			ref var data = ref UnsafeUtilityEx.AsRef<GhostSnapshot>(ptr);
 			data.Id         = ghostId;
-			data.SystemData = UnsafeHashMap.Allocate<uint, IntPtr>(256, false);
+			data.SystemData = UnsafeHashMap.Allocate<uint, IntPtr>(256);
 
 			m_GhostSnapshots[ghostId] = (IntPtr) ptr;
 		}

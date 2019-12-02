@@ -1,6 +1,5 @@
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Networking.Transport;
 
 namespace Utilities
@@ -17,21 +16,13 @@ namespace Utilities
 			if (!same)
 			{
 				writer.WritePackedUInt(1, compressionModel);
-				writer.WritePackedUIntDelta((uint) charCount, (uint) baseline.LengthInBytes, compressionModel);
+				writer.WritePackedUIntDelta(charCount, baseline.LengthInBytes, compressionModel);
 				if (baseline.LengthInBytes == charCount)
-				{
 					for (var i = 0; i != charCount; i++)
-					{
 						writer.WritePackedUIntDelta(nameAddr[i], baseAddr[i], compressionModel);
-					}
-				}
 				else
-				{
 					for (var i = 0; i != charCount; i++)
-					{
 						writer.WritePackedUInt(nameAddr[i], compressionModel);
-					}
-				}
 			}
 			else
 			{
@@ -48,22 +39,15 @@ namespace Utilities
 			var same = reader.ReadPackedUInt(ref ctx, compressionModel) == 0;
 			if (!same)
 			{
-				var charCount = reader.ReadPackedUIntDelta(ref ctx, (uint) baseline.LengthInBytes, compressionModel);
+				var charCount = reader.ReadPackedUIntDelta(ref ctx, baseline.LengthInBytes, compressionModel);
 				if (baseline.LengthInBytes == charCount)
 				{
-					for (var i = 0; i != charCount; i++)
-					{
-						nameAddr[i] = (char) reader.ReadPackedUIntDelta(ref ctx, baseAddr[i], compressionModel);
-					}
+					for (var i = 0; i != charCount; i++) nameAddr[i] = (char) reader.ReadPackedUIntDelta(ref ctx, baseAddr[i], compressionModel);
 				}
 				else
 				{
-
 					str.LengthInBytes = (ushort) charCount;
-					for (var i = 0; i != charCount; i++)
-					{
-						nameAddr[i] = reader.ReadPackedUInt(ref ctx, compressionModel);
-					}
+					for (var i = 0; i != charCount; i++) nameAddr[i] = reader.ReadPackedUInt(ref ctx, compressionModel);
 				}
 			}
 

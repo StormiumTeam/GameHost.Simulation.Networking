@@ -6,7 +6,7 @@ namespace Revolution
 	public struct SortDelegate<T> : IComparable<SortDelegate<T>>
 	{
 		public FunctionPointer<T> Value;
-		public int SystemId;
+		public int                SystemId;
 
 		public int CompareTo(SortDelegate<T> other)
 		{

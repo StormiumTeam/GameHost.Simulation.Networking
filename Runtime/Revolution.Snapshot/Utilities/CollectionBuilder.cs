@@ -5,7 +5,7 @@ namespace Revolution
 {
 	public class CollectionBuilder<T>
 	{
-		private Dictionary<uint, T> m_Dictionary = new Dictionary<uint, T>();
+		private readonly Dictionary<uint, T> m_Dictionary = new Dictionary<uint, T>();
 
 		public CollectionBuilder<T> Add(T val)
 		{

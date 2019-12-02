@@ -1,9 +1,6 @@
 using System;
 using Unity.Burst;
-using Unity.Collections;
 using Unity.Entities;
-using Unity.Networking.Transport;
-using UnityEngine;
 
 namespace Revolution
 {
@@ -19,13 +16,6 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISetup
 	{
-		public struct SharedData
-		{
-			public TSetup                                  SetupData;
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
-			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
-		}
-
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
 		{
@@ -39,10 +29,7 @@ namespace Revolution
 				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot))
-					{
-						throw new InvalidOperationException("A ghost should have a snapshot.");
-					}
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out var success);
 					if (!success)
@@ -113,6 +100,13 @@ namespace Revolution
 				, SafetyHandle
 #endif
 			);
+		}
+
+		public struct SharedData
+		{
+			public TSetup                                  SetupData;
+			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
 		}
 	}
 

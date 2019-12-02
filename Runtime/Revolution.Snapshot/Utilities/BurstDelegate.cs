@@ -7,8 +7,8 @@ namespace Revolution
 	public class BurstDelegate<TDelegate>
 		where TDelegate : Delegate
 	{
-		private bool                       m_IsCompiled;
 		private FunctionPointer<TDelegate> m_BurstResult;
+		private bool                       m_IsCompiled;
 
 		public TDelegate Origin;
 		public bool      WasBurstCompiled;
@@ -30,11 +30,8 @@ namespace Revolution
 			if (!m_IsCompiled)
 			{
 				m_IsCompiled = true;
-				
-				if (!BurstCompiler.Options.IsEnabled || !BurstCompiler.Options.EnableBurstCompilation)
-				{
-					return new FunctionPointer<TDelegate>(Marshal.GetFunctionPointerForDelegate(Origin));
-				}
+
+				if (!BurstCompiler.Options.IsEnabled || !BurstCompiler.Options.EnableBurstCompilation) return new FunctionPointer<TDelegate>(Marshal.GetFunctionPointerForDelegate(Origin));
 
 				try
 				{

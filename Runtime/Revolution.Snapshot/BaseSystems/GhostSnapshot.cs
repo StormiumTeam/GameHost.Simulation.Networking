@@ -2,11 +2,10 @@ using System;
 using Collections.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 
 namespace Revolution
 {
-	public unsafe struct GhostSnapshotPointer
+	public struct GhostSnapshotPointer
 	{
 		public uint Id;
 	}
@@ -42,10 +41,7 @@ namespace Revolution
 
 		public void Dispose()
 		{
-			foreach (var val in UnsafeHashMap.GetIterator<uint, IntPtr>(SystemData))
-			{
-				UnsafeUtility.Free((void*) val.value, Allocator.Persistent);
-			}
+			foreach (var val in UnsafeHashMap.GetIterator<uint, IntPtr>(SystemData)) UnsafeUtility.Free((void*) val.value, Allocator.Persistent);
 
 			UnsafeHashMap.Free(SystemData);
 		}

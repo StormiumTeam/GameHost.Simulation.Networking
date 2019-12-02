@@ -4,25 +4,28 @@ using Unity.Entities;
 namespace Revolution
 {
 	/// <summary>
-	/// Represent a system that use Burst delegate to manage entity snapshots
+	///     Represent a system that use Burst delegate to manage entity snapshots
 	/// </summary>
 	public interface ISystemDelegateForSnapshot
 	{
 		/// <summary>
-		/// The serialize function
+		///     The serialize function
 		/// </summary>
-		FunctionPointer<OnSerializeSnapshot>   SerializeDelegate   { get; }
+		FunctionPointer<OnSerializeSnapshot> SerializeDelegate { get; }
+
 		/// <summary>
-		/// The deserialize function
+		///     The deserialize function
 		/// </summary>
 		FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate { get; }
+
 		/// <summary>
-		/// Called when a snapshot system is beginning to serialize
+		///     Called when a snapshot system is beginning to serialize
 		/// </summary>
 		/// <param name="client">The client entity, the one who will receive the data</param>
 		void OnBeginSerialize(Entity client);
+
 		/// <summary>
-		/// Called when a snapshot system is beginning to deserialize
+		///     Called when a snapshot system is beginning to deserialize
 		/// </summary>
 		/// <param name="client">The client entity, the one who sent the data to us</param>
 		void OnBeginDeserialize(Entity client);

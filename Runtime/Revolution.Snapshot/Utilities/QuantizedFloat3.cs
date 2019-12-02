@@ -46,7 +46,7 @@ namespace Revolution.Utils
 		{
 			for (var v = 0; v != 3; v++)
 				f[v] = math.isnan(f[v]) ? 0.0f : f[v];
-			
+
 			Result = (int3) (f * quantization);
 		}
 
@@ -60,7 +60,7 @@ namespace Revolution.Utils
 			return $"qf3({Result.x}, {Result.y}, {Result.z})";
 		}
 	}
-	
+
 	public struct QuantizedFloat4
 	{
 		public int4 Result;
@@ -75,7 +75,7 @@ namespace Revolution.Utils
 		{
 			for (var v = 0; v != 4; v++)
 				f[v] = math.isnan(f[v]) ? 0.0f : f[v];
-			
+
 			Result = (int4) (f * quantization);
 		}
 

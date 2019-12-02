@@ -46,9 +46,12 @@ namespace Revolution
 		}
 
 		/// <summary>
-		/// Set the entity for an existing ghost.
+		///     Set the entity for an existing ghost.
 		/// </summary>
-		/// <remarks>This method is useful for predictive spawning (spawning an entity client-side that is then attached to a ghost)</remarks>
+		/// <remarks>
+		///     This method is useful for predictive spawning (spawning an entity client-side that is then attached to a
+		///     ghost)
+		/// </remarks>
 		/// <param name="index">The ghost at index</param>
 		/// <param name="entity">The entity replacement</param>
 		public void SetEntityAtIndex(int index, Entity entity)
@@ -58,23 +61,24 @@ namespace Revolution
 		}
 
 		/// <summary>
-		/// Set the entity for an existing ghost.
+		///     Set the entity for an existing ghost.
 		/// </summary>
-		/// <remarks>This method is useful for predictive spawning (spawning an entity client-side that is then attached to a ghost)</remarks>
+		/// <remarks>
+		///     This method is useful for predictive spawning (spawning an entity client-side that is then attached to a
+		///     ghost)
+		/// </remarks>
 		/// <param name="ghostId">The ghost id</param>
 		/// <param name="entity">The entity replacement</param>
-		/// <exception cref="KeyNotFoundException">No ghost found with <see cref="ghostId"/>></exception>
+		/// <exception cref="KeyNotFoundException">No ghost found with <see cref="ghostId" />></exception>
 		public void SetEntityForGhost(uint ghostId, Entity entity)
 		{
 			for (int i = 0, length = GhostIds.Length; i < length; i++)
-			{
 				if (GhostIds[i] == ghostId)
 				{
 					Entities[i]               = entity;
 					GhostToEntityMap[ghostId] = entity;
 					return;
 				}
-			}
 
 			throw new KeyNotFoundException($"No ghost found with id={ghostId}");
 		}

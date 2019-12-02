@@ -7,7 +7,6 @@ using Unity.Jobs;
 namespace Revolution
 {
 	/// <summary>
-	/// 
 	/// </summary>
 	/// <typeparam name="TSerializer"></typeparam>
 	/// <typeparam name="TTag"></typeparam>
@@ -15,19 +14,8 @@ namespace Revolution
 		where TSerializer : EmptySnapshotSystem<TSerializer, TTag>
 		where TTag : IComponentData
 	{
-		public abstract NativeArray<ComponentType> EntityComponents { get; }
-		public abstract ComponentType              ExcludeComponent { get; }
-
-		public const uint SnapshotHistorySize = 16;
-
-
-
-		protected override void OnCreate()
-		{
-			base.OnCreate();
-
-			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
-		}
+		public const    uint          SnapshotHistorySize = 16;
+		public abstract ComponentType ExcludeComponent { get; }
 
 		public ref SharedSystemChunk GetSharedChunk()
 		{
@@ -55,10 +43,8 @@ namespace Revolution
 					return false;
 
 				for (var j = 0; j < ownLength; j++)
-				{
 					if (componentTypes[i].TypeIndex == ownComponents[j].TypeIndex)
 						match++;
-				}
 			}
 
 			return match == ownLength;
@@ -76,20 +62,15 @@ namespace Revolution
 
 				// Search if this entity has our system from the model list
 				foreach (var model in models)
-				{
 					// Bingo! This entity got our system
 					if (model == systemId)
 					{
 						// If this entity don't have the snapshot buffer yet, add it.
-						if (!EntityManager.HasComponent<TTag>(entities[ent]))
-						{
-							EntityManager.AddComponent(entities[ent], typeof(TTag));
-						}
+						if (!EntityManager.HasComponent<TTag>(entities[ent])) EntityManager.AddComponent(entities[ent], typeof(TTag));
 
 						hasModel = true;
 						break;
 					}
-				}
 
 				if (hasModel)
 					continue;
@@ -128,17 +109,19 @@ namespace Revolution
 			}
 		}
 
+		public abstract NativeArray<ComponentType> EntityComponents { get; }
+
+
+		protected override void OnCreate()
+		{
+			base.OnCreate();
+
+			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+		}
+
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
 			return inputDeps;
-		}
-
-		class ChunkKey__
-		{
-		}
-
-		class GhostKey__
-		{
 		}
 
 		protected static ref SharedSystemChunk GetSerializerChunkData()
@@ -149,6 +132,14 @@ namespace Revolution
 		protected static ref SharedSystemGhost GetDeserializerGhostData()
 		{
 			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey__>().Data;
+		}
+
+		private class ChunkKey__
+		{
+		}
+
+		private class GhostKey__
+		{
 		}
 	}
 }

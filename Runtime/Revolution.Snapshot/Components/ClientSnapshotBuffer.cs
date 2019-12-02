@@ -3,7 +3,7 @@ using Unity.Entities;
 namespace Revolution
 {
 	/// <summary>
-	/// Hold the result of a snapshot generation
+	///     Hold the result of a snapshot generation
 	/// </summary>
 	public struct ClientSnapshotBuffer : IBufferElementData
 	{
