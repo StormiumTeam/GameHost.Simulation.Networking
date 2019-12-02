@@ -29,15 +29,15 @@ namespace Revolution
 				sizeof(AtomicSafetyHandle));
 		}
 
-		private static int m_ArchetypeComponentSafetyVarPos = -1;
+		private static int s_ArchetypeComponentSafetyVarPos = -1;
 
 		public static void Replace<T>(ref ArchetypeChunkComponentType<T> bfe, AtomicSafetyHandle safetyHandle)
 			where T : struct, IComponentData
 		{
-			if (m_ArchetypeComponentSafetyVarPos < 0) Init();
+			if (s_ArchetypeComponentSafetyVarPos < 0) Init();
 
 			// remove safety... (the array goes only writeonly for some weird reasons)
-			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + m_ArchetypeComponentSafetyVarPos,
+			UnsafeUtility.MemCpy((byte*) UnsafeUtility.AddressOf(ref bfe) + s_ArchetypeComponentSafetyVarPos,
 				UnsafeUtility.AddressOf(ref safetyHandle),
 				sizeof(AtomicSafetyHandle));
 		}
@@ -49,7 +49,7 @@ namespace Revolution
 			                                      BindingFlags.Instance |
 			                                      BindingFlags.GetField);
 
-			m_ArchetypeComponentSafetyVarPos = UnsafeUtility.GetFieldOffset(field);
+			s_ArchetypeComponentSafetyVarPos = UnsafeUtility.GetFieldOffset(field);
 		}
 #endif
 	}

@@ -5,12 +5,12 @@ using Unity.Entities;
 namespace Revolution
 {
 	[BurstCompile]
-	public abstract class ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystemBasicPredicted<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
 		TSetup,
-		ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot, TSetup>.SharedData
+		ComponentSnapshotSystemBasicPredicted<TComponent, TSnapshot, TSetup>.SharedData
 	>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>, IPredictable<TSnapshot>
 		where TComponent : struct, IComponentData
@@ -147,7 +147,7 @@ namespace Revolution
 		}
 	}
 
-	public abstract class ComponentSnapshotSystem_Basic_Predicted<TComponent, TSnapshot> : ComponentSnapshotSystem_Basic_Predicted
+	public abstract class ComponentSnapshotSystemBasicPredicted<TComponent, TSnapshot> : ComponentSnapshotSystemBasicPredicted
 	<
 		TComponent,
 		TSnapshot,

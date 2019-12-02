@@ -20,12 +20,12 @@ namespace Revolution
 	}
 
 	[BurstCompile]
-	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystemDelta<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
 		TSetup,
-		ComponentSnapshotSystem_Delta<TComponent, TSnapshot, TSetup>.SharedData
+		ComponentSnapshotSystemDelta<TComponent, TSnapshot, TSetup>.SharedData
 	>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>, ISnapshotDelta<TSnapshot>
 		where TComponent : struct, IComponentData
@@ -210,7 +210,7 @@ namespace Revolution
 		}
 	}
 
-	public abstract class ComponentSnapshotSystem_Delta<TComponent, TSnapshot> : ComponentSnapshotSystem_Delta
+	public abstract class ComponentSnapshotSystemDelta<TComponent, TSnapshot> : ComponentSnapshotSystemDelta
 	<
 		TComponent,
 		TSnapshot,

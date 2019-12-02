@@ -3,7 +3,7 @@ using Unity.Entities;
 
 namespace Revolution
 {
-	public abstract class ComponentSnapshotSystem_Empty<TTag> : EmptySnapshotSystem<ComponentSnapshotSystem_Empty<TTag>, TTag>
+	public abstract class ComponentSnapshotSystemEmpty<TTag> : EmptySnapshotSystem<ComponentSnapshotSystemEmpty<TTag>, TTag>
 		where TTag : IComponentData
 	{
 		public override NativeArray<ComponentType> EntityComponents =>
@@ -21,7 +21,7 @@ namespace Revolution
 	{
 	}
 
-	public class ComponentSnapshotSystemTag<TTag> : ComponentSnapshotSystem_Empty<TTag>
+	public class ComponentSnapshotSystemTag<TTag> : ComponentSnapshotSystemEmpty<TTag>
 		where TTag : IComponentData
 	{
 		public override ComponentType ExcludeComponent => typeof(ExcludeFromTagging);

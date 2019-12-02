@@ -9,7 +9,7 @@ namespace Revolution
 {
 	public struct SerializeClientData : IDisposable
 	{
-		internal NativeHashMap<uint, IntPtr> m_GhostSnapshots;
+		internal NativeHashMap<uint, IntPtr> GhostSnapshots;
 
 		public bool                    Created;
 		public NetworkCompressionModel NetworkCompressionModel;
@@ -43,7 +43,7 @@ namespace Revolution
 			EntityType = default;
 			// >
 
-			m_GhostSnapshots        = new NativeHashMap<uint, IntPtr>(128, Allocator.Persistent);
+			GhostSnapshots        = new NativeHashMap<uint, IntPtr>(128, Allocator.Persistent);
 			NetworkCompressionModel = new NetworkCompressionModel(Allocator.Persistent);
 			ProgressiveGhostIds     = new NativeList<uint>(Allocator.Persistent);
 			BlockedGhostIds         = new NativeList<uint>(Allocator.Persistent);
@@ -67,12 +67,12 @@ namespace Revolution
 			data.Id         = ghostId;
 			data.SystemData = UnsafeHashMap.Allocate<uint, IntPtr>(256);
 
-			m_GhostSnapshots[ghostId] = (IntPtr) ptr;
+			GhostSnapshots[ghostId] = (IntPtr) ptr;
 		}
 
 		public unsafe bool TryGetSnapshot(uint ghostId, out GhostSnapshot snapshot)
 		{
-			if (m_GhostSnapshots.TryGetValue(ghostId, out var snapshotPtr))
+			if (GhostSnapshots.TryGetValue(ghostId, out var snapshotPtr))
 			{
 				UnsafeUtility.CopyPtrToStructure((void*) snapshotPtr, out snapshot);
 				return true;
@@ -84,7 +84,7 @@ namespace Revolution
 
 		public unsafe void Dispose()
 		{
-			foreach (var value in m_GhostSnapshots.GetValueArray(Allocator.Temp))
+			foreach (var value in GhostSnapshots.GetValueArray(Allocator.Temp))
 			{
 				ref var data = ref UnsafeUtilityEx.AsRef<GhostSnapshot>(value.ToPointer());
 				data.Dispose();
@@ -92,7 +92,7 @@ namespace Revolution
 				UnsafeUtility.Free(value.ToPointer(), Allocator.Persistent);
 			}
 
-			m_GhostSnapshots.Dispose();
+			GhostSnapshots.Dispose();
 			NetworkCompressionModel.Dispose();
 			ProgressiveGhostIds.Dispose();
 			BlockedGhostIds.Dispose();

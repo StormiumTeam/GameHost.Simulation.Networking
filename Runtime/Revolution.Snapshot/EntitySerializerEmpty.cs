@@ -126,19 +126,19 @@ namespace Revolution
 
 		protected static ref SharedSystemChunk GetSerializerChunkData()
 		{
-			return ref SharedStatic<SharedSystemChunk>.GetOrCreate<ChunkKey__>().Data;
+			return ref SharedStatic<SharedSystemChunk>.GetOrCreate<ChunkKey>().Data;
 		}
 
 		protected static ref SharedSystemGhost GetDeserializerGhostData()
 		{
-			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey__>().Data;
+			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey>().Data;
 		}
 
-		private class ChunkKey__
+		private class ChunkKey
 		{
 		}
 
-		private class GhostKey__
+		private class GhostKey
 		{
 		}
 	}

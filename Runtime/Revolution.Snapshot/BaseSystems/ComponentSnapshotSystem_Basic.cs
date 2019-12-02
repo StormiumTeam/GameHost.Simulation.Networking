@@ -5,12 +5,12 @@ using Unity.Entities;
 namespace Revolution
 {
 	[BurstCompile]
-	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
+	public abstract class ComponentSnapshotSystemBasic<TComponent, TSnapshot, TSetup> : ComponentSnapshotSystemBase
 	<
 		TComponent,
 		TSnapshot,
 		TSetup,
-		ComponentSnapshotSystem_Basic<TComponent, TSnapshot, TSetup>.SharedData
+		ComponentSnapshotSystemBasic<TComponent, TSnapshot, TSetup>.SharedData
 	>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IRwSnapshotComplement<TSnapshot>
 		where TComponent : struct, IComponentData
@@ -110,7 +110,7 @@ namespace Revolution
 		}
 	}
 
-	public abstract class ComponentSnapshotSystem_Basic<TComponent, TSnapshot> : ComponentSnapshotSystem_Basic
+	public abstract class ComponentSnapshotSystemBasic<TComponent, TSnapshot> : ComponentSnapshotSystemBasic
 	<
 		TComponent,
 		TSnapshot,

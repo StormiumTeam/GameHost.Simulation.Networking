@@ -6,9 +6,9 @@ using Unity.Entities;
 namespace Revolution
 {
 	[BurstCompile]
-	public abstract class MixedComponentSnapshotSystem_Delta<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystem_Delta<TComponent, TSetup>,
+	public abstract class MixedComponentSnapshotSystemDelta<TComponent, TSetup> : EntitySerializerComponent<MixedComponentSnapshotSystemDelta<TComponent, TSetup>,
 		TComponent,
-		MixedComponentSnapshotSystem_Delta<TComponent, TSetup>.SharedData>
+		MixedComponentSnapshotSystemDelta<TComponent, TSetup>.SharedData>
 		where TComponent : struct, IComponentData, IReadWriteComponentSnapshot<TComponent, TSetup>, ISnapshotDelta<TComponent>
 		where TSetup : struct, ISetup
 	{
@@ -196,7 +196,7 @@ namespace Revolution
 		}
 	}
 
-	public abstract class MixedComponentSnapshotSystem_Delta<TComponent> : MixedComponentSnapshotSystem_Delta
+	public abstract class MixedComponentSnapshotSystemDelta<TComponent> : MixedComponentSnapshotSystemDelta
 	<
 		TComponent,
 		DefaultSetup
