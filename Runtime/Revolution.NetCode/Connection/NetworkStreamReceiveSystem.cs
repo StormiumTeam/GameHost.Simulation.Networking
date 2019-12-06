@@ -301,7 +301,7 @@ namespace Unity.NetCode
                                     uint localTimeMinusRTT = reader.ReadUInt(ref ctx);
                                     snapshotAck.UpdateRemoteTime(remoteTime, localTimeMinusRTT, localTime);
 
-                                    int headerSize = 1 + 4 * 4;
+                                    int headerSize = 1 + 4 * 3;
 
                                     buffer.ResizeUninitialized(reader.Length - headerSize);
                                     UnsafeUtility.MemCpy(buffer.GetUnsafePtr(),

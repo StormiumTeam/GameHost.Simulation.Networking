@@ -69,6 +69,8 @@ namespace Unity.NetCode
 
                 foreach (var systemKvp in m_CommandCollectionSystem.SystemProcessors)
                 {
+                    writer.Write((byte) systemKvp.Key);
+                
                     systemKvp.Value.BeginSerialize(target.targetEntity, systemKvp.Key);
                     systemKvp.Value.ProcessSend(targetTick, writer, m_NetworkCompressionModel);
                 }

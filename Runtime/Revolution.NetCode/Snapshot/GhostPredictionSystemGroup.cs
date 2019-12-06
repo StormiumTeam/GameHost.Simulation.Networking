@@ -10,9 +10,9 @@ namespace Unity.NetCode
     [UpdateInGroup(typeof(GhostSimulationSystemGroup))]
     public class GhostPredictionSystemGroup : ComponentSystemGroup
     {
-        public static bool ShouldPredict(uint tick, uint predictionStartTick)
+        public static bool ShouldPredict<T>(uint tick, Predicted<T> predicted)
         {
-            return predictionStartTick == 0 || SequenceHelpers.IsNewer(tick, predictionStartTick);
+            return predicted.PredictionStartTick == 0 || SequenceHelpers.IsNewer(tick, predicted.PredictionStartTick);
         }
 
         public uint PredictingTick;

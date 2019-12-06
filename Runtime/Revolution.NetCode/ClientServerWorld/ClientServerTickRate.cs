@@ -19,11 +19,11 @@ namespace Unity.NetCode
         public void ResolveDefaults()
         {
             if (NetworkTickRate <= 0)
-                NetworkTickRate = 60;
+                NetworkTickRate = 50;
             if (SimulationTickRate <= 0)
-                SimulationTickRate = 60;
+                SimulationTickRate = 50;
             if (MaxSimulationStepsPerFrame <= 0)
-                MaxSimulationStepsPerFrame = 4;
+                MaxSimulationStepsPerFrame = 1;
         }
     }
 

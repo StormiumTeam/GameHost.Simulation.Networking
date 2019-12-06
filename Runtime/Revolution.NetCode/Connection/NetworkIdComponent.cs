@@ -46,7 +46,7 @@ namespace Unity.NetCode
                 MaxSimulationStepsPerFrame = rpcData.simMaxSteps,
                 NetworkTickRate = rpcData.netTickRate,
                 SimulationTickRate = rpcData.simTickRate
-            });
+            }); 
         }
 
         public PortableFunctionPointer<RpcExecutor.ExecuteDelegate> CompileExecute()

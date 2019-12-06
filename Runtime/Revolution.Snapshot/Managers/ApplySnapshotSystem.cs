@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -301,7 +302,7 @@ namespace Revolution
 			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().ForceUpdate();
 		}
 
-		//[BurstCompile(CompileSynchronously = false)]
+		[BurstCompile]
 		public struct DeserializeJob : IJob
 		{
 			public NativeList<SortDelegate<OnDeserializeSnapshot>> Deserializers;

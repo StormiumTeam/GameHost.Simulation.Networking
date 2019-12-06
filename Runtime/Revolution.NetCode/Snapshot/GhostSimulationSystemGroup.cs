@@ -10,6 +10,7 @@ namespace Unity.NetCode
 {
     [UpdateInGroup(typeof(ClientAndServerSimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
+    [UpdateAfter(typeof(SnapshotReceiveSystem))]
     public class GhostSimulationSystemGroup : ComponentSystemGroup
     {
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -446,7 +447,7 @@ namespace Revolution
 			public uint            GhostArch;
 		}
 
-		//[BurstCompile(CompileSynchronously = false)]
+		[BurstCompile]
 		public unsafe struct SerializeJob : IJob
 		{
 			public bool DebugRange;
