@@ -4,6 +4,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -15,10 +16,15 @@ namespace Unity.NetCode
             return predicted.PredictionStartTick == 0 || SequenceHelpers.IsNewer(tick, predicted.PredictionStartTick);
         }
 
-        public uint PredictingTick;
-        public NativeArray<uint> OldestPredictedTick;
+        public static bool ShouldPredict(uint tick, GhostPredictedComponent predicted)
+        {
+            return predicted.PredictionStartTick == 0 || SequenceHelpers.IsNewer(tick, predicted.PredictionStartTick);
+        }
+
+        public  uint                  PredictingTick;
+        public  NativeArray<uint>     OldestPredictedTick;
         private NativeList<JobHandle> predictedTickWriters;
-        private bool isServer;
+        private bool                  isServer;
 
         public void AddPredictedTickWriter(JobHandle handle)
         {
@@ -34,9 +40,9 @@ namespace Unity.NetCode
         protected override void OnCreate()
         {
             base.OnCreate();
-            OldestPredictedTick = new NativeArray<uint>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
+            OldestPredictedTick  = new NativeArray<uint>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
             predictedTickWriters = new NativeList<JobHandle>(16, Allocator.Persistent);
-            isServer = World.GetExistingSystem<ServerSimulationSystemGroup>() != null;
+            isServer             = World.GetExistingSystem<ServerSimulationSystemGroup>() != null;
         }
 
         protected override void OnDestroy()
@@ -80,7 +86,7 @@ namespace Unity.NetCode
                 }
 
                 var simulationSystemGroup = World.GetExistingSystem<ClientSimulationSystemGroup>();
-                var targetTick = simulationSystemGroup.ServerTick;
+                var targetTick            = simulationSystemGroup.ServerTick;
 
                 if (oldestAppliedTick == 0 ||
                     !SequenceHelpers.IsNewer(targetTick, oldestAppliedTick))
@@ -91,17 +97,17 @@ namespace Unity.NetCode
                     oldestAppliedTick = targetTick - CommandDataUtility.k_CommandDataMaxSize;
 
                 var previousTime = Time;
-                var elapsedTime = previousTime.ElapsedTime;
+                var elapsedTime  = previousTime.ElapsedTime;
                 if (simulationSystemGroup.ServerTickFraction < 1)
                 {
                     --targetTick;
                     elapsedTime -= simulationSystemGroup.ServerTickDeltaTime * simulationSystemGroup.ServerTickFraction;
                 }
-
-                for (uint i = oldestAppliedTick + 1; i != targetTick+1; ++i)
+                
+                for (uint i = oldestAppliedTick + 1; i != targetTick + 1; ++i)
                 {
                     uint tickAge = targetTick - i;
-                    World.SetTime(new TimeData(elapsedTime - simulationSystemGroup.ServerTickDeltaTime*tickAge, simulationSystemGroup.ServerTickDeltaTime));
+                    World.SetTime(new TimeData(elapsedTime - simulationSystemGroup.ServerTickDeltaTime * tickAge, simulationSystemGroup.ServerTickDeltaTime));
                     PredictingTick = i;
                     base.OnUpdate();
                 }
@@ -110,9 +116,10 @@ namespace Unity.NetCode
                 {
                     PredictingTick = targetTick + 1;
                     World.SetTime(new TimeData(previousTime.ElapsedTime, simulationSystemGroup.ServerTickDeltaTime *
-                                                                        simulationSystemGroup.ServerTickFraction));
+                                                                         simulationSystemGroup.ServerTickFraction));
                     base.OnUpdate();
                 }
+
                 World.SetTime(previousTime);
             }
         }

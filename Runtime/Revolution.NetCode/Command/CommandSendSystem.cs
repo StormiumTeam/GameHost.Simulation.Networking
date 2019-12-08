@@ -11,10 +11,12 @@ namespace Unity.NetCode
     {
         private EntityQuery                m_IncomingDataQuery;
         private CommandCollectionSystem    m_CommandCollectionSystem;
-        private NetworkTimeSystem          m_TimeSystem;
+        private ClientSimulationSystemGroup m_ClientSimulationSystemGroup;
         private NetworkStreamReceiveSystem m_ReceiveSystem;
         private NetworkCompressionModel    m_NetworkCompressionModel;
 
+        private uint m_LastServerTick;
+        
         protected override void OnCreate()
         {
             base.OnCreate();
@@ -25,7 +27,7 @@ namespace Unity.NetCode
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
             m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
-            m_TimeSystem              = World.GetOrCreateSystem<NetworkTimeSystem>();
+            m_ClientSimulationSystemGroup = World.GetOrCreateSystem<ClientSimulationSystemGroup>();
 
             m_NetworkCompressionModel = new NetworkCompressionModel(Allocator.Persistent);
         }
@@ -35,11 +37,20 @@ namespace Unity.NetCode
             foreach (var system in m_CommandCollectionSystem.SystemProcessors.Values)
                 system.Prepare();
 
+            var targetTick = m_ClientSimulationSystemGroup.ServerTick;
+            if (m_ClientSimulationSystemGroup.ServerTickFraction < 1)
+                targetTick--;
+
+            if (targetTick == m_LastServerTick)
+                return;
+
+            m_LastServerTick = targetTick;
+
             using (var chunks = m_IncomingDataQuery.CreateArchetypeChunkArray(Allocator.TempJob))
             {
                 foreach (var chunk in chunks)
                 {
-                    OnChunkProcess(chunk, NetworkTimeSystem.TimestampMS, m_TimeSystem.predictTargetTick);
+                    OnChunkProcess(chunk, NetworkTimeSystem.TimestampMS, targetTick);
                 }
             }
         }

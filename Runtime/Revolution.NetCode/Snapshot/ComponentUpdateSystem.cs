@@ -15,7 +15,12 @@ namespace Unity.NetCode
 		public uint PredictionStartTick;
 	}
 
-	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
+	public struct GhostPredictedComponent : IComponentData
+	{
+		public uint AppliedTick;
+		public uint PredictionStartTick;
+	}
+	
 	public class ComponentUpdateSystemDirect<TComponent, TSnapshot> : ComponentUpdateSystemDirect<TComponent, TSnapshot, DefaultSetup>
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>
@@ -64,8 +69,7 @@ namespace Unity.NetCode
 	// -------------------------------------------------------------- //
 	// INTERPOLATED
 	// -------------------------------------------------------------- //
-
-	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
+	
 	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot> : ComponentUpdateSystemInterpolated<TComponent, TSnapshot, DefaultSetup>
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IInterpolatable<TSnapshot>
@@ -73,12 +77,12 @@ namespace Unity.NetCode
 		public ComponentUpdateSystemInterpolated() : base(false)
 		{
 		}
-		
+
 		public ComponentUpdateSystemInterpolated(bool isPredicted) : base(isPredicted)
 		{
 		}
 	}
-
+	
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
 	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
@@ -88,7 +92,9 @@ namespace Unity.NetCode
 		protected readonly bool IsPredicted;
 
 		private EntityQuery m_RequiredQuery;
-		private EntityQuery                 m_ComponentWithoutPrediction;
+		private EntityQuery m_ComponentWithoutPrediction;
+		private EntityQuery m_PredictedWithoutGlobal;
+
 		private SnapshotReceiveSystem       m_ReceiveSystem;
 		private ClientSimulationSystemGroup m_ClientGroup;
 
@@ -109,7 +115,7 @@ namespace Unity.NetCode
 
 			Debug.Log("Created!");
 			m_RequiredQuery = IsPredicted
-				? GetEntityQuery(new EntityQueryDesc {All = new ComponentType[] {typeof(TSnapshot), typeof(TComponent), typeof(Predicted<TSnapshot>)}})
+				? GetEntityQuery(new EntityQueryDesc {All = new ComponentType[] {typeof(TSnapshot), typeof(TComponent), typeof(Predicted<TSnapshot>), typeof(GhostPredictedComponent)}})
 				: GetEntityQuery(new EntityQueryDesc {All = new ComponentType[] {typeof(TSnapshot), typeof(TComponent)}});
 
 			if (IsPredicted)
@@ -118,6 +124,11 @@ namespace Unity.NetCode
 				{
 					All  = new ComponentType[] {typeof(TSnapshot), typeof(TComponent)},
 					None = new ComponentType[] {typeof(Predicted<TSnapshot>)}
+				});
+				m_PredictedWithoutGlobal = GetEntityQuery(new EntityQueryDesc
+				{
+					All  = new ComponentType[] {typeof(Predicted<TSnapshot>)},
+					None = new ComponentType[] {typeof(GhostPredictedComponent)}
 				});
 			}
 
@@ -133,12 +144,17 @@ namespace Unity.NetCode
 				{
 					EntityManager.AddComponent(m_ComponentWithoutPrediction, typeof(Predicted<TSnapshot>));
 				}
-				
+
+				if (!m_PredictedWithoutGlobal.IsEmptyIgnoreFilter)
+				{
+					EntityManager.AddComponent(m_PredictedWithoutGlobal, typeof(GhostPredictedComponent));
+				}
+
 				var ghostPredictionGroup = World.GetExistingSystem<GhostPredictionSystemGroup>();
-				var jobData          = m_ReceiveSystem.JobData;
-				var targetTick       = m_ClientGroup.InterpolationTick;
-				var lastPredictTick  = m_LastPredictTick;
-				var minPredictedTick = ghostPredictionGroup.OldestPredictedTick;
+				var jobData              = m_ReceiveSystem.JobData;
+				var targetTick           = m_ClientGroup.ServerTick;
+				var lastPredictTick      = m_LastPredictTick;
+				var minPredictedTick     = ghostPredictionGroup.OldestPredictedTick;
 
 				inputDeps = new _PredictedJob
 				{
@@ -147,25 +163,25 @@ namespace Unity.NetCode
 					lastPredictTick  = lastPredictTick,
 					minPredictedTick = minPredictedTick
 				}.Schedule(m_RequiredQuery, inputDeps);
-				
+
 				m_LastPredictTick = m_ClientGroup.ServerTick;
 				if (m_ClientGroup.ServerTickFraction < 1)
 					m_LastPredictTick = 0;
-				
+
 				ghostPredictionGroup.AddPredictedTickWriter(inputDeps);
-			} 
+			}
 			else
 			{
 				var jobData    = m_ReceiveSystem.JobData;
 				var targetTick = m_ClientGroup.InterpolationTick;
-				
+
 				inputDeps = new _InterpolatedJob
 				{
 					jobData    = jobData,
 					targetTick = targetTick
 				}.Schedule(m_RequiredQuery, inputDeps);
 			}
-			
+
 			return inputDeps;
 		}
 
@@ -184,13 +200,13 @@ namespace Unity.NetCode
 					Debug.Log($"{snapshots.GetLastBaselineReadOnly().Tick} -> {typeof(TComponent)}");
 					return;
 				}
-				
+
 				snapshotData.SynchronizeTo(ref component, jobData);
 			}
 		}
 
 		//[BurstCompile]
-		private struct _PredictedJob : IJobForEach_BCC<TSnapshot, TComponent, Predicted<TSnapshot>>
+		private struct _PredictedJob : IJobForEach_BCCC<TSnapshot, TComponent, Predicted<TSnapshot>, GhostPredictedComponent>
 		{
 			[ReadOnly]
 			public DeserializeClientData jobData;
@@ -204,7 +220,7 @@ namespace Unity.NetCode
 			[NativeSetThreadIndex]
 			public int ThreadIndex;
 
-			public void Execute([ReadOnly] DynamicBuffer<TSnapshot> snapshots, ref TComponent component, ref Predicted<TSnapshot> predictedData)
+			public void Execute([ReadOnly] DynamicBuffer<TSnapshot> snapshots, ref TComponent component, ref Predicted<TSnapshot> predictedData, ref GhostPredictedComponent globalPredicted)
 			{
 				snapshots.GetDataAtTick(targetTick, out var snapshotData);
 
@@ -216,12 +232,15 @@ namespace Unity.NetCode
 				if (minPredictedTick[ThreadIndex] == 0 || SequenceHelpers.IsNewer(minPredictedTick[ThreadIndex], lastPredictedTickInst))
 					minPredictedTick[ThreadIndex] = lastPredictedTickInst;
 
-				predictedData = new Predicted<TSnapshot> {AppliedTick = snapshotData.Tick, PredictionStartTick = lastPredictedTickInst};
+				predictedData                       = new Predicted<TSnapshot> {AppliedTick = snapshotData.Tick, PredictionStartTick = lastPredictedTickInst};
+				globalPredicted.AppliedTick         = predictedData.AppliedTick;
+				globalPredicted.PredictionStartTick = predictedData.PredictionStartTick;
+
 				if (lastPredictedTickInst != snapshotData.Tick)
 				{
 					return;
 				}
-				
+
 				snapshotData.SynchronizeTo(ref component, jobData);
 			}
 		}
