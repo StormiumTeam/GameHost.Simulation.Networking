@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 
 namespace Unity.NetCode.Editor
-{
+{ 
     public class MultiplayerPlayModeWindow : EditorWindow
     {
         const string k_PrefsKeyPrefix = "MultiplayerPlayMode";

@@ -104,21 +104,23 @@ namespace Unity.NetCode
                     elapsedTime -= simulationSystemGroup.ServerTickDeltaTime * simulationSystemGroup.ServerTickFraction;
                 }
                 
-                for (uint i = oldestAppliedTick + 1; i != targetTick + 1; ++i)
+                for (uint i = oldestAppliedTick + 1; i != oldestAppliedTick + 3; ++i)
                 {
                     uint tickAge = targetTick - i;
                     World.SetTime(new TimeData(elapsedTime - simulationSystemGroup.ServerTickDeltaTime * tickAge, simulationSystemGroup.ServerTickDeltaTime));
-                    PredictingTick = i;
+                    PredictingTick = i; 
                     base.OnUpdate();
                 }
+                
+                //Debug.Log($"Client Simulating From={oldestAppliedTick + 1} to {targetTick + 1}");
 
-                if (simulationSystemGroup.ServerTickFraction < 1)
+                /*if (simulationSystemGroup.ServerTickFraction < 1)
                 {
                     PredictingTick = targetTick + 1;
                     World.SetTime(new TimeData(previousTime.ElapsedTime, simulationSystemGroup.ServerTickDeltaTime *
                                                                          simulationSystemGroup.ServerTickFraction));
                     base.OnUpdate();
-                }
+                }*/
 
                 World.SetTime(previousTime);
             }
