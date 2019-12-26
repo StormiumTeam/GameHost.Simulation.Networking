@@ -31,7 +31,10 @@ namespace Revolution
 			{
 				m_IsCompiled = true;
 
-				if (!BurstCompiler.Options.IsEnabled || !BurstCompiler.Options.EnableBurstCompilation) return new FunctionPointer<TDelegate>(Marshal.GetFunctionPointerForDelegate(Origin));
+				if (!BurstCompiler.Options.IsEnabled || !BurstCompiler.Options.EnableBurstCompilation)
+				{
+					return new FunctionPointer<TDelegate>(Marshal.GetFunctionPointerForDelegate(Origin));
+				}
 
 				try
 				{

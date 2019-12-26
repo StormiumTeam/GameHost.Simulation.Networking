@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Entities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -27,6 +28,8 @@ namespace Unity.NetCode
 
         public virtual bool Initialize(string defaultWorldName)
         {
+            Debug.Log($"INITIALIZE CLIENTSERVERBOOTSTRAP");
+            
             var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
             GenerateSystemLists(systems);
 

@@ -3,7 +3,6 @@ using System.Threading;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 
 namespace Unity.Networking.Transport
 {

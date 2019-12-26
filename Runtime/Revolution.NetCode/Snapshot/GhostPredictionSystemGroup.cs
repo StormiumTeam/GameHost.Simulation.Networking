@@ -4,7 +4,6 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
-using UnityEngine;
 
 namespace Unity.NetCode
 {
