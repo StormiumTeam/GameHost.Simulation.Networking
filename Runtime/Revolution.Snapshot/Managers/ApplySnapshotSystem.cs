@@ -28,18 +28,12 @@ namespace Revolution
 		private SnapshotManager                    m_SnapshotManager;
 		private Dictionary<uint, NativeList<uint>> m_SystemToGhostIds;
 
-		protected override void OnCreateManager()
-		{
-			base.OnCreateManager();
-
-			m_SystemToGhostIds = new Dictionary<uint, NativeList<uint>>();
-		}
-
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
 			m_SnapshotManager = World.GetOrCreateSystem<SnapshotManager>();
+			m_SystemToGhostIds = new Dictionary<uint, NativeList<uint>>();
 		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
