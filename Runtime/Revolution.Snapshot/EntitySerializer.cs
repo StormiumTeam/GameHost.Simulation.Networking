@@ -31,6 +31,9 @@ namespace Revolution
 		private         BurstDelegate<OnSerializeSnapshot> m_SerializeDelegate;
 		public abstract ComponentType                      ExcludeComponent { get; }
 
+		private NativeString512 m_NativeName;
+		public NativeString512 NativeName => m_NativeName;
+
 		public ref SharedSystemChunk GetSharedChunk()
 		{
 			return ref GetSerializerChunkData();
@@ -150,6 +153,7 @@ namespace Revolution
 			base.OnCreate();
 
 			World.GetOrCreateSystem<SnapshotManager>().RegisterSystem(this);
+			m_NativeName = ToString();
 
 			SetSystemGroup();
 

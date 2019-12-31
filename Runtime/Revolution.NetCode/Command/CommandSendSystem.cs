@@ -1,6 +1,8 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
@@ -34,8 +36,10 @@ namespace Unity.NetCode
 
         protected override void OnUpdate()
         {
+            Profiler.BeginSample("Prepare()");
             foreach (var system in m_CommandCollectionSystem.SystemProcessors.Values)
                 system.Prepare();
+            Profiler.EndSample();
 
             var targetTick = m_ClientSimulationSystemGroup.ServerTick;
             if (m_ClientSimulationSystemGroup.ServerTickFraction < 1)
@@ -46,6 +50,7 @@ namespace Unity.NetCode
 
             m_LastServerTick = targetTick;
 
+            Profiler.BeginSample("OnChunkProcess");
             using (var chunks = m_IncomingDataQuery.CreateArchetypeChunkArray(Allocator.TempJob))
             {
                 foreach (var chunk in chunks)
@@ -53,6 +58,7 @@ namespace Unity.NetCode
                     OnChunkProcess(chunk, NetworkTimeSystem.TimestampMS, targetTick);
                 }
             }
+            Profiler.EndSample();
         }
 
         private void OnChunkProcess(ArchetypeChunk chunk, in uint localTime, in uint targetTick)
@@ -77,19 +83,27 @@ namespace Unity.NetCode
                     returnTime -= localTime - ack.LastReceiveTimestamp;
                 writer.Write(returnTime);
                 writer.Write(targetTick);
-
+                
+                Profiler.BeginSample("BeginSerialize and ProcessSend");
                 foreach (var systemKvp in m_CommandCollectionSystem.SystemProcessors)
                 {
                     writer.Write((byte) systemKvp.Key);
                 
+                    Profiler.BeginSample("BeginSerialize");
                     systemKvp.Value.BeginSerialize(target.targetEntity, systemKvp.Key);
+                    Profiler.EndSample();
+                    Profiler.BeginSample("ProcessSend");
                     systemKvp.Value.ProcessSend(targetTick, writer, m_NetworkCompressionModel);
+                    Profiler.EndSample();
                 }
+                Profiler.EndSample();
                 
                 writer.Flush();
 
+                Profiler.BeginSample("Send");
                 var driver = m_ReceiveSystem.Driver;
                 driver.Send(m_ReceiveSystem.UnreliablePipeline, connectionArray[ent].Value, writer);
+                Profiler.EndSample();
             }
         }
     }

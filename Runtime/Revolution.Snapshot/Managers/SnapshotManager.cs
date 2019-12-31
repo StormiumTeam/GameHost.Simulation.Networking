@@ -5,45 +5,49 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
 	public class SnapshotWithDelegateSystemGroup : ComponentSystemGroup
 	{
+		private List<ISystemDelegateForSnapshot> m_DelegateSystems = new List<ISystemDelegateForSnapshot>();
+
 		public override void SortSystemUpdateList()
 		{
 			base.SortSystemUpdateList();
+
+			m_DelegateSystems.Clear();
+			foreach (var sys in Systems)
+			{
+				if (sys is ISystemDelegateForSnapshot castSys)
+					m_DelegateSystems.Add(castSys);
+			}
 		}
 
 		public void BeginSerialize(Entity client, ref NativeList<SortDelegate<OnSerializeSnapshot>> serializers)
 		{
-			foreach (var sys in m_systemsToUpdate)
+			foreach (var sys in m_DelegateSystems)
 			{
-				if (!(sys is ISystemDelegateForSnapshot castSys))
-					continue;
-
-				castSys.OnBeginSerialize(client);
+				sys.OnBeginSerialize(client);
 				serializers.Add(new SortDelegate<OnSerializeSnapshot>
 				{
-					Value    = castSys.SerializeDelegate,
-					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(castSys)
+					Value    = sys.SerializeDelegate,
+					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(sys)
 				});
 			}
 		}
 
 		public void BeginDeserialize(Entity client, ref NativeList<SortDelegate<OnDeserializeSnapshot>> deserializers)
 		{
-			foreach (var sys in m_systemsToUpdate)
+			foreach (var sys in m_DelegateSystems)
 			{
-				if (!(sys is ISystemDelegateForSnapshot castSys))
-					continue;
-
-				castSys.OnBeginDeserialize(client);
+				sys.OnBeginDeserialize(client);
 				deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
 				{
-					Name     = castSys.ToString(),
-					Value    = castSys.DeserializeDelegate,
-					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(castSys)
+					Name     = sys.NativeName,
+					Value    = sys.DeserializeDelegate,
+					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(sys)
 				});
 			}
 		}

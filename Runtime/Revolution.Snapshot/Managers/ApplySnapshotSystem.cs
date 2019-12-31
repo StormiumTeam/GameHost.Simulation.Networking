@@ -8,6 +8,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
@@ -69,6 +70,7 @@ namespace Revolution
 			var ctx    = default(DataStreamReader.Context);
 
 			// Be sure that all systems are ready...
+			Profiler.BeginSample("System tidying");
 			foreach (var system in m_SnapshotManager.IdToSystems)
 				if (system.Value is IDynamicSnapshotSystem dynamicSystem)
 				{
@@ -81,6 +83,7 @@ namespace Revolution
 
 					sharedGhost.Ghosts = list;
 				}
+			Profiler.EndSample();
 
 			var entityLength     = reader.ReadInt(ref ctx);
 			var ghostUpdate      = new NativeList<uint>(entityLength, Allocator.TempJob);
@@ -90,6 +93,7 @@ namespace Revolution
 
 			if (entityLength > 0)
 			{
+				Profiler.BeginSample("Update Entities");
 				ReadArchetypes(in baseline, in reader, ref ctx);
 
 				var newGhostArray  = new NativeArray<uint>(entityLength, Allocator.Temp);
@@ -189,6 +193,7 @@ namespace Revolution
 
 				baseline.Entities.AddRange(newEntityArray);
 				baseline.GhostIds.AddRange(newGhostArray);
+				Profiler.EndSample();
 			}
 			else
 			{
@@ -216,9 +221,10 @@ namespace Revolution
 					reader.ReadByte(ref ctx); // DON'T REMOVE THIS LINE
 				}
 			}
-
+			
 			if (entityUpdate.Length > 0)
 			{
+				Profiler.BeginSample("Process Entity Update");
 				foreach (var kvp in m_SystemToGhostIds)
 				{
 					var ghostList = kvp.Value;
@@ -245,6 +251,7 @@ namespace Revolution
 				foreach (var system in m_SnapshotManager.IdToSystems.Values)
 					if (system is IDynamicSnapshotSystem dynamicSystem)
 						dynamicSystem.OnDeserializerArchetypeUpdate(entityUpdate, archetypeUpdate, m_SnapshotManager.ArchetypeToSystems);
+				Profiler.EndSample();
 			}
 			else if (ghostIndexUpdate.Length > 0)
 			{
@@ -272,8 +279,10 @@ namespace Revolution
 			var delegateDeserializers = new NativeList<SortDelegate<OnDeserializeSnapshot>>(m_SnapshotManager.IdToSystems.Count, Allocator.TempJob);
 			var delegateGroup         = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
 
+			Profiler.BeginSample("DelegateGroup.BeginDeserialize");
 			delegateGroup.BeginDeserialize(baseline.Client, ref delegateDeserializers);
-
+			Profiler.EndSample();
+			
 			var readCtxArray = new NativeArray<DataStreamReader.Context>(1, Allocator.TempJob)
 			{
 				[0] = ctx
@@ -287,13 +296,13 @@ namespace Revolution
 				
 				DebugRange = true
 			}.Run();
-
-			ctx = readCtxArray[0];
-
+			
 			delegateDeserializers.Dispose();
 			readCtxArray.Dispose();
 
+			Profiler.BeginSample("Apply Snapshots Group");
 			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().ForceUpdate();
+			Profiler.EndSample();
 		}
 
 		[BurstCompile]
@@ -306,6 +315,12 @@ namespace Revolution
 			public NativeArray<DataStreamReader.Context> ReadContext;
 
 			public bool DebugRange;
+
+			[BurstDiscard]
+			private void ThrowError(int currLength, int byteRead, int i, SortDelegate<OnDeserializeSnapshot> serializer)
+			{
+				Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.Name.ToString()}, previous system {Deserializers[math.max(i - 1, 0)].Name.ToString()}");
+			}
 
 			public void Execute()
 			{
@@ -330,7 +345,7 @@ namespace Revolution
 						var currLength = reader.ReadInt(ref parameters.Ctx);
 						if (currLength != byteRead)
 						{
-							Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.Name.ToString()}, previous system {Deserializers[math.max(i - 1, 0)].Name.ToString()}");
+							ThrowError(currLength, byteRead, i, serializer);
 							return;
 						}
 					}

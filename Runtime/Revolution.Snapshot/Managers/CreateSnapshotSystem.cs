@@ -26,12 +26,16 @@ namespace Revolution
 		private SnapshotManager                      m_SnapshotManager;
 		private Dictionary<Entity, NativeList<byte>> m_TemporaryOutgoingData;
 
+		public NativeHashMap<uint, Entity> GhostToEntityMap;
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
 			m_SnapshotManager = World.GetOrCreateSystem<SnapshotManager>();
 
+			GhostToEntityMap = new NativeHashMap<uint, Entity>(64, Allocator.Persistent);
+			
 			m_GhostEntityQuery = GetEntityQuery(new EntityQueryDesc
 			{
 				All = new ComponentType[] {typeof(GhostEntity), typeof(GhostIdentifier)}
@@ -62,6 +66,7 @@ namespace Revolution
 		{
 			base.OnDestroy();
 
+			GhostToEntityMap.Dispose();
 			m_ChunkToGhostArchetype.Dispose();
 			foreach (var nativeList in m_TemporaryOutgoingData.Values) nativeList.Dispose();
 			m_TemporaryOutgoingData.Clear();
@@ -90,7 +95,7 @@ namespace Revolution
 
 				EntityManager.RemoveComponent<GhostIdentifier>(m_InvalidGhostQuery);
 			}
-
+			
 			if (m_GhostWithoutIdentifierQuery.CalculateEntityCount() == 0)
 				return;
 
@@ -116,18 +121,22 @@ namespace Revolution
 
 			var entities   = new NativeArray<Entity>(m_GhostEntityQuery.CalculateEntityCount(), Allocator.TempJob);
 			var ghostArray = new NativeArray<GhostIdentifier>(m_GhostEntityQuery.CalculateEntityCount(), Allocator.TempJob);
+			
 			var chunks     = m_GhostEntityQuery.CreateArchetypeChunkArray(Allocator.TempJob);
 
 			var x = 0;
 			Profiler.BeginSample("Set GhostArray and EntityArray");
+			
+			GhostToEntityMap.Clear();
 			foreach (var chunk in chunks)
 			{
 				var entityArray  = chunk.GetNativeArray(GetArchetypeChunkEntityType());
 				var ghostIdArray = chunk.GetNativeArray(GetArchetypeChunkComponentType<GhostIdentifier>());
 				for (var index = 0; index < ghostIdArray.Length; index++)
 				{
-					entities[x]   = entityArray[index];
-					ghostArray[x] = ghostIdArray[index];
+					entities[x]                                 = entityArray[index];
+					ghostArray[x]                               = ghostIdArray[index];
+					GhostToEntityMap[ghostIdArray[index].Value] = entityArray[index];
 					x++;
 				}
 			}

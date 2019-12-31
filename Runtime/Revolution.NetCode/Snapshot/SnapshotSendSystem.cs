@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
@@ -103,6 +104,7 @@ namespace Unity.NetCode
 				m_DataStream.Write(byte.MaxValue);
 				m_DataStream.Write(m_ServerSimulationSystemGroup.ServerTick);
 
+				Profiler.BeginSample("Compressing");
 				var compressed       = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
 				var compressedLength = LZ4Codec.MaximumOutputSize(buffer.Length);
 				{
@@ -110,6 +112,7 @@ namespace Unity.NetCode
 					//encoder = LZ4Level.L12_MAX;
 
 					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength, encoder);
+					Profiler.EndSample();
 					m_DataStream.Write(size);
 					m_DataStream.Write(buffer.Length);
 

@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 
@@ -15,7 +16,7 @@ namespace Unity.NetCode
 
         public unsafe void Schedule(DynamicBuffer<OutgoingRpcDataStreamBufferComponent> buffer, T data)
         {
-            DataStreamWriter writer = new DataStreamWriter(UnsafeUtility.SizeOf<T>() + 2 + 1, Allocator.Temp);
+            DataStreamWriter writer = new DataStreamWriter(math.max(UnsafeUtility.SizeOf<T>() + 2 + 1, 256), Allocator.Temp);
             if (buffer.Length == 0)
                 writer.Write((byte) NetworkStreamProtocol.Rpc);
             if (!rpcTypeHashToIndex.TryGetValue(rpcType, out var rpcIndex))

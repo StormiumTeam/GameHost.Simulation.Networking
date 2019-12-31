@@ -30,7 +30,7 @@ namespace Unity.NetCode
 
         protected override void OnUpdate()
         {
-            if (m_IncomingDataQuery.CalculateEntityCount() == 0)
+            if (m_IncomingDataQuery.IsEmptyIgnoreFilter)
                 return;
 
             foreach (var collection in m_CommandCollectionSystem.SystemProcessors.Values)

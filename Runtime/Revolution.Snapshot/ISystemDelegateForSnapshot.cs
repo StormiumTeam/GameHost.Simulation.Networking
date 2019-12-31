@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 
 namespace Revolution
@@ -17,6 +18,8 @@ namespace Revolution
 		///     The deserialize function
 		/// </summary>
 		FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate { get; }
+
+		NativeString512 NativeName { get; }
 
 		/// <summary>
 		///     Called when a snapshot system is beginning to serialize

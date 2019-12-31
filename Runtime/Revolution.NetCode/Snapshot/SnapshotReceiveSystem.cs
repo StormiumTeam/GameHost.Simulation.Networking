@@ -6,6 +6,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
@@ -93,6 +94,8 @@ namespace Unity.NetCode
 				var safetyData = reader.ReadByte(ref ctx);
 				var tick = reader.ReadUInt(ref ctx);
 				var needDelay = false;
+				
+				Profiler.BeginSample("Apply Delayed");
 				if (tick != m_PreviousTick + 1 && m_PreviousTick != uint.MaxValue)
 				{
 					var isReliable = false;
@@ -163,7 +166,9 @@ namespace Unity.NetCode
 						needDelay = true;
 					}
 				}
+				Profiler.EndSample();
 
+				Profiler.BeginSample("Apply current snapshot");
 				var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);
 				{
 					var compressedSize   = reader.ReadInt(ref ctx);
@@ -173,9 +178,11 @@ namespace Unity.NetCode
 
 					var uncompressedMemory = new NativeArray<byte>(uncompressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory); 
 						
+					Profiler.BeginSample("Decompress");
 					LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 
 						(byte*) uncompressedMemory.GetUnsafePtr(), uncompressedSize);
-
+					Profiler.EndSample();
+					
 					if (!needDelay)
 					{
 						ApplySnapshot(tick, uncompressedMemory);
@@ -194,6 +201,7 @@ namespace Unity.NetCode
 
 					snapshotAck.LastReceivedSnapshotByLocal = tick;
 				}
+				Profiler.EndSample();
 				EntityManager.SetComponentData(player, snapshotAck);
 			}
 
