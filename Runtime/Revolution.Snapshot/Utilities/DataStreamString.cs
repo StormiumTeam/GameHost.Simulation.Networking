@@ -104,6 +104,11 @@ namespace Utilities
 					for (var i = 0; i != charCount; i++) nameAddr[i] = reader.ReadPackedUInt(ref ctx, compressionModel);
 				}
 			}
+			else
+			{
+				// if nothing changed, use the baseline
+				str = baseline;
+			}
 
 			return str;
 		}
