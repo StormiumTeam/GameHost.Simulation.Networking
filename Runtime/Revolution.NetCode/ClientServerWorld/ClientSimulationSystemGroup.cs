@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Core;
 using Unity.Entities;
 using Unity.Profiling;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -109,6 +110,8 @@ namespace Unity.NetCode
                 if (m_interpolationTickFraction > 0.95f)
                     m_interpolationTickFraction = 1;
 
+                //Debug.Log(curInterpoationTick + " " + m_interpolationTickFraction);
+                
                 deltaTicks = curServerTick - m_previousServerTick;
                 if (deltaTicks > (uint) tickRate.MaxSimulationStepsPerFrame)
                     deltaTicks = (uint) tickRate.MaxSimulationStepsPerFrame;

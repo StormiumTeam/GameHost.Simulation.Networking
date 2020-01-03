@@ -182,7 +182,7 @@ namespace Unity.NetCode
 					LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 
 						(byte*) uncompressedMemory.GetUnsafePtr(), uncompressedSize);
 					Profiler.EndSample();
-					
+
 					if (!needDelay)
 					{
 						ApplySnapshot(tick, uncompressedMemory);
@@ -194,6 +194,7 @@ namespace Unity.NetCode
 						             .Reinterpret<byte>()
 						             .AddRange(uncompressedMemory);
 						EntityManager.SetComponentData(delayed, new DelayedSnapshotInfo {tick = tick});
+						Debug.Log("Add delayed snapshot to the table...");
 					}
 
 					uncompressedMemory.Dispose();

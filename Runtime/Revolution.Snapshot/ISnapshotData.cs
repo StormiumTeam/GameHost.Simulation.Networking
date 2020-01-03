@@ -55,45 +55,45 @@ namespace Revolution
         public static bool GetDataAtTick<T>(this DynamicBuffer<T> snapshotArray, uint targetTick,
             float targetTickFraction, out T snapshotData) where T : struct, ISnapshotData<T>, IInterpolatable<T>
         {
-            int beforeIdx = 0;
-            uint beforeTick = 0;
-            int afterIdx = 0;
-            uint afterTick = 0;
-            // If last tick is fractional before should not include the tick we are targeting, it should instead be included in after
-            if (targetTickFraction < 1)
-                --targetTick;
-            for (int i = 0; i < snapshotArray.Length; ++i)
-            {
-                uint tick = snapshotArray[i].Tick;
-                if (!SequenceHelpers.IsNewer(tick, targetTick) &&
-                    (beforeTick == 0 || SequenceHelpers.IsNewer(tick, beforeTick)))
-                {
-                    beforeIdx = i;
-                    beforeTick = tick;
-                }
+	        int  beforeIdx  = 0;
+	        uint beforeTick = 0;
+	        int  afterIdx   = 0;
+	        uint afterTick  = 0;
+	        // If last tick is fractional before should not include the tick we are targeting, it should instead be included in after
+	        if (targetTickFraction < 1)
+		        --targetTick;
+	        for (int i = 0; i < snapshotArray.Length; ++i)
+	        {
+		        uint tick = snapshotArray[i].Tick;
+		        if (!SequenceHelpers.IsNewer(tick, targetTick) &&
+		            (beforeTick == 0 || SequenceHelpers.IsNewer(tick, beforeTick)))
+		        {
+			        beforeIdx  = i;
+			        beforeTick = tick;
+		        }
 
-                if (SequenceHelpers.IsNewer(tick, targetTick) &&
-                    (afterTick == 0 || SequenceHelpers.IsNewer(afterTick, tick)))
-                {
-                    afterIdx = i;
-                    afterTick = tick;
-                }
-            }
+		        if (SequenceHelpers.IsNewer(tick, targetTick) &&
+		            (afterTick == 0 || SequenceHelpers.IsNewer(afterTick, tick)))
+		        {
+			        afterIdx  = i;
+			        afterTick = tick;
+		        }
+	        }
 
-            if (beforeTick == 0)
-            {
-                snapshotData = default(T);
-                return false;
-            }
+	        if (beforeTick == 0)
+	        {
+		        snapshotData = default(T);
+		        return false;
+	        }
 
-            snapshotData = snapshotArray[beforeIdx];
-            if (afterTick == 0)
-                return true;
-            var after = snapshotArray[afterIdx];
-            float afterWeight = (float) (targetTick - beforeTick) / (float) (afterTick - beforeTick);
-            if (targetTickFraction < 1)
-                afterWeight += targetTickFraction / (float) (afterTick - beforeTick);
-            snapshotData.Interpolate(after, afterWeight);
+	        snapshotData = snapshotArray[beforeIdx];
+	        if (afterTick == 0)
+		        return true;
+	        var   after       = snapshotArray[afterIdx];
+	        float afterWeight = (float) (targetTick - beforeTick) / (float) (afterTick - beforeTick);
+	        if (targetTickFraction < 1)
+		        afterWeight += targetTickFraction / (float) (afterTick - beforeTick);
+	        snapshotData.Interpolate(after, afterWeight);
             return true;
         }
 	}

@@ -85,6 +85,7 @@ namespace Revolution
 				}
 			Profiler.EndSample();
 
+			var debugRange = reader.ReadByte(ref ctx) == 1;
 			var entityLength     = reader.ReadInt(ref ctx);
 			var ghostUpdate      = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var ghostIndexUpdate = new NativeList<uint>(entityLength, Allocator.TempJob);
@@ -294,7 +295,7 @@ namespace Revolution
 				StreamData    = data,
 				ReadContext   = readCtxArray,
 				
-				DebugRange = true
+				DebugRange = debugRange
 			}.Run();
 			
 			delegateDeserializers.Dispose();
@@ -354,6 +355,7 @@ namespace Revolution
 					reader.Flush(ref parameters.Ctx);
 
 					parameters.SystemId = (uint) serializer.SystemId;
+					
 					invoke(ref parameters);
 				}
 

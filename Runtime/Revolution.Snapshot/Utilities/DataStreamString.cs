@@ -11,8 +11,8 @@ namespace Utilities
 		//
 		public static void WritePackedStringDelta(this DataStreamWriter writer, NativeString64 str, NativeString64 baseline, NetworkCompressionModel compressionModel)
 		{
-			var nameAddr = (uint*) UnsafeUtility.AddressOf(ref str) + sizeof(uint);
-			var baseAddr = (uint*) UnsafeUtility.AddressOf(ref baseline) + sizeof(uint);
+			var nameAddr = (uint*) &str.buffer.byte0000;
+			var baseAddr = (uint*) &baseline.buffer.byte0000;
 
 			var charCount = str.LengthInBytes;
 			var same      = charCount == baseline.LengthInBytes && UnsafeUtility.MemCmp(nameAddr, baseAddr, sizeof(uint) * NativeString64.MaxLength) == 0;
@@ -36,8 +36,8 @@ namespace Utilities
 		public static NativeString64 ReadPackedStringDelta(this DataStreamReader reader, ref DataStreamReader.Context ctx, NativeString64 baseline, NetworkCompressionModel compressionModel)
 		{
 			var str      = default(NativeString64);
-			var nameAddr = (uint*) UnsafeUtility.AddressOf(ref str) + sizeof(uint);
-			var baseAddr = (uint*) UnsafeUtility.AddressOf(ref baseline) + sizeof(uint);
+			var nameAddr = (uint*) &str.buffer.byte0000;
+			var baseAddr = (uint*) &baseline.buffer.byte0000;
 
 			var same = reader.ReadPackedUInt(ref ctx, compressionModel) == 0;
 			if (!same)
@@ -52,6 +52,11 @@ namespace Utilities
 					str.LengthInBytes = (ushort) charCount;
 					for (var i = 0; i != charCount; i++) nameAddr[i] = reader.ReadPackedUInt(ref ctx, compressionModel);
 				}
+			}
+			else
+			{
+				// if nothing changed, use the baseline
+				str = baseline;
 			}
 
 			return str;

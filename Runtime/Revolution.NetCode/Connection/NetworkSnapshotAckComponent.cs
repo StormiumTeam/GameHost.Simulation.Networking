@@ -30,7 +30,7 @@ namespace Unity.NetCode
             if (remoteTime != 0 && SequenceHelpers.IsNewer(remoteTime, LastReceivedRemoteTime))
             {
                 LastReceivedRemoteTime = remoteTime;
-                LastReceiveTimestamp = localTime;
+                LastReceiveTimestamp   = localTime;
                 if (localTimeMinusRTT == 0)
                     return;
                 uint lastReceivedRTT = localTime - localTimeMinusRTT;

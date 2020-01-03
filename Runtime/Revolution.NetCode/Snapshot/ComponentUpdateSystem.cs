@@ -174,32 +174,31 @@ namespace Unity.NetCode
 			{
 				var jobData    = m_ReceiveSystem.JobData;
 				var targetTick = m_ClientGroup.InterpolationTick;
+				var fraction = m_ClientGroup.InterpolationTickFraction;
 
 				inputDeps = new _InterpolatedJob
 				{
 					jobData    = jobData,
-					targetTick = targetTick
+					targetTick = targetTick,
+					fraction = fraction
 				}.Schedule(m_RequiredQuery, inputDeps);
 			}
 
 			return inputDeps;
 		}
 
-		[BurstCompile]
+		//[BurstCompile]
 		private struct _InterpolatedJob : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
 			public DeserializeClientData jobData;
 
 			public uint targetTick;
+			public float fraction;
 
 			public void Execute(DynamicBuffer<TSnapshot> snapshots, ref TComponent component)
 			{
-				if (!snapshots.GetDataAtTick(targetTick, out var snapshotData))
-				{
-					return;
-				}
-
+				snapshots.GetDataAtTick(targetTick, fraction, out var snapshotData);
 				snapshotData.SynchronizeTo(ref component, jobData);
 			}
 		}

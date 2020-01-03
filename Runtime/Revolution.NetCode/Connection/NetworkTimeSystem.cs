@@ -1,6 +1,7 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -182,6 +183,10 @@ namespace Unity.NetCode
                 subidiff = 1f-subidiff;
             }
             subInterpolateTargetTick = subidiff;
+            if (subInterpolateTargetTick > 1)
+                subInterpolateTargetTick = 1;
+            else if (subInterpolateTargetTick < 0)
+                subInterpolateTargetTick = 0;
         }
     }
 }

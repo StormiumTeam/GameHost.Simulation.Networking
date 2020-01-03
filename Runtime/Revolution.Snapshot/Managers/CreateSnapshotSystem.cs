@@ -318,7 +318,9 @@ namespace Revolution
 
 			baseline.BeginSerialize(this, chunks);
 
+			var debugRange = false;
 			var writer = new DataStreamWriter(4096, Allocator.Persistent);
+			writer.Write((byte) (debugRange ? 1 : 0)); // DEBUG RANGE
 
 			// Before we write anything, we need to check if the ghosts are sorted correctly to not have problems client-side
 			var deferredEntityCount = writer.Write(0);
@@ -440,7 +442,7 @@ namespace Revolution
 				StreamWriter = writer,
 				OutgoingData = outgoing,
 				
-				DebugRange = true
+				DebugRange = debugRange
 			}.Schedule(inputDeps);
 			inputDeps = delegateSerializers.Dispose(inputDeps);
 			inputDeps.Complete();

@@ -23,7 +23,7 @@ namespace Unity.NetCode
             if (SimulationTickRate <= 0)
                 SimulationTickRate = 60;
             if (MaxSimulationStepsPerFrame <= 0)
-                MaxSimulationStepsPerFrame = 1;
+                MaxSimulationStepsPerFrame = 4;
         }
     }
 
