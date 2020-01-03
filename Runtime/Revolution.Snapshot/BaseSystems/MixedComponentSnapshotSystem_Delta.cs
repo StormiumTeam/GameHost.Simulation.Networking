@@ -16,7 +16,7 @@ namespace Revolution
 		{
 			return $"MixedComponentSnapshotSystemDelta<{typeof(TComponent)}>";
 		}
-		
+
 		public override NativeArray<ComponentType> EntityComponents =>
 			new NativeArray<ComponentType>(1, Allocator.Temp)
 			{
@@ -157,6 +157,7 @@ namespace Revolution
 		public override void OnBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
+			sharedData.Delta              = DeltaType;
 			sharedData.ComponentTypeArch  = GetArchetypeChunkComponentType<TComponent>(true);
 			sharedData.SnapshotFromEntity = GetComponentDataFromEntity<TComponent>();
 			sharedData.SetupData.BeginSetup(this
@@ -176,6 +177,7 @@ namespace Revolution
 #endif
 
 			ref var sharedData = ref GetShared();
+			sharedData.Delta              = DeltaType;
 			sharedData.SnapshotFromEntity = snapshotBuffer;
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS

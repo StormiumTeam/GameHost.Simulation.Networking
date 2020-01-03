@@ -185,7 +185,7 @@ namespace Unity.NetCode
 			return inputDeps;
 		}
 
-		//[BurstCompile]
+		[BurstCompile]
 		private struct _InterpolatedJob : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
@@ -197,7 +197,6 @@ namespace Unity.NetCode
 			{
 				if (!snapshots.GetDataAtTick(targetTick, out var snapshotData))
 				{
-					Debug.Log($"{snapshots.GetLastBaselineReadOnly().Tick} -> {typeof(TComponent)}");
 					return;
 				}
 
