@@ -74,13 +74,6 @@ namespace Unity.NetCode
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IInterpolatable<TSnapshot>
 	{
-		public ComponentUpdateSystemInterpolated() : base(false)
-		{
-		}
-
-		public ComponentUpdateSystemInterpolated(bool isPredicted) : base(isPredicted)
-		{
-		}
 	}
 	
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
@@ -89,7 +82,7 @@ namespace Unity.NetCode
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IInterpolatable<TSnapshot>
 		where TSetup : struct, ISetup
 	{
-		protected readonly bool IsPredicted;
+		protected virtual bool IsPredicted { get; }
 
 		private EntityQuery m_RequiredQuery;
 		private EntityQuery m_ComponentWithoutPrediction;
@@ -100,20 +93,12 @@ namespace Unity.NetCode
 
 		private uint m_LastPredictTick;
 
-		public ComponentUpdateSystemInterpolated() : this(false)
-		{
-		}
-
-		public ComponentUpdateSystemInterpolated(bool isPredicted)
-		{
-			IsPredicted = isPredicted;
-		}
+		protected virtual bool FullFraction => false;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			Debug.Log("Created!");
 			m_RequiredQuery = IsPredicted
 				? GetEntityQuery(new EntityQueryDesc {All = new ComponentType[] {typeof(TSnapshot), typeof(TComponent), typeof(Predicted<TSnapshot>), typeof(GhostPredictedComponent)}})
 				: GetEntityQuery(new EntityQueryDesc {All = new ComponentType[] {typeof(TSnapshot), typeof(TComponent)}});
@@ -174,7 +159,7 @@ namespace Unity.NetCode
 			{
 				var jobData    = m_ReceiveSystem.JobData;
 				var targetTick = m_ClientGroup.InterpolationTick;
-				var fraction = m_ClientGroup.InterpolationTickFraction;
+				var fraction = FullFraction ? 1 : m_ClientGroup.InterpolationTickFraction;
 
 				inputDeps = new _InterpolatedJob
 				{

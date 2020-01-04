@@ -93,9 +93,18 @@ namespace Revolution
 			});
 		}
 
+		protected virtual void AddComponentsToQuery(EntityQuery query)
+		{
+			
+		}
+		
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
-			if (!m_EntityWithoutComponentQuery.IsEmptyIgnoreFilter) EntityManager.AddComponent(m_EntityWithoutComponentQuery, typeof(TComponent));
+			if (!m_EntityWithoutComponentQuery.IsEmptyIgnoreFilter)
+			{
+				AddComponentsToQuery(m_EntityWithoutComponentQuery);
+				EntityManager.AddComponent(m_EntityWithoutComponentQuery, typeof(TComponent));
+			}
 
 			return base.OnUpdate(inputDeps);
 		}

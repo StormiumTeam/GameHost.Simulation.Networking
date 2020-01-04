@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -12,10 +13,13 @@ namespace Revolution
 	public class SnapshotWithDelegateSystemGroup : ComponentSystemGroup
 	{
 		private List<ISystemDelegateForSnapshot> m_DelegateSystems = new List<ISystemDelegateForSnapshot>();
-
+		private SnapshotManager snapshotMgr;
+		
 		public override void SortSystemUpdateList()
 		{
 			base.SortSystemUpdateList();
+
+			snapshotMgr = World.GetExistingSystem<SnapshotManager>();
 
 			m_DelegateSystems.Clear();
 			foreach (var sys in Systems)
@@ -33,13 +37,14 @@ namespace Revolution
 				serializers.Add(new SortDelegate<OnSerializeSnapshot>
 				{
 					Value    = sys.SerializeDelegate,
-					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(sys)
+					SystemId = (int) snapshotMgr.GetSystemId(sys)
 				});
 			}
 		}
 
 		public void BeginDeserialize(Entity client, ref NativeList<SortDelegate<OnDeserializeSnapshot>> deserializers)
 		{
+			deserializers.Capacity = math.max(deserializers.Capacity, m_DelegateSystems.Capacity);
 			foreach (var sys in m_DelegateSystems)
 			{
 				sys.OnBeginDeserialize(client);
@@ -47,7 +52,7 @@ namespace Revolution
 				{
 					Name     = sys.NativeName,
 					Value    = sys.DeserializeDelegate,
-					SystemId = (int) World.GetExistingSystem<SnapshotManager>().GetSystemId(sys)
+					SystemId = (int) snapshotMgr.GetSystemId(sys)
 				});
 			}
 		}
