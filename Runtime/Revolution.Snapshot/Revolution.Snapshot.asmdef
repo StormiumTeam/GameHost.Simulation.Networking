@@ -1,6 +1,7 @@
 {
   "name": "Revolution.Snapshot",
   "references": [
+    "package.guerro.shared",
     "Unity.Burst",
     "Unity.Entities",
     "Unity.Entities.Hybrid",

@@ -28,8 +28,6 @@ namespace Unity.NetCode
 
         public virtual bool Initialize(string defaultWorldName)
         {
-            Debug.Log($"INITIALIZE CLIENTSERVERBOOTSTRAP");
-            
             var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default);
             GenerateSystemLists(systems);
 
