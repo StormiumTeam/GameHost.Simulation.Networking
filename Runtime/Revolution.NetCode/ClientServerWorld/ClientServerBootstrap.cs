@@ -91,12 +91,22 @@ namespace Unity.NetCode
                 var system = world.GetOrCreateSystem(systemType);
                 presentationGroup.AddSystemToUpdateList(system);
             }
+
             foreach (var systemParentType in s_State.ClientChildSystems)
             {
                 var system = world.GetOrCreateSystem(systemParentType.Item1);
-                var group = world.GetOrCreateSystem(systemParentType.Item2) as ComponentSystemGroup;
-                group.AddSystemToUpdateList(system);
+                var group  = world.GetOrCreateSystem(systemParentType.Item2) as ComponentSystemGroup;
+                try
+                {
+                    group.AddSystemToUpdateList(system);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Crashed with {systemParentType.Item1} {systemParentType.Item2}");
+                    throw;
+                }
             }
+
             initializationGroup.SortSystemUpdateList();
             simulationGroup.SortSystemUpdateList();
             presentationGroup.SortSystemUpdateList();

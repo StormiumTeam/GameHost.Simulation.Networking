@@ -326,9 +326,15 @@ namespace Revolution
 			var deferredEntityCount = writer.Write(0);
 			{
 				var remake = baseline.ProgressiveGhostIds.Length != ghostArray.Length;
-				var dI     = 0;
-
 				if (!remake)
+				{
+					if (sizeof(GhostIdentifier) != sizeof(uint)) throw new InvalidOperationException("Size mismatch");
+					
+					// fast
+					remake = UnsafeUtility.MemCmp(ghostArray.GetUnsafePtr(), baseline.ProgressiveGhostIds.GetUnsafePtr(), sizeof(uint) * ghostArray.Length) != 0;
+					
+					// slow
+					/*var dI = 0;
 					for (var i = 0; i != ghostArray.Length; i++)
 					{
 						if (ghostArray[i].Value == baseline.ProgressiveGhostIds[dI++])
@@ -336,7 +342,8 @@ namespace Revolution
 
 						remake = true;
 						break;
-					}
+					}*/
+				}
 
 				if (remake)
 				{
@@ -429,11 +436,9 @@ namespace Revolution
 					writer.Write(-1);
 				}
 			}
-
-			var delegateSerializers = new NativeList<SortDelegate<OnSerializeSnapshot>>(m_SnapshotManager.IdToSystems.Count, Allocator.TempJob);
+			
 			var delegateGroup       = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
-
-			delegateGroup.BeginSerialize(baseline.Client, ref delegateSerializers);
+			delegateGroup.BeginSerialize(baseline.Client, out var delegateSerializers);
 
 			inputDeps = new SerializeJob
 			{
@@ -444,7 +449,6 @@ namespace Revolution
 				
 				DebugRange = debugRange
 			}.Schedule(inputDeps);
-			inputDeps = delegateSerializers.Dispose(inputDeps);
 			inputDeps.Complete();
 
 			writer.Dispose();

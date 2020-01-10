@@ -7,8 +7,7 @@ using Unity.Networking.Transport.Utilities;
 
 namespace Unity.NetCode
 {
-    [UpdateInGroup(typeof(GhostSimulationSystemGroup))]
-    public class GhostPredictionSystemGroup : ComponentSystemGroup
+    public abstract class BaseGhostPredictionSystemGroup : ComponentSystemGroup
     {
         public static bool ShouldPredict<T>(uint tick, Predicted<T> predicted)
         {
@@ -23,8 +22,12 @@ namespace Unity.NetCode
         public  uint                  PredictingTick;
         public  NativeArray<uint>     OldestPredictedTick;
         private NativeList<JobHandle> predictedTickWriters;
-        private bool                  isServer;
+        public bool                  isServer;
 
+        internal uint GroupOldestPredictedTick;
+
+        private bool isMainGroup;
+        
         public void AddPredictedTickWriter(JobHandle handle)
         {
             if (predictedTickWriters.Length >= predictedTickWriters.Capacity)
@@ -42,6 +45,7 @@ namespace Unity.NetCode
             OldestPredictedTick  = new NativeArray<uint>(JobsUtility.MaxJobThreadCount, Allocator.Persistent);
             predictedTickWriters = new NativeList<JobHandle>(16, Allocator.Persistent);
             isServer             = World.GetExistingSystem<ServerSimulationSystemGroup>() != null;
+            isMainGroup = GetType() == typeof(GhostPredictionSystemGroup);
         }
 
         protected override void OnDestroy()
@@ -73,15 +77,24 @@ namespace Unity.NetCode
                     predictedTickWriters[0].Complete();
                 predictedTickWriters.Clear();
                 uint oldestAppliedTick = 0;
-                for (int i = 0; i < OldestPredictedTick.Length; ++i)
+                if (isMainGroup)
                 {
-                    if (OldestPredictedTick[i] != 0)
+                    for (int i = 0; i < OldestPredictedTick.Length; ++i)
                     {
-                        if (oldestAppliedTick == 0 ||
-                            SequenceHelpers.IsNewer(oldestAppliedTick, OldestPredictedTick[i]))
-                            oldestAppliedTick = OldestPredictedTick[i];
-                        OldestPredictedTick[i] = 0;
+                        if (OldestPredictedTick[i] != 0)
+                        {
+                            if (oldestAppliedTick == 0 ||
+                                SequenceHelpers.IsNewer(oldestAppliedTick, OldestPredictedTick[i]))
+                                oldestAppliedTick = OldestPredictedTick[i];
+                            OldestPredictedTick[i] = 0;
+                        }
                     }
+
+                    GroupOldestPredictedTick = oldestAppliedTick;
+                }
+                else
+                {
+                    oldestAppliedTick = World.GetExistingSystem<GhostPredictionSystemGroup>().GroupOldestPredictedTick;
                 }
 
                 var simulationSystemGroup = World.GetExistingSystem<ClientSimulationSystemGroup>();
@@ -102,27 +115,32 @@ namespace Unity.NetCode
                     --targetTick;
                     elapsedTime -= simulationSystemGroup.ServerTickDeltaTime * simulationSystemGroup.ServerTickFraction;
                 }
-                
+
                 for (uint i = oldestAppliedTick + 1; i != oldestAppliedTick + 3; ++i)
                 {
                     uint tickAge = targetTick - i;
                     World.SetTime(new TimeData(elapsedTime - simulationSystemGroup.ServerTickDeltaTime * tickAge, simulationSystemGroup.ServerTickDeltaTime));
-                    PredictingTick = i; 
+                    PredictingTick = i;
                     base.OnUpdate();
                 }
-                
+
                 //Debug.Log($"Client Simulating From={oldestAppliedTick + 1} to {targetTick + 1}");
 
-                /*if (simulationSystemGroup.ServerTickFraction < 1)
+                if (simulationSystemGroup.ServerTickFraction < 1)
                 {
                     PredictingTick = targetTick + 1;
                     World.SetTime(new TimeData(previousTime.ElapsedTime, simulationSystemGroup.ServerTickDeltaTime *
                                                                          simulationSystemGroup.ServerTickFraction));
                     base.OnUpdate();
-                }*/
+                }
 
                 World.SetTime(previousTime);
             }
         }
+    }
+
+    [UpdateInGroup(typeof(GhostSimulationSystemGroup))]
+    public sealed class GhostPredictionSystemGroup : BaseGhostPredictionSystemGroup
+    {
     }
 }

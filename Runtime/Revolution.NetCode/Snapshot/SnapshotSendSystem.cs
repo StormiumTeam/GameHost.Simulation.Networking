@@ -46,13 +46,16 @@ namespace Unity.NetCode
 
 		protected override void OnUpdate()
 		{
-			using (var entities = m_ConnectionWithoutSnapshotBufferGroup.ToEntityArray(Allocator.TempJob))
+			if (!m_ConnectionWithoutSnapshotBufferGroup.IsEmptyIgnoreFilter)
 			{
-				foreach (var entity in entities)
+				using (var entities = m_ConnectionWithoutSnapshotBufferGroup.ToEntityArray(Allocator.TempJob))
 				{
-					var buffer = EntityManager.AddBuffer<ClientSnapshotBuffer>(entity);
-					buffer.ResizeUninitialized(1200);
-					buffer.Clear();
+					foreach (var entity in entities)
+					{
+						var buffer = EntityManager.AddBuffer<ClientSnapshotBuffer>(entity);
+						buffer.ResizeUninitialized(1200);
+						buffer.Clear();
+					}
 				}
 			}
 

@@ -276,12 +276,11 @@ namespace Revolution
 			ghostIndexUpdate.Dispose();
 			entityUpdate.Dispose();
 			archetypeUpdate.Dispose();
-
-			var delegateDeserializers = new NativeList<SortDelegate<OnDeserializeSnapshot>>(m_SnapshotManager.IdToSystems.Count, Allocator.TempJob);
+			
 			var delegateGroup         = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
 
 			Profiler.BeginSample("DelegateGroup.BeginDeserialize");
-			delegateGroup.BeginDeserialize(baseline.Client, ref delegateDeserializers);
+			delegateGroup.BeginDeserialize(baseline.Client, out var delegateDeserializers);
 			Profiler.EndSample();
 			
 			var readCtxArray = new NativeArray<DataStreamReader.Context>(1, Allocator.TempJob)
@@ -298,7 +297,6 @@ namespace Revolution
 				DebugRange = debugRange
 			}.Run();
 			
-			delegateDeserializers.Dispose();
 			readCtxArray.Dispose();
 
 			Profiler.BeginSample("Apply Snapshots Group");

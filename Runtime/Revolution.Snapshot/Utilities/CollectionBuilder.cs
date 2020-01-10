@@ -5,7 +5,7 @@ namespace Revolution
 {
 	public class CollectionBuilder<T>
 	{
-		private readonly Dictionary<uint, T> m_Dictionary = new Dictionary<uint, T>();
+		private readonly FastDictionary<uint, T> m_Dictionary = new FastDictionary<uint, T>();
 
 		public CollectionBuilder<T> Add(T val)
 		{
@@ -21,7 +21,7 @@ namespace Revolution
 			return this;
 		}
 
-		public Dictionary<uint, T> Build()
+		public FastDictionary<uint, T> Build()
 		{
 			return m_Dictionary;
 		}

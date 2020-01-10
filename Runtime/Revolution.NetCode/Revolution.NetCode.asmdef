@@ -10,7 +10,8 @@
     "Unity.Collections",
     "Unity.Mathematics",
     "Unity.Networking.Transport",
-    "Revolution.Snapshot"
+    "Revolution.Snapshot",
+    "package.guerro.shared"
   ],
   "allowUnsafeCode": true
 }

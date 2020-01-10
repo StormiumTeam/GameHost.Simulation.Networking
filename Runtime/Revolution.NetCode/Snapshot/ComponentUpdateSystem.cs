@@ -95,6 +95,8 @@ namespace Unity.NetCode
 
 		protected virtual bool FullFraction => false;
 
+		public JobHandle Dependency { get; private set; }
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
@@ -159,7 +161,7 @@ namespace Unity.NetCode
 			{
 				var jobData    = m_ReceiveSystem.JobData;
 				var targetTick = m_ClientGroup.InterpolationTick;
-				var fraction = FullFraction ? 1 : m_ClientGroup.InterpolationTickFraction;
+				var fraction = /*FullFraction ? 1 : */m_ClientGroup.InterpolationTickFraction;
 
 				inputDeps = new _InterpolatedJob
 				{
@@ -168,8 +170,8 @@ namespace Unity.NetCode
 					fraction = fraction
 				}.Schedule(m_RequiredQuery, inputDeps);
 			}
-
-			return inputDeps;
+			
+			return Dependency = inputDeps;
 		}
 
 		//[BurstCompile]

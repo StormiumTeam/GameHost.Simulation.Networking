@@ -13,8 +13,27 @@ namespace Revolution
 	public class SnapshotWithDelegateSystemGroup : ComponentSystemGroup
 	{
 		private List<ISystemDelegateForSnapshot> m_DelegateSystems = new List<ISystemDelegateForSnapshot>();
-		private SnapshotManager snapshotMgr;
+		private NativeList<SortDelegate<OnDeserializeSnapshot>> m_OnDeserializeList;
+		private NativeList<SortDelegate<OnSerializeSnapshot>> m_OnSerializeList;
 		
+		private SnapshotManager snapshotMgr;
+
+		protected override void OnCreate()
+		{
+			base.OnCreate();
+
+			m_OnDeserializeList = new NativeList<SortDelegate<OnDeserializeSnapshot>>(Allocator.Persistent);
+			m_OnSerializeList   = new NativeList<SortDelegate<OnSerializeSnapshot>>(Allocator.Persistent);
+		}
+
+		protected override void OnDestroy()
+		{
+			base.OnDestroy();
+
+			m_OnDeserializeList.Dispose();
+			m_OnSerializeList.Dispose();
+		}
+
 		public override void SortSystemUpdateList()
 		{
 			base.SortSystemUpdateList();
@@ -22,39 +41,58 @@ namespace Revolution
 			snapshotMgr = World.GetExistingSystem<SnapshotManager>();
 
 			m_DelegateSystems.Clear();
+			m_OnDeserializeList.Clear();
+			m_OnSerializeList.Clear();
 			foreach (var sys in Systems)
 			{
 				if (sys is ISystemDelegateForSnapshot castSys)
+				{
 					m_DelegateSystems.Add(castSys);
+					m_OnDeserializeList.Add(new SortDelegate<OnDeserializeSnapshot>
+					{
+						Name     = castSys.NativeName,
+						SystemId = (int) snapshotMgr.GetSystemId(sys),
+						Value    = castSys.DeserializeDelegate
+					});
+					m_OnSerializeList.Add(new SortDelegate<OnSerializeSnapshot>
+					{
+						Name     = castSys.NativeName,
+						SystemId = (int) snapshotMgr.GetSystemId(sys),
+						Value    = castSys.SerializeDelegate
+					});
+				}
 			}
 		}
 
-		public void BeginSerialize(Entity client, ref NativeList<SortDelegate<OnSerializeSnapshot>> serializers)
+		public void BeginSerialize(Entity client, out NativeList<SortDelegate<OnSerializeSnapshot>> serializers)
 		{
 			foreach (var sys in m_DelegateSystems)
 			{
 				sys.OnBeginSerialize(client);
-				serializers.Add(new SortDelegate<OnSerializeSnapshot>
+				/*serializers.Add(new SortDelegate<OnSerializeSnapshot>
 				{
 					Value    = sys.SerializeDelegate,
 					SystemId = (int) snapshotMgr.GetSystemId(sys)
-				});
+				});*/
 			}
+
+			serializers = m_OnSerializeList;
 		}
 
-		public void BeginDeserialize(Entity client, ref NativeList<SortDelegate<OnDeserializeSnapshot>> deserializers)
+		public void BeginDeserialize(Entity client, out NativeList<SortDelegate<OnDeserializeSnapshot>> deserializers)
 		{
-			deserializers.Capacity = math.max(deserializers.Capacity, m_DelegateSystems.Capacity);
 			foreach (var sys in m_DelegateSystems)
 			{
 				sys.OnBeginDeserialize(client);
-				deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
+				/*deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
 				{
 					Name     = sys.NativeName,
 					Value    = sys.DeserializeDelegate,
 					SystemId = (int) snapshotMgr.GetSystemId(sys)
-				});
+				});*/
 			}
+
+			deserializers = m_OnDeserializeList;
 		}
 	}
 
@@ -120,20 +158,20 @@ namespace Revolution
 	{
 		public Dictionary<uint, NativeArray<uint>> ArchetypeToSystems;
 
-		public  Dictionary<uint, object> IdToSystems;
+		public FastDictionary<uint, object> IdToSystems;
 		private bool                     m_IsAddingToFixedCollection;
 		private bool                     m_IsDynamicSystemId;
-		public  Dictionary<object, uint> SystemsToId;
+		public  FastDictionary<object, uint> SystemsToId;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			IdToSystems = new Dictionary<uint, object>
+			IdToSystems = new FastDictionary<uint, object>
 			{
 				[0] = null
 			};
-			SystemsToId         = new Dictionary<object, uint>();
+			SystemsToId         = new FastDictionary<object, uint>();
 			m_IsDynamicSystemId = true;
 
 			ArchetypeToSystems    = new Dictionary<uint, NativeArray<uint>>(64);
@@ -155,7 +193,7 @@ namespace Revolution
 		///     Set a fixed collection of system.
 		/// </summary>
 		/// <param name="systems"></param>
-		public void SetFixedSystems(Dictionary<uint, object> systems)
+		public void SetFixedSystems(FastDictionary<uint, object> systems)
 		{
 			if (systems[0] != null)
 				throw new InvalidOperationException("The first element in the systems dictionary should be null.");

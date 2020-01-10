@@ -10,13 +10,13 @@ namespace Unity.NetCode
 	[UpdateInGroup(typeof(ClientAndServerInitializationSystemGroup))]
 	public class CommandCollectionSystem : ComponentSystem
 	{
-		public Dictionary<uint, CommandProcessSystemBase> SystemProcessors;
+		public FastDictionary<uint, CommandProcessSystemBase> SystemProcessors;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			SystemProcessors = new Dictionary<uint, CommandProcessSystemBase>();
+			SystemProcessors = new FastDictionary<uint, CommandProcessSystemBase>();
 		}
 
 		protected override void OnUpdate()
