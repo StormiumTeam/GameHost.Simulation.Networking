@@ -32,11 +32,14 @@ namespace Revolution
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
 				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
+
+				bool success;
+				GhostSnapshot ghostSnapshot;
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
-					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out var success);
+					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)
 					{
 						baseline = ref ghostSnapshot.AllocateSystemData<TSnapshot>(parameters.SystemId);

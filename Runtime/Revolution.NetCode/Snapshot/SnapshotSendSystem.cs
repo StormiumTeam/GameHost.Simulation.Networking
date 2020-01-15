@@ -5,11 +5,13 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
+using Unity.Transforms;
 using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
 	[UpdateInGroup(typeof(ServerSimulationSystemGroup))]
+	[UpdateAfter(typeof(TransformSystemGroup))]
 	public unsafe class SnapshotSendSystem : ComponentSystem
 	{
 		private Dictionary<Entity, SerializeClientData> m_SerializeLookup;

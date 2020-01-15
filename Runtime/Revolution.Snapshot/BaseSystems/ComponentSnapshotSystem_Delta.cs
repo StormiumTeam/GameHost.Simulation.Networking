@@ -59,6 +59,7 @@ namespace Revolution
 				clientData.Version = 0;
 			}
 
+			GhostSnapshot ghostSnapshot;
 			for (int c = 0, length = chunks.Length; c < length; c++)
 			{
 				var chunk          = chunks[c];
@@ -80,7 +81,7 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)

@@ -21,7 +21,7 @@ namespace Revolution
 		where TComponent : struct, IComponentData
 		where TSharedData : struct
 	{
-		public const uint                                 SnapshotHistorySize = 16;
+		public const uint                                 SnapshotHistorySize = SnapshotDataExtensions.SnapshotHistorySize;
 		private      BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
 		private         BurstDelegate<OnSerializeSnapshot> m_SerializeDelegate;

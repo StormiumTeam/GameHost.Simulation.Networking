@@ -21,19 +21,19 @@ namespace Unity.NetCode
 		public uint PredictionStartTick;
 	}
 	
-	public class ComponentUpdateSystemDirect<TComponent, TSnapshot> : ComponentUpdateSystemDirect<TComponent, TSnapshot, DefaultSetup>
+	public abstract class ComponentUpdateSystemDirect<TComponent, TSnapshot> : ComponentUpdateSystemDirect<TComponent, TSnapshot, DefaultSetup>
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>
 	{
 	}
 
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
-	public class ComponentUpdateSystemDirect<TComponent, TSnapshot, TSetup> : JobComponentSystem
+	public abstract class ComponentUpdateSystemDirect<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>
 		where TSetup : struct, ISetup
 	{
-		[BurstCompile]
+		//[BurstCompile]
 		private struct JobDirect : IJobForEach_BC<TSnapshot, TComponent>
 		{
 			[ReadOnly]
@@ -70,14 +70,14 @@ namespace Unity.NetCode
 	// INTERPOLATED
 	// -------------------------------------------------------------- //
 	
-	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot> : ComponentUpdateSystemInterpolated<TComponent, TSnapshot, DefaultSetup>
+	public abstract class ComponentUpdateSystemInterpolated<TComponent, TSnapshot> : ComponentUpdateSystemInterpolated<TComponent, TSnapshot, DefaultSetup>
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, DefaultSetup>, IInterpolatable<TSnapshot>
 	{
 	}
 	
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
-	public class ComponentUpdateSystemInterpolated<TComponent, TSnapshot, TSetup> : JobComponentSystem
+	public abstract class ComponentUpdateSystemInterpolated<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IInterpolatable<TSnapshot>
 		where TSetup : struct, ISetup
@@ -185,7 +185,8 @@ namespace Unity.NetCode
 
 			public void Execute(DynamicBuffer<TSnapshot> snapshots, ref TComponent component)
 			{
-				snapshots.GetDataAtTick(targetTick, fraction, out var snapshotData);
+				if (!snapshots.GetDataAtTick(targetTick, fraction, out var snapshotData))
+					snapshotData = snapshots.GetLastBaseline();
 				snapshotData.SynchronizeTo(ref component, jobData);
 			}
 		}

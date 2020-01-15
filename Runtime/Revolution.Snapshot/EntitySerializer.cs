@@ -25,7 +25,7 @@ namespace Revolution
 			return $"EntitySerializer<{typeof(TSerializer)}, {typeof(TSnapshot)}, {typeof(TSharedData)}>";
 		}
 
-		public const uint                                 SnapshotHistorySize = 16;
+		public const uint                                 SnapshotHistorySize = SnapshotDataExtensions.SnapshotHistorySize;
 		private      BurstDelegate<OnDeserializeSnapshot> m_DeserializeDelegate;
 
 		private         BurstDelegate<OnSerializeSnapshot> m_SerializeDelegate;

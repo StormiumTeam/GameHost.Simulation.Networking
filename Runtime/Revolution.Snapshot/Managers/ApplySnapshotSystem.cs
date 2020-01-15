@@ -287,16 +287,8 @@ namespace Revolution
 			{
 				[0] = ctx
 			};
-			new DeserializeJob
-			{
-				Deserializers = delegateDeserializers,
-				ClientData    = baseline,
-				StreamData    = data,
-				ReadContext   = readCtxArray,
-				
-				DebugRange = debugRange
-			}.Run();
-			
+			m_SnapshotManager.CustomSerializer.Deserialize(baseline, delegateDeserializers, data, readCtxArray, debugRange);
+
 			readCtxArray.Dispose();
 
 			Profiler.BeginSample("Apply Snapshots Group");
@@ -324,37 +316,45 @@ namespace Revolution
 			public void Execute()
 			{
 				var reader  = new DataStreamReader(StreamData);
-				
-				Deserializers.Sort();
-
 				var parameters = new DeserializeParameters
 				{
 					m_ClientData = new Blittable<DeserializeClientData>(ref ClientData),
 					Stream       = reader,
 					Ctx          = ReadContext[0]
 				};
-				for (var i = 0; i < Deserializers.Length; i++)
+
+				if (DebugRange)
 				{
-					var serializer = Deserializers[i];
-					var invoke     = serializer.Value.Invoke;
-
-					if (DebugRange)
+					for (var i = 0; i < Deserializers.Length; i++)
 					{
-						var byteRead   = reader.GetBytesRead(ref parameters.Ctx);
-						var currLength = reader.ReadInt(ref parameters.Ctx);
-						if (currLength != byteRead)
+						var serializer = Deserializers[i];
+						var invoke     = serializer.Value.Invoke;
+
+						if (DebugRange)
 						{
-							ThrowError(currLength, byteRead, i, serializer);
-							return;
+							var byteRead   = reader.GetBytesRead(ref parameters.Ctx);
+							var currLength = reader.ReadInt(ref parameters.Ctx);
+							if (currLength != byteRead)
+							{
+								ThrowError(currLength, byteRead, i, serializer);
+								return;
+							}
 						}
+
+						parameters.SystemId = serializer.SystemId;
+						invoke(ref parameters);
 					}
-
-					//reader.ReadByte(ref readCtx);
-					reader.Flush(ref parameters.Ctx);
-
-					parameters.SystemId = (uint) serializer.SystemId;
-					
-					invoke(ref parameters);
+				}
+				else
+				{
+					for (int i = 0, deserializeLength = Deserializers.Length; i < deserializeLength; i++)
+					{
+						var serializer = Deserializers[i];
+						var invoke     = serializer.Value.Invoke;
+						
+						parameters.SystemId = serializer.SystemId;
+						invoke(ref parameters);
+					}
 				}
 
 				ReadContext[0] = parameters.Ctx;

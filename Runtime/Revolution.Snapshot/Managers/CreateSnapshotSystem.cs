@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -24,8 +25,7 @@ namespace Revolution
 		private EntityQuery                          m_GhostWithoutIdentifierQuery;
 		private EntityQuery                          m_InvalidGhostQuery;
 		private SnapshotManager                      m_SnapshotManager;
-		private Dictionary<Entity, NativeList<byte>> m_TemporaryOutgoingData;
-
+		
 		public NativeHashMap<uint, Entity> GhostToEntityMap;
 
 		protected override void OnCreate()
@@ -53,7 +53,6 @@ namespace Revolution
 			m_GhostId = 1;
 
 			m_ChunkToGhostArchetype = new NativeHashMap<ArchetypeChunk, ArchData>(128, Allocator.Persistent);
-			m_TemporaryOutgoingData = new Dictionary<Entity, NativeList<byte>>();
 			m_GhostIdQueue          = new NativeQueue<uint>(Allocator.Persistent);
 			m_EntityToChunk         = new Dictionary<Entity, ArchetypeChunk>();
 		}
@@ -68,8 +67,6 @@ namespace Revolution
 
 			GhostToEntityMap.Dispose();
 			m_ChunkToGhostArchetype.Dispose();
-			foreach (var nativeList in m_TemporaryOutgoingData.Values) nativeList.Dispose();
-			m_TemporaryOutgoingData.Clear();
 			m_GhostIdQueue.Dispose();
 			m_EntityToChunk.Clear();
 		}
@@ -112,7 +109,7 @@ namespace Revolution
 		/// </summary>
 		/// <param name="tick"></param>
 		/// <param name="lookup"></param>
-		public void CreateSnapshot(uint tick, in Dictionary<Entity, SerializeClientData> lookup)
+		public unsafe void CreateSnapshot(uint tick, in Dictionary<Entity, SerializeClientData> lookup)
 		{
 			var blockedList = new NativeList<uint>(lookup.Count * 8, Allocator.Temp);
 			foreach (var data in lookup.Values) blockedList.AddRange(data.BlockedGhostIds);
@@ -202,55 +199,41 @@ namespace Revolution
 					// Debug.Log($"Set archId={archId} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
 				}
 
-				var systemIds = m_SnapshotManager.ArchetypeToSystems[archetype.GhostArch];
-				foreach (var sysId in systemIds)
+				var systemIdArray = m_SnapshotManager.ArchetypeToSystems[archetype.GhostArch];
+				var systemIds     = (uint*) systemIdArray.GetUnsafePtr();
+				var systemLength  = systemIdArray.Length;
+				for (var sys = 0; sys != systemLength; sys++)
 				{
-					var system = m_SnapshotManager.GetSystem(sysId);
+					var system = m_SnapshotManager.GetSystem(systemIds[sys]);
 					if (system is IDynamicSnapshotSystem dynamicSystem)
 					{
-						ref var sharedData = ref dynamicSystem.GetSharedChunk();
-						sharedData.Chunks.Add(chunk);
-
-						//Debug.Log($"Add Chunk systemId={sysId} archId={archetype.GhostArch} -> {string.Join(",", archetype.EntityArch.GetComponentTypes())}");
+						dynamicSystem.GetSharedChunk()
+						             .Chunks
+						             .Add(chunk);
 					}
 				}
 			}
 
 			Profiler.EndSample();
-
-			var deps = new NativeList<JobHandle>(lookup.Count, Allocator.Temp);
+			
 			Profiler.BeginSample("Create Snapshots");
+			var outgoing = new NativeList<byte>(1024, Allocator.TempJob);
 			foreach (var data in lookup)
 			{
-				var outgoing = new NativeList<byte>(1024, Allocator.TempJob);
-				m_TemporaryOutgoingData[data.Key] = outgoing;
-
 				var serializeData = data.Value;
 				serializeData.Client = data.Key;
 				serializeData.Tick   = tick;
-				deps.Add(CreateSnapshot(outgoing, serializeData, in chunks, in entities, in ghostArray, entityUpdate));
-			}
-
-			Profiler.EndSample();
-
-			Profiler.BeginSample("Complete()");
-			foreach (var dep in deps)
-				dep.Complete();
-			Profiler.EndSample();
-
-			Profiler.BeginSample("Set Data");
-			foreach (var outgoingData in m_TemporaryOutgoingData)
-			{
-				var dBuffer = EntityManager.GetBuffer<ClientSnapshotBuffer>(outgoingData.Key);
+				CreateSnapshot(outgoing, serializeData, in chunks, in entities, in ghostArray, entityUpdate);
+				
+				var dBuffer = EntityManager.GetBuffer<ClientSnapshotBuffer>(data.Key);
 				dBuffer.Clear();
-				dBuffer.Reinterpret<byte>().AddRange(outgoingData.Value);
-
-				outgoingData.Value.Dispose();
+				dBuffer.Reinterpret<byte>().AddRange(outgoing);
+				
+				outgoing.Clear();
 			}
 
+			outgoing.Dispose();
 			Profiler.EndSample();
-
-			m_TemporaryOutgoingData.Clear();
 
 			entities.Dispose();
 			ghostArray.Dispose();
@@ -306,10 +289,10 @@ namespace Revolution
 		/// <returns></returns>
 		/// <exception cref="NotImplementedException"></exception>
 		/// <exception cref="InvalidOperationException"></exception>
-		public unsafe JobHandle CreateSnapshot(NativeList<byte>       outgoing, SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
-		                                       in NativeArray<Entity> entities, in NativeArray<GhostIdentifier> ghostArray,
-		                                       in NativeArray<Entity> entityUpdate,
-		                                       bool                   inChain = true, JobHandle inputDeps = default)
+		public unsafe void CreateSnapshot(NativeList<byte>       outgoing, SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
+		                                  in NativeArray<Entity> entities, in NativeArray<GhostIdentifier> ghostArray,
+		                                  in NativeArray<Entity> entityUpdate,
+		                                  bool                   inChain = true)
 		{
 			if (!inChain)
 				throw new NotImplementedException("unchained operation for 'CreateSnapshot' is not available for now;");
@@ -319,7 +302,7 @@ namespace Revolution
 			baseline.BeginSerialize(this, chunks);
 
 			var debugRange = false;
-			var writer = new DataStreamWriter(4096, Allocator.Persistent);
+			var writer     = new DataStreamWriter(4096, Allocator.Persistent);
 			writer.Write((byte) (debugRange ? 1 : 0)); // DEBUG RANGE
 
 			// Before we write anything, we need to check if the ghosts are sorted correctly to not have problems client-side
@@ -329,20 +312,8 @@ namespace Revolution
 				if (!remake)
 				{
 					if (sizeof(GhostIdentifier) != sizeof(uint)) throw new InvalidOperationException("Size mismatch");
-					
-					// fast
-					remake = UnsafeUtility.MemCmp(ghostArray.GetUnsafePtr(), baseline.ProgressiveGhostIds.GetUnsafePtr(), sizeof(uint) * ghostArray.Length) != 0;
-					
-					// slow
-					/*var dI = 0;
-					for (var i = 0; i != ghostArray.Length; i++)
-					{
-						if (ghostArray[i].Value == baseline.ProgressiveGhostIds[dI++])
-							continue;
 
-						remake = true;
-						break;
-					}*/
+					remake = UnsafeUtility.MemCmp(ghostArray.GetUnsafePtr(), baseline.ProgressiveGhostIds.GetUnsafePtr(), sizeof(uint) * ghostArray.Length) != 0;
 				}
 
 				if (remake)
@@ -436,83 +407,19 @@ namespace Revolution
 					writer.Write(-1);
 				}
 			}
-			
-			var delegateGroup       = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
+
+			var delegateGroup = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
 			delegateGroup.BeginSerialize(baseline.Client, out var delegateSerializers);
 
-			inputDeps = new SerializeJob
-			{
-				ClientData   = baseline,
-				Serializers  = delegateSerializers,
-				StreamWriter = writer,
-				OutgoingData = outgoing,
-				
-				DebugRange = debugRange
-			}.Schedule(inputDeps);
-			inputDeps.Complete();
+			m_SnapshotManager.CustomSerializer.Serialize(baseline, delegateSerializers, writer, outgoing, debugRange);
 
 			writer.Dispose();
-
-			return inputDeps;
 		}
 
 		private struct ArchData
 		{
 			public EntityArchetype EntityArch;
 			public uint            GhostArch;
-		}
-
-		[BurstCompile]
-		public unsafe struct SerializeJob : IJob
-		{
-			public bool DebugRange;
-
-			public NativeList<SortDelegate<OnSerializeSnapshot>> Serializers;
-			public SerializeClientData                           ClientData;
-
-			public DataStreamWriter StreamWriter;
-			public NativeList<byte> OutgoingData;
-
-			public void Execute()
-			{
-				Serializers.Sort();
-
-				var parameters = new SerializeParameters
-				{
-					m_ClientData = new Blittable<SerializeClientData>(ref ClientData),
-					m_Stream     = new Blittable<DataStreamWriter>(ref StreamWriter)
-				};
-				for (var i = 0; i < Serializers.Length; i++)
-				{
-					var serializer = Serializers[i];
-					var invoke     = serializer.Value.Invoke;
-
-					if (DebugRange)
-						StreamWriter.Write(StreamWriter.Length);
-					//StreamWriter.Write((byte) 0);
-					StreamWriter.Flush();
-
-					var prevLen = StreamWriter.Length;
-
-					parameters.SystemId = (uint) serializer.SystemId;
-					invoke(ref parameters);
-					//Debug.Log($"{serializer.SystemId} -> size={StreamWriter.Length - prevLen}");
-				}
-
-				StreamWriter.Write(0);
-
-				OutgoingData.AddRange(StreamWriter.GetUnsafePtr(), StreamWriter.Length);
-			}
-		}
-
-		public struct DisposeWriterJob : IJob
-		{
-			public DataStreamWriter Writer;
-
-			public void Execute()
-			{
-				Writer.Dispose();
-			}
 		}
 	}
 }

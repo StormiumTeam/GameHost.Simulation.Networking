@@ -10,6 +10,12 @@ using UnityEngine.Profiling;
 
 namespace Revolution
 {
+	public abstract class CustomSnapshotSerializer
+	{
+		public abstract void Serialize(SerializeClientData jobData, NativeList<SortDelegate<OnSerializeSnapshot>> delegateSerializers, DataStreamWriter writer, NativeList<byte> outgoing, bool debugRange);
+		public abstract void Deserialize(DeserializeClientData jobData, NativeList<SortDelegate<OnDeserializeSnapshot>> delegateDeserializers, NativeArray<byte> data, NativeArray<DataStreamReader.Context> readCtxArray, bool debugRange);
+	}
+	
 	public class SnapshotWithDelegateSystemGroup : ComponentSystemGroup
 	{
 		private List<ISystemDelegateForSnapshot> m_DelegateSystems = new List<ISystemDelegateForSnapshot>();
@@ -51,17 +57,19 @@ namespace Revolution
 					m_OnDeserializeList.Add(new SortDelegate<OnDeserializeSnapshot>
 					{
 						Name     = castSys.NativeName,
-						SystemId = (int) snapshotMgr.GetSystemId(sys),
+						SystemId = snapshotMgr.GetSystemId(sys),
 						Value    = castSys.DeserializeDelegate
 					});
 					m_OnSerializeList.Add(new SortDelegate<OnSerializeSnapshot>
 					{
 						Name     = castSys.NativeName,
-						SystemId = (int) snapshotMgr.GetSystemId(sys),
+						SystemId = snapshotMgr.GetSystemId(sys),
 						Value    = castSys.SerializeDelegate
 					});
 				}
 			}
+			m_OnDeserializeList.Sort();
+			m_OnSerializeList.Sort();
 		}
 
 		public void BeginSerialize(Entity client, out NativeList<SortDelegate<OnSerializeSnapshot>> serializers)
@@ -69,11 +77,6 @@ namespace Revolution
 			foreach (var sys in m_DelegateSystems)
 			{
 				sys.OnBeginSerialize(client);
-				/*serializers.Add(new SortDelegate<OnSerializeSnapshot>
-				{
-					Value    = sys.SerializeDelegate,
-					SystemId = (int) snapshotMgr.GetSystemId(sys)
-				});*/
 			}
 
 			serializers = m_OnSerializeList;
@@ -84,12 +87,6 @@ namespace Revolution
 			foreach (var sys in m_DelegateSystems)
 			{
 				sys.OnBeginDeserialize(client);
-				/*deserializers.Add(new SortDelegate<OnDeserializeSnapshot>
-				{
-					Name     = sys.NativeName,
-					Value    = sys.DeserializeDelegate,
-					SystemId = (int) snapshotMgr.GetSystemId(sys)
-				});*/
 			}
 
 			deserializers = m_OnDeserializeList;
@@ -124,8 +121,8 @@ namespace Revolution
 
 	public struct SerializeParameters
 	{
-		internal Blittable<SerializeClientData> m_ClientData;
-		internal Blittable<DataStreamWriter>    m_Stream;
+		public Blittable<SerializeClientData> m_ClientData;
+		public Blittable<DataStreamWriter>    m_Stream;
 
 		public uint SystemId;
 
@@ -162,6 +159,8 @@ namespace Revolution
 		private bool                     m_IsAddingToFixedCollection;
 		private bool                     m_IsDynamicSystemId;
 		public  FastDictionary<object, uint> SystemsToId;
+		
+		public CustomSnapshotSerializer CustomSerializer;
 
 		protected override void OnCreate()
 		{
@@ -176,6 +175,9 @@ namespace Revolution
 
 			ArchetypeToSystems    = new Dictionary<uint, NativeArray<uint>>(64);
 			ArchetypeToSystems[0] = new NativeArray<uint>(0, Allocator.Persistent);
+			
+			if (CustomSerializer == null)
+				CustomSerializer = new DefaultSnapshotSerializer();
 		}
 
 		protected override void OnDestroy()
@@ -328,7 +330,7 @@ namespace Revolution
 		{
 		}
 
-		public ulong GetSystemId(object obj)
+		public uint GetSystemId(object obj)
 		{
 			return SystemsToId[obj];
 		}

@@ -183,10 +183,6 @@ namespace Unity.NetCode
                 subidiff = 1f-subidiff;
             }
             subInterpolateTargetTick = subidiff;
-            /*if (subInterpolateTargetTick > 1)
-                subInterpolateTargetTick = 1;
-            else if (subInterpolateTargetTick < 0)
-                subInterpolateTargetTick = 0;*/
         }
     }
 }
