@@ -75,6 +75,48 @@ namespace Unity.Networking.Transport
     [NativeContainer]
     public unsafe struct DataStreamWriter : IDisposable
     {
+        public unsafe void WritePackedStringDelta(NativeString64 str, NativeString64 baseline, NetworkCompressionModel model)
+        {
+            ushort length     = *((ushort*)&str);
+            byte*  data       = ((byte*)&str) + 2;
+            ushort baseLength = *((ushort*)&baseline);
+            byte*  baseData   = ((byte*)&baseline) + 2;
+            WritePackedUIntDelta(length, baseLength, model);
+            if (length <= baseLength)
+            {
+                for (int i = 0; i < length; ++i)
+                    WritePackedUIntDelta(data[i], baseData[i], model);
+            }
+            else
+            {
+                for (int i = 0; i < baseLength; ++i)
+                    WritePackedUIntDelta(data[i], baseData[i], model);
+                for (int i = baseLength; i < length; ++i)
+                    WritePackedUInt(data[i], model);
+            }
+        }
+        
+        public unsafe void WritePackedStringDelta(NativeString512 str, NativeString512 baseline, NetworkCompressionModel model)
+        {
+            ushort length     = *((ushort*)&str);
+            byte*  data       = ((byte*)&str) + 2;
+            ushort baseLength = *((ushort*)&baseline);
+            byte*  baseData   = ((byte*)&baseline) + 2;
+            WritePackedUIntDelta(length, baseLength, model);
+            if (length <= baseLength)
+            {
+                for (int i = 0; i < length; ++i)
+                    WritePackedUIntDelta(data[i], baseData[i], model);
+            }
+            else
+            {
+                for (int i = 0; i < baseLength; ++i)
+                    WritePackedUIntDelta(data[i], baseData[i], model);
+                for (int i = baseLength; i < length; ++i)
+                    WritePackedUInt(data[i], model);
+            }
+        }
+        
         public struct DeferredByte
         {
             public void Update(byte value)
@@ -612,12 +654,18 @@ namespace Unity.Networking.Transport
             WritePackedUInt(interleaved, model);
         }
         public void WritePackedUIntDelta(uint value, uint baseline, NetworkCompressionModel model)
-        {            
+        {
+            /*WritePackedUInt(value, model);
+            return;*/
+            
             int diff = (int)(baseline - value);
             WritePackedInt(diff, model);
         }
         public void WritePackedIntDelta(int value, int baseline, NetworkCompressionModel model)
         {
+            /*WritePackedInt(value, model);
+            return;*/
+            
             int diff = (int)(baseline - value);
             WritePackedInt(diff, model);
         }
@@ -1026,10 +1074,68 @@ namespace Unity.Networking.Transport
 
         public uint ReadPackedUIntDelta(ref Context ctx, uint baseline, NetworkCompressionModel model)
         {
-            //return ReadPackedUInt(ref ctx, model);
+           //return ReadPackedUInt(ref ctx, model);
             
             uint delta = (uint)ReadPackedInt(ref ctx, model);
             return baseline - delta;
+        }
+        
+        public unsafe NativeString64 ReadPackedStringDelta(ref Context ctx, NativeString64 baseline, NetworkCompressionModel model)
+        {
+            NativeString64 str;
+            byte*          data       = ((byte*)&str) + 2;
+            ushort         baseLength = *((ushort*)&baseline);
+            byte*          baseData   = ((byte*)&baseline) + 2;
+            uint           length     = ReadPackedUIntDelta(ref ctx, baseLength, model);
+            if (length > NativeString64.MaxLength)
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                throw new InvalidOperationException("Invalid string length");
+#else
+                return default;
+#endif
+            *(ushort*)&str = (ushort)length;
+            if (length <= baseLength)
+            {
+                for (int i = 0; i < length; ++i)
+                    data[i] = (byte)ReadPackedUIntDelta(ref ctx, baseData[i], model);
+            }
+            else
+            {
+                for (int i = 0; i < baseLength; ++i)
+                    data[i] = (byte)ReadPackedUIntDelta(ref ctx, baseData[i], model);
+                for (int i = baseLength; i < length; ++i)
+                    data[i] = (byte)ReadPackedUInt(ref ctx, model);
+            }
+            return str;
+        }
+        
+        public unsafe NativeString512 ReadPackedStringDelta(ref Context ctx, NativeString512 baseline, NetworkCompressionModel model)
+        {
+            NativeString512 str;
+            byte*          data       = ((byte*)&str) + 2;
+            ushort         baseLength = *((ushort*)&baseline);
+            byte*          baseData   = ((byte*)&baseline) + 2;
+            uint           length     = ReadPackedUIntDelta(ref ctx, baseLength, model);
+            if (length > NativeString512.MaxLength)
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                throw new InvalidOperationException("Invalid string length");
+#else
+                return default;
+#endif
+            *(ushort*)&str = (ushort)length;
+            if (length <= baseLength)
+            {
+                for (int i = 0; i < length; ++i)
+                    data[i] = (byte)ReadPackedUIntDelta(ref ctx, baseData[i], model);
+            }
+            else
+            {
+                for (int i = 0; i < baseLength; ++i)
+                    data[i] = (byte)ReadPackedUIntDelta(ref ctx, baseData[i], model);
+                for (int i = baseLength; i < length; ++i)
+                    data[i] = (byte)ReadPackedUInt(ref ctx, model);
+            }
+            return str;
         }
     }
 }

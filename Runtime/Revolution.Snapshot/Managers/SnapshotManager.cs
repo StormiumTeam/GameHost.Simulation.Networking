@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using package.stormiumteam.shared;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,10 +11,19 @@ using UnityEngine.Profiling;
 
 namespace Revolution
 {
-	public abstract class CustomSnapshotSerializer
+	public abstract class CustomSnapshotSerializer : IDisposable
 	{
+		public abstract void ClearChunks(uint systemId, IDynamicSnapshotSystem system);
+		public abstract void AddChunk(uint systemId, IDynamicSnapshotSystem system, ArchetypeChunk chunk);
+		
 		public abstract void Serialize(SerializeClientData jobData, NativeList<SortDelegate<OnSerializeSnapshot>> delegateSerializers, DataStreamWriter writer, NativeList<byte> outgoing, bool debugRange);
+		
+		public abstract void ClearGhosts(uint systemId);
+		public abstract void AddGhost(uint    systemId, uint ghostId);
+		public abstract void RemoveGhost(uint    systemId, uint ghostId);
 		public abstract void Deserialize(DeserializeClientData jobData, NativeList<SortDelegate<OnDeserializeSnapshot>> delegateDeserializers, NativeArray<byte> data, NativeArray<DataStreamReader.Context> readCtxArray, bool debugRange);
+
+		public abstract void Dispose();
 	}
 	
 	public class SnapshotWithDelegateSystemGroup : ComponentSystemGroup
@@ -93,20 +103,6 @@ namespace Revolution
 		}
 	}
 
-	public struct SharedSystemChunk
-	{
-		public uint                        SystemId;
-		public NativeList<ArchetypeChunk>  Chunks;
-		public NativeArray<ArchetypeChunk> Array => Chunks;
-	}
-
-	public struct SharedSystemGhost
-	{
-		public uint              SystemId;
-		public NativeList<uint>  Ghosts;
-		public NativeArray<uint> Array => Ghosts;
-	}
-
 	public unsafe struct Blittable<T>
 	{
 		private IntPtr m_Ptr;
@@ -126,11 +122,10 @@ namespace Revolution
 
 		public uint SystemId;
 
-		public ref SerializeClientData ClientData => ref m_ClientData.Value;
-		public ref DataStreamWriter    Stream     => ref m_Stream.Value;
+		public UnsafeAllocationLength<ArchetypeChunk> ChunksToSerialize;
 
-		public uint                    Tick                    => ClientData.Tick;
-		public NetworkCompressionModel NetworkCompressionModel => ClientData.NetworkCompressionModel;
+		public ref SerializeClientData GetClientData() => ref m_ClientData.Value;
+		public ref DataStreamWriter    GetStream()     => ref m_Stream.Value;
 	}
 
 	public struct DeserializeParameters
@@ -138,13 +133,13 @@ namespace Revolution
 		internal Blittable<DeserializeClientData> m_ClientData;
 
 		public uint                     SystemId;
+		
+		public UnsafeAllocationLength<uint> GhostsToDeserialize;
+		
 		public DataStreamReader         Stream;
 		public DataStreamReader.Context Ctx;
 
-		public ref DeserializeClientData ClientData => ref m_ClientData.Value;
-
-		public uint                    Tick                    => ClientData.Tick;
-		public NetworkCompressionModel NetworkCompressionModel => ClientData.NetworkCompressionModel;
+		public ref DeserializeClientData GetClientData() => ref m_ClientData.Value;
 	}
 
 	public delegate void OnSerializeSnapshot(ref SerializeParameters parameters);
@@ -162,6 +157,12 @@ namespace Revolution
 		
 		public CustomSnapshotSerializer CustomSerializer;
 
+		public void SetCustomSerializer(CustomSnapshotSerializer ns)
+		{
+			CustomSerializer?.Dispose();
+			CustomSerializer = ns;
+		}
+
 		protected override void OnCreate()
 		{
 			base.OnCreate();
@@ -176,8 +177,7 @@ namespace Revolution
 			ArchetypeToSystems    = new Dictionary<uint, NativeArray<uint>>(64);
 			ArchetypeToSystems[0] = new NativeArray<uint>(0, Allocator.Persistent);
 			
-			if (CustomSerializer == null)
-				CustomSerializer = new DefaultSnapshotSerializer();
+			SetCustomSerializer(new DefaultSnapshotSerializer());
 		}
 
 		protected override void OnDestroy()
@@ -189,6 +189,8 @@ namespace Revolution
 			foreach (var kvp in ArchetypeToSystems) kvp.Value.Dispose();
 
 			ArchetypeToSystems.Clear();
+			
+			CustomSerializer?.Dispose();
 		}
 
 		/// <summary>

@@ -36,13 +36,18 @@ namespace Revolution
 			return $"ComponentSnapshotSystemDelta<{typeof(TComponent)}>";
 		}
 		
-		public virtual DeltaChangeType DeltaType => DeltaChangeType.Both;
+		public virtual DeltaChangeType DeltaType => DeltaChangeType.Component;
 
 		[BurstCompile]
 		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var chunks     = GetSerializerChunkData().Array;
+
+			ref var clientData = ref parameters.GetClientData();
+			ref var stream     = ref parameters.GetStream();
+
+			var tick   = clientData.Tick;
+			var chunks = parameters.ChunksToSerialize;
 
 			var deltaOnChunk     = (sharedData.Delta & DeltaChangeType.Chunk) != 0;
 			var deltaOnComponent = (sharedData.Delta & DeltaChangeType.Component) != 0;
@@ -50,13 +55,13 @@ namespace Revolution
 			var previousChunkCount = 0u;
 
 			bool success;
-			if (!parameters.ClientData.TryGetSnapshot(0, out var clientSnapshot)) throw new InvalidOperationException();
+			if (!clientData.TryGetSnapshot(0, out var clientSnapshot)) throw new InvalidOperationException();
 
-			ref var clientData = ref clientSnapshot.TryGetSystemData<ClientData>(parameters.SystemId, out success);
+			ref var systemClientData = ref clientSnapshot.TryGetSystemData<ClientData>(parameters.SystemId, out success);
 			if (!success)
 			{
-				clientData         = ref clientSnapshot.AllocateSystemData<ClientData>(parameters.SystemId);
-				clientData.Version = 0;
+				systemClientData         = ref clientSnapshot.AllocateSystemData<ClientData>(parameters.SystemId);
+				systemClientData.Version = 0;
 			}
 
 			GhostSnapshot ghostSnapshot;
@@ -64,14 +69,14 @@ namespace Revolution
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(clientData.GhostType);
 
 				var shouldSkip = false;
 				if (deltaOnChunk)
 				{
-					shouldSkip = !chunk.DidChange(sharedData.ComponentTypeArch, clientData.Version);
-					parameters.Stream.WriteBitBool(shouldSkip);
-					parameters.Stream.WritePackedUIntDelta((uint) chunk.Count, previousChunkCount, parameters.NetworkCompressionModel);
+					shouldSkip = !chunk.DidChange(sharedData.ComponentTypeArch, systemClientData.Version);
+					stream.WriteBitBool(shouldSkip);
+					stream.WritePackedUIntDelta((uint) chunk.Count, previousChunkCount, clientData.NetworkCompressionModel);
 
 					previousChunkCount = (uint) chunk.Count;
 				}
@@ -81,7 +86,7 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)
@@ -91,7 +96,8 @@ namespace Revolution
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent], in sharedData.SetupData, in parameters.ClientData);
+					newSnapshot.Tick = tick;
+					newSnapshot.SynchronizeFrom(componentArray[ent], in sharedData.SetupData, in clientData);
 
 					// If we must check for delta change on components and
 					// If the snapshot didn't changed since the previous baseline and
@@ -101,28 +107,30 @@ namespace Revolution
 						// no change? skip
 						if (!newSnapshot.DidChange(baseline) && success)
 						{
-							parameters.Stream.WriteBitBool(true);
+							stream.WriteBitBool(true);
 							continue;
 						}
 
 						// don't skip
-						parameters.Stream.WriteBitBool(false);
+						stream.WriteBitBool(false);
 					}
 
-					newSnapshot.WriteTo(parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
+					newSnapshot.WriteTo(stream, ref baseline, clientData.NetworkCompressionModel);
 
 					baseline = newSnapshot;
 				}
 			}
 
-			clientData.Version = sharedData.SystemVersion;
+			systemClientData.Version = sharedData.SystemVersion;
 		}
 
 		[BurstCompile]
 		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var ghostArray = GetDeserializerGhostData().Array;
+			var ghostArray = parameters.GhostsToDeserialize;
+
+			var clientData = parameters.GetClientData();
 
 			var deltaOnChunk     = (sharedData.Delta & DeltaChangeType.Chunk) != 0;
 			var deltaOnComponent = (sharedData.Delta & DeltaChangeType.Component) != 0;
@@ -135,7 +143,7 @@ namespace Revolution
 				if (deltaOnChunk && checkChunkSkipIn <= 0)
 				{
 					shouldSkip         = parameters.Stream.ReadBitBool(ref parameters.Ctx);
-					previousChunkCount = parameters.Stream.ReadPackedUIntDelta(ref parameters.Ctx, previousChunkCount, parameters.NetworkCompressionModel);
+					previousChunkCount = parameters.Stream.ReadPackedUIntDelta(ref parameters.Ctx, previousChunkCount, clientData.NetworkCompressionModel);
 
 					if (shouldSkip)
 					{
@@ -154,15 +162,15 @@ namespace Revolution
 						continue;
 				}
 
-				var     snapshotArray = sharedData.SnapshotFromEntity[parameters.ClientData.GhostToEntityMap[ghostArray[ent]]];
+				var     snapshotArray = sharedData.SnapshotFromEntity[clientData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
 
 				var newSnapshot = default(TSnapshot);
-				newSnapshot.Tick = parameters.Tick;
-				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
+				newSnapshot.Tick = clientData.Tick;
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, clientData.NetworkCompressionModel);
 
 				snapshotArray.Add(newSnapshot);
 			}

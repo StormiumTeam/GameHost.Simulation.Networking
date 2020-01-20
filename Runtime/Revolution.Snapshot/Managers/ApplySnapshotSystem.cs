@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
@@ -26,15 +27,15 @@ namespace Revolution
 
 	public class ApplySnapshotSystem : JobComponentSystem
 	{
-		private SnapshotManager                    m_SnapshotManager;
-		private Dictionary<uint, NativeList<uint>> m_SystemToGhostIds;
+		private SnapshotManager m_SnapshotManager;
+		private HashSet<uint>   m_DynamicSystemIds;
 
 		protected override void OnCreate()
 		{
 			base.OnCreate();
 
-			m_SnapshotManager = World.GetOrCreateSystem<SnapshotManager>();
-			m_SystemToGhostIds = new Dictionary<uint, NativeList<uint>>();
+			m_SnapshotManager  = World.GetOrCreateSystem<SnapshotManager>();
+			m_DynamicSystemIds = new HashSet<uint>();
 		}
 
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
@@ -74,18 +75,12 @@ namespace Revolution
 			foreach (var system in m_SnapshotManager.IdToSystems)
 				if (system.Value is IDynamicSnapshotSystem dynamicSystem)
 				{
-					ref var sharedGhost = ref dynamicSystem.GetSharedGhost();
-					if (!m_SystemToGhostIds.TryGetValue(system.Key, out var list))
-					{
-						list                           = new NativeList<uint>(64, Allocator.Persistent);
-						m_SystemToGhostIds[system.Key] = list;
-					}
-
-					sharedGhost.Ghosts = list;
+					m_DynamicSystemIds.Add(system.Key);
 				}
+
 			Profiler.EndSample();
 
-			var debugRange = reader.ReadByte(ref ctx) == 1;
+			var debugRange       = reader.ReadByte(ref ctx) == 1;
 			var entityLength     = reader.ReadInt(ref ctx);
 			var ghostUpdate      = new NativeList<uint>(entityLength, Allocator.TempJob);
 			var ghostIndexUpdate = new NativeList<uint>(entityLength, Allocator.TempJob);
@@ -164,17 +159,8 @@ namespace Revolution
 					if (newGhostArray.Contains(ghostId))
 						continue;
 
-					foreach (var system in m_SystemToGhostIds)
-						if (m_SnapshotManager.GetSystem(system.Key) is IDynamicSnapshotSystem dynamicSystem)
-						{
-							var systemGhosts = dynamicSystem.GetSharedGhost().Ghosts;
-							for (var i = 0; i < systemGhosts.Length; i++)
-							{
-								if (systemGhosts[i] != ghostId)
-									continue;
-								systemGhosts.RemoveAtSwapBack(i);
-							}
-						}
+					foreach (var systemId in m_DynamicSystemIds)
+						m_SnapshotManager.CustomSerializer.RemoveGhost(systemId, ghostId);
 
 					if (baseline.GhostToEntityMap.ContainsKey(ghostId))
 						baseline.GhostToEntityMap.Remove(ghostId);
@@ -185,7 +171,10 @@ namespace Revolution
 						if (!EntityManager.HasComponent(baselineEnt, typeof(ManualDestroy)))
 							EntityManager.DestroyEntity(baselineEnt);
 						else
+						{
 							EntityManager.AddComponent(baselineEnt, typeof(IsDestroyedOnSnapshot));
+							EntityManager.RemoveComponent(baselineEnt, typeof(ReplicatedEntity));
+						}
 					}
 				}
 
@@ -222,14 +211,13 @@ namespace Revolution
 					reader.ReadByte(ref ctx); // DON'T REMOVE THIS LINE
 				}
 			}
-			
+
 			if (entityUpdate.Length > 0)
 			{
 				Profiler.BeginSample("Process Entity Update");
-				foreach (var kvp in m_SystemToGhostIds)
+				foreach (var systemId in m_DynamicSystemIds)
 				{
-					var ghostList = kvp.Value;
-					ghostList.Clear();
+					m_SnapshotManager.CustomSerializer.ClearGhosts(systemId);
 				}
 
 				for (var ent = 0; ent < entityUpdate.Length; ent++)
@@ -246,7 +234,10 @@ namespace Revolution
 					var repl    = EntityManager.GetComponentData<ReplicatedEntity>(entity);
 					var systems = m_SnapshotManager.ArchetypeToSystems[repl.Archetype];
 
-					foreach (var sys in systems) m_SystemToGhostIds[sys].Add(baseline.GhostIds[index]);
+					foreach (var sys in systems)
+					{
+						m_SnapshotManager.CustomSerializer.AddGhost(sys, baseline.GhostIds[index]);
+					}
 				}
 
 				foreach (var system in m_SnapshotManager.IdToSystems.Values)
@@ -256,10 +247,9 @@ namespace Revolution
 			}
 			else if (ghostIndexUpdate.Length > 0)
 			{
-				foreach (var kvp in m_SystemToGhostIds)
+				foreach (var systemId in m_DynamicSystemIds)
 				{
-					var ghostList = kvp.Value;
-					ghostList.Clear();
+					m_SnapshotManager.CustomSerializer.ClearGhosts(systemId);
 				}
 
 				for (var index = 0; index < baseline.Entities.Length; index++)
@@ -268,7 +258,10 @@ namespace Revolution
 					var repl    = EntityManager.GetComponentData<ReplicatedEntity>(entity);
 					var systems = m_SnapshotManager.ArchetypeToSystems[repl.Archetype];
 
-					foreach (var sys in systems) m_SystemToGhostIds[sys].Add(baseline.GhostIds[index]);
+					foreach (var sys in systems)
+					{
+						m_SnapshotManager.CustomSerializer.AddGhost(sys, baseline.GhostIds[index]);
+					}
 				}
 			}
 
@@ -276,13 +269,13 @@ namespace Revolution
 			ghostIndexUpdate.Dispose();
 			entityUpdate.Dispose();
 			archetypeUpdate.Dispose();
-			
-			var delegateGroup         = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
+
+			var delegateGroup = World.GetExistingSystem<SnapshotWithDelegateSystemGroup>();
 
 			Profiler.BeginSample("DelegateGroup.BeginDeserialize");
 			delegateGroup.BeginDeserialize(baseline.Client, out var delegateDeserializers);
 			Profiler.EndSample();
-			
+
 			var readCtxArray = new NativeArray<DataStreamReader.Context>(1, Allocator.TempJob)
 			{
 				[0] = ctx
@@ -294,71 +287,6 @@ namespace Revolution
 			Profiler.BeginSample("Apply Snapshots Group");
 			World.GetOrCreateSystem<AfterSnapshotIsAppliedSystemGroup>().ForceUpdate();
 			Profiler.EndSample();
-		}
-
-		[BurstCompile]
-		public struct DeserializeJob : IJob
-		{
-			public NativeList<SortDelegate<OnDeserializeSnapshot>> Deserializers;
-			public DeserializeClientData                           ClientData;
-
-			public NativeArray<byte>                     StreamData;
-			public NativeArray<DataStreamReader.Context> ReadContext;
-
-			public bool DebugRange;
-
-			[BurstDiscard]
-			private void ThrowError(int currLength, int byteRead, int i, SortDelegate<OnDeserializeSnapshot> serializer)
-			{
-				Debug.LogError($"Invalid Length [{currLength} != {byteRead}] at index {i}, system {serializer.Name.ToString()}, previous system {Deserializers[math.max(i - 1, 0)].Name.ToString()}");
-			}
-
-			public void Execute()
-			{
-				var reader  = new DataStreamReader(StreamData);
-				var parameters = new DeserializeParameters
-				{
-					m_ClientData = new Blittable<DeserializeClientData>(ref ClientData),
-					Stream       = reader,
-					Ctx          = ReadContext[0]
-				};
-
-				if (DebugRange)
-				{
-					for (var i = 0; i < Deserializers.Length; i++)
-					{
-						var serializer = Deserializers[i];
-						var invoke     = serializer.Value.Invoke;
-
-						if (DebugRange)
-						{
-							var byteRead   = reader.GetBytesRead(ref parameters.Ctx);
-							var currLength = reader.ReadInt(ref parameters.Ctx);
-							if (currLength != byteRead)
-							{
-								ThrowError(currLength, byteRead, i, serializer);
-								return;
-							}
-						}
-
-						parameters.SystemId = serializer.SystemId;
-						invoke(ref parameters);
-					}
-				}
-				else
-				{
-					for (int i = 0, deserializeLength = Deserializers.Length; i < deserializeLength; i++)
-					{
-						var serializer = Deserializers[i];
-						var invoke     = serializer.Value.Invoke;
-						
-						parameters.SystemId = serializer.SystemId;
-						invoke(ref parameters);
-					}
-				}
-
-				ReadContext[0] = parameters.Ctx;
-			}
 		}
 	}
 }

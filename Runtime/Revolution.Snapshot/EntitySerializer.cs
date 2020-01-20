@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Burst;
@@ -5,6 +6,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
@@ -15,7 +17,7 @@ namespace Revolution
 	/// <typeparam name="TSnapshot"></typeparam>
 	/// <typeparam name="TSharedData"></typeparam>
 	[UpdateInGroup(typeof(SnapshotWithDelegateSystemGroup))]
-	public abstract class EntitySerializer<TSerializer, TSnapshot, TSharedData> : JobComponentSystem, IEntityComponents, ISystemDelegateForSnapshot, IDynamicSnapshotSystem
+	public abstract unsafe class EntitySerializer<TSerializer, TSnapshot, TSharedData> : JobComponentSystem, IEntityComponents, ISystemDelegateForSnapshot, IDynamicSnapshotSystem
 		where TSerializer : EntitySerializer<TSerializer, TSnapshot, TSharedData>
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, IBufferElementData
 		where TSharedData : struct
@@ -33,16 +35,6 @@ namespace Revolution
 
 		private NativeString512 m_NativeName;
 		public NativeString512 NativeName => m_NativeName;
-
-		public ref SharedSystemChunk GetSharedChunk()
-		{
-			return ref GetSerializerChunkData();
-		}
-
-		public ref SharedSystemGhost GetSharedGhost()
-		{
-			return ref GetDeserializerGhostData();
-		}
 
 		public bool IsChunkValid(ArchetypeChunk chunk)
 		{
@@ -194,19 +186,18 @@ namespace Revolution
 			return inputDeps;
 		}
 
+		private static readonly void* s_SharedData;
+
+		static EntitySerializer()
+		{
+			s_SharedData = SharedStatic<TSharedData>.GetOrCreate<SharedKey>().UnsafeDataPointer;
+		}
+
 		protected static ref TSharedData GetShared()
 		{
-			return ref SharedStatic<TSharedData>.GetOrCreate<SharedKey>().Data;
-		}
-
-		protected static ref SharedSystemChunk GetSerializerChunkData()
-		{
-			return ref SharedStatic<SharedSystemChunk>.GetOrCreate<ChunkKey>().Data;
-		}
-
-		protected static ref SharedSystemGhost GetDeserializerGhostData()
-		{
-			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey>().Data;
+			if (s_SharedData == null)
+				throw new Exception("null shared data");
+			return ref UnsafeUtilityEx.AsRef<TSharedData>(s_SharedData);
 		}
 
 		private class SharedKey

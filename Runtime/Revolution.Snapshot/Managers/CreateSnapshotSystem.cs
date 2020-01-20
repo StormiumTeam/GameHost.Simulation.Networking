@@ -8,6 +8,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
+using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace Revolution
@@ -28,6 +29,8 @@ namespace Revolution
 		
 		public NativeHashMap<uint, Entity> GhostToEntityMap;
 
+		private DataStreamWriter writer;
+		
 		protected override void OnCreate()
 		{
 			base.OnCreate();
@@ -55,6 +58,8 @@ namespace Revolution
 			m_ChunkToGhostArchetype = new NativeHashMap<ArchetypeChunk, ArchData>(128, Allocator.Persistent);
 			m_GhostIdQueue          = new NativeQueue<uint>(Allocator.Persistent);
 			m_EntityToChunk         = new Dictionary<Entity, ArchetypeChunk>();
+			
+			writer = new DataStreamWriter(4096, Allocator.Persistent);
 		}
 
 		protected override void OnUpdate()
@@ -146,11 +151,7 @@ namespace Revolution
 				var system = systemKvp.Value;
 				if (system is IDynamicSnapshotSystem dynamicSystem)
 				{
-					ref var sharedData                                  = ref dynamicSystem.GetSharedChunk();
-					if (!sharedData.Chunks.IsCreated) sharedData.Chunks = new NativeList<ArchetypeChunk>(8, Allocator.Persistent);
-
-					sharedData.SystemId = systemKvp.Key;
-					sharedData.Chunks.Clear();
+					m_SnapshotManager.CustomSerializer.ClearChunks(systemKvp.Key, dynamicSystem);
 				}
 			}
 
@@ -207,9 +208,7 @@ namespace Revolution
 					var system = m_SnapshotManager.GetSystem(systemIds[sys]);
 					if (system is IDynamicSnapshotSystem dynamicSystem)
 					{
-						dynamicSystem.GetSharedChunk()
-						             .Chunks
-						             .Add(chunk);
+						m_SnapshotManager.CustomSerializer.AddChunk(systemIds[sys], dynamicSystem, chunk);
 					}
 				}
 			}
@@ -302,7 +301,7 @@ namespace Revolution
 			baseline.BeginSerialize(this, chunks);
 
 			var debugRange = false;
-			var writer     = new DataStreamWriter(4096, Allocator.Persistent);
+			writer.Clear();
 			writer.Write((byte) (debugRange ? 1 : 0)); // DEBUG RANGE
 
 			// Before we write anything, we need to check if the ghosts are sorted correctly to not have problems client-side
@@ -315,7 +314,7 @@ namespace Revolution
 
 					remake = UnsafeUtility.MemCmp(ghostArray.GetUnsafePtr(), baseline.ProgressiveGhostIds.GetUnsafePtr(), sizeof(uint) * ghostArray.Length) != 0;
 				}
-
+				
 				if (remake)
 				{
 					if (sizeof(GhostIdentifier) != sizeof(uint)) throw new InvalidOperationException("Size mismatch");
@@ -412,8 +411,6 @@ namespace Revolution
 			delegateGroup.BeginSerialize(baseline.Client, out var delegateSerializers);
 
 			m_SnapshotManager.CustomSerializer.Serialize(baseline, delegateSerializers, writer, outgoing, debugRange);
-
-			writer.Dispose();
 		}
 
 		private struct ArchData

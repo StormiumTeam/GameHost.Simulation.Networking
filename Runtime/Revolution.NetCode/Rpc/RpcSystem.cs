@@ -1,4 +1,5 @@
 using System;
+using ENet;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -144,7 +145,7 @@ namespace Unity.NetCode
             [ReadOnly] public NativeList<RpcData> execute;
             [ReadOnly] public NativeHashMap<ulong, int> hashToIndex;
 
-            public UdpNetworkDriver.Concurrent driver;
+            public ENetDriver driver;
             public NetworkPipeline reliablePipeline;
 
             public NetworkProtocolVersion protocolVersion;
@@ -278,14 +279,13 @@ namespace Unity.NetCode
                 outBufferType = GetArchetypeChunkBufferType<OutgoingRpcDataStreamBufferComponent>(),
                 execute = m_RpcData,
                 hashToIndex = m_RpcTypeHashToIndex,
-                driver = m_ReceiveSystem.ConcurrentDriver,
+                driver = m_ReceiveSystem.Driver,
                 reliablePipeline = m_ReceiveSystem.ReliablePipeline,
                 protocolVersion = GetSingleton<NetworkProtocolVersion>()
             };
-            var handle = execJob.Schedule(m_RpcBufferGroup, inputDeps);
-            m_Barrier.AddJobHandleForProducer(handle);
-            m_ReceiveSystem.LastDriverWriter = handle;
-            return handle;
+            inputDeps.Complete();
+            execJob.Run(m_RpcBufferGroup);
+            return inputDeps;
         }
 
         public RpcQueue<T> GetRpcQueue<T>() where T : struct, IRpcCommand

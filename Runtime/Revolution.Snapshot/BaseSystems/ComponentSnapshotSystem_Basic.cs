@@ -25,19 +25,24 @@ namespace Revolution
 		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var chunks     = GetSerializerChunkData().Array;
+			
+			ref var clientData = ref parameters.GetClientData();
+			ref var stream = ref parameters.GetStream();
+
+			var tick = clientData.Tick;
+			var chunks = parameters.ChunksToSerialize;
 
 			for (int c = 0, length = chunks.Length; c < length; c++)
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(clientData.GhostType);
 
-				bool success;
+				bool          success;
 				GhostSnapshot ghostSnapshot;
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)
@@ -47,8 +52,9 @@ namespace Revolution
 					}
 
 					var newSnapshot = default(TSnapshot);
-					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in parameters.ClientData);
-					newSnapshot.WriteTo(parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
+					newSnapshot.Tick = tick;
+					newSnapshot.SynchronizeFrom(componentArray[ent], sharedData.SetupData, in clientData);
+					newSnapshot.WriteTo(stream, ref baseline, clientData.NetworkCompressionModel);
 
 					baseline = newSnapshot;
 				}
@@ -59,19 +65,20 @@ namespace Revolution
 		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var ghostArray = GetDeserializerGhostData().Array;
+			var ghostArray = parameters.GhostsToDeserialize;
+			var clientData = parameters.GetClientData();
 
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++)
 			{
-				var     snapshotArray = sharedData.SnapshotFromEntity[parameters.ClientData.GhostToEntityMap[ghostArray[ent]]];
+				var     snapshotArray = sharedData.SnapshotFromEntity[clientData.GhostToEntityMap[ghostArray[ent]]];
 				ref var baseline      = ref snapshotArray.GetLastBaseline();
 
 				if (snapshotArray.Length >= SnapshotHistorySize)
 					snapshotArray.RemoveAt(0);
 
 				var newSnapshot = default(TSnapshot);
-				newSnapshot.Tick = parameters.Tick;
-				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.NetworkCompressionModel);
+				newSnapshot.Tick = clientData.Tick;
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, clientData.NetworkCompressionModel);
 
 				snapshotArray.Add(newSnapshot);
 			}

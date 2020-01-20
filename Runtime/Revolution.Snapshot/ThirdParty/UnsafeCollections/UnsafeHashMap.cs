@@ -25,6 +25,7 @@ THE SOFTWARE.
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace Collections.Unsafe
 {
@@ -184,6 +185,18 @@ namespace Collections.Unsafe
 			// assign value to entry
 			*(V*) GetValue(map, entry) = value;
 		}
+		
+		public static void Set<K>(UnsafeHashMap* map, K key, void* value, int size)
+			where K : unmanaged, IEquatable<K>
+		{
+			var hash  = key.GetHashCode();
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, hash);
+			if (entry == null) // insert new entry for key
+				entry = UnsafeHashCollection.Insert(&map->_collection, key, hash);
+
+			// assign value to entry
+			UnsafeUtility.MemCpy(GetValue(map, entry), value, size);
+		}
 
 		public static V Get<K, V>(UnsafeHashMap* map, K key)
 			where K : unmanaged, IEquatable<K>
@@ -203,6 +216,15 @@ namespace Collections.Unsafe
 			if (entry == null) throw new KeyNotFoundException(key.ToString());
 
 			return (V*) GetValue(map, entry);
+		}
+		
+		public static void* GetPtr<K>(UnsafeHashMap* map, K key)
+			where K : unmanaged, IEquatable<K>
+		{
+			var entry = UnsafeHashCollection.Find(&map->_collection, key, key.GetHashCode());
+			if (entry == null) throw new KeyNotFoundException(key.ToString());
+
+			return GetValue(map, entry);
 		}
 
 		public static bool TryGetValue<K, V>(UnsafeHashMap* map, K key, out V val)
@@ -241,7 +263,7 @@ namespace Collections.Unsafe
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void* GetValue(UnsafeHashMap* map, UnsafeHashCollection.Entry* entry)
+		public static void* GetValue(UnsafeHashMap* map, UnsafeHashCollection.Entry* entry)
 		{
 			return (byte*) entry + map->_valueOffset;
 		}

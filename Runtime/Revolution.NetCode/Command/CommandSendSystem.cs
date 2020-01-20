@@ -25,7 +25,8 @@ namespace Unity.NetCode
 
             m_IncomingDataQuery = GetEntityQuery(new EntityQueryDesc
             {
-                All = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)}
+                All = new ComponentType[] {typeof(CommandTargetComponent), typeof(NetworkStreamInGame)},
+                None = new ComponentType[] {typeof(NetworkStreamDisconnected), typeof(NetworkStreamRequestDisconnect)}
             });
             m_CommandCollectionSystem = World.GetOrCreateSystem<CommandCollectionSystem>();
             m_ReceiveSystem           = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();

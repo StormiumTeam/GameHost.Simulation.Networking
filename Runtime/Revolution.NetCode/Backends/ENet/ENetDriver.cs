@@ -66,8 +66,8 @@ namespace ENet
 
 			public void ResetDataStream()
 			{
-				// set capacity back to 2048
-				m_DataStream->Resize<byte>(2048);
+				// set capacity back to 8192
+				m_DataStream->Resize<byte>(8192);
 				m_DataStream->Length = 0;
 			}
 
@@ -97,7 +97,11 @@ namespace ENet
 
 				var ev = UnsafeUtility.ReadArrayElement<DriverEvent>(m_IncomingEvents->Ptr, 0);
 				if (m_IncomingEvents->Length > 0)
-					m_IncomingEvents->RemoveAtSwapBack<DriverEvent>(0);
+				{
+					//m_IncomingEvents->RemoveAtSwapBack<DriverEvent>(0);
+					m_IncomingEvents->Length--;
+					UnsafeUtility.MemMove(m_IncomingEvents->Ptr, (byte*) m_IncomingEvents->Ptr + sizeof(DriverEvent), sizeof(DriverEvent) * m_IncomingEvents->Length);
+				}
 
 				if (ev.Type == NetworkEvent.Type.Data)
 				{
@@ -128,7 +132,7 @@ namespace ENet
 				var connections = driver.m_Connections.GetValueArray(Allocator.Temp);
 				for (var i = 0; i != connections.Length; i++)
 				{
-					if (connections[i].IncomingEventCount > 0)
+					if (!driver.m_QueuedForDisconnection[i] && connections[i].IncomingEventCount > 0)
 						throw new InvalidOperationException("A connection still had events in queue!");
 
 					connections[i].ResetDataStream();
@@ -220,13 +224,13 @@ namespace ENet
 		[NativeDisableUnsafePtrRestriction]
 		private Address m_Address;
 
-		private NativeArray<int> m_ConnectionVersions;
-		private NativeArray<bool> m_QueuedForDisconnection;
+		[NativeDisableParallelForRestriction] private NativeArray<int> m_ConnectionVersions;
+		[NativeDisableParallelForRestriction] private NativeArray<bool> m_QueuedForDisconnection;
 		
-		private NativeHashMap<uint, Connection> m_Connections;
-		private NativeQueue<uint>               m_QueuedConnections;
-		private NativeList<int>                 m_PipelineReliableIds;
-		private NativeList<int>                 m_PipelineUnreliableIds;
+		[NativeDisableParallelForRestriction] private NativeHashMap<uint, Connection> m_Connections;
+		[NativeDisableParallelForRestriction] private NativeQueue<uint>               m_QueuedConnections;
+		[NativeDisableParallelForRestriction] private NativeList<int>                 m_PipelineReliableIds;
+		[NativeDisableParallelForRestriction] private NativeList<int>                 m_PipelineUnreliableIds;
 		private int                             m_PipelineCount;
 
 		private struct SendPacket
@@ -235,8 +239,8 @@ namespace ENet
 			public byte Channel;
 		}
 		
-		private NativeList<Packet> m_PacketsToSend;
-		private NativeList<SendPacket> m_PacketsChannelToUse;
+		[NativeDisableParallelForRestriction] private NativeList<Packet> m_PacketsToSend;
+		[NativeDisableParallelForRestriction] private NativeList<SendPacket> m_PacketsChannelToUse;
 		
 		public Host Host => m_Host;
 
@@ -352,10 +356,14 @@ namespace ENet
 		{
 			if (m_DidBind)
 				throw new InvalidOperationException("Cant connecting when bind");
-			
-			var created = m_Host.Create(1, 32);
-			if (!created)	
-				throw new NotImplementedException("Failed to create");
+
+			if (!Host.IsCreated)
+			{
+				var created = m_Host.Create(1, 32);
+				if (!created)
+					throw new NotImplementedException("Failed to create");
+			}
+
 			Debug.Log($"{address.GetIP()} {address.Port}");
 			var peer = m_Host.Connect(address, 32);
 			AddConnection(peer);
@@ -473,7 +481,7 @@ namespace ENet
 			for (var i = 0; i != values.Length; i++)
 			{
 				con = new NetworkConnection {m_NetworkId = (int) values[i].Id, m_NetworkVersion = 1};
-				var ev = PopEventForConnection(con, out bs);
+				var ev = values[i].PopEvent(out bs);
 				if (ev != NetworkEvent.Type.Empty)
 					return ev;
 			}

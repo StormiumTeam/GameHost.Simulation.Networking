@@ -17,16 +17,6 @@ namespace Revolution
 		public const    uint          SnapshotHistorySize = 16;
 		public abstract ComponentType ExcludeComponent { get; }
 
-		public ref SharedSystemChunk GetSharedChunk()
-		{
-			return ref GetSerializerChunkData();
-		}
-
-		public ref SharedSystemGhost GetSharedGhost()
-		{
-			return ref GetDeserializerGhostData();
-		}
-
 		public bool IsChunkValid(ArchetypeChunk chunk)
 		{
 			var ownComponents  = EntityComponents;
@@ -122,16 +112,6 @@ namespace Revolution
 		protected override JobHandle OnUpdate(JobHandle inputDeps)
 		{
 			return inputDeps;
-		}
-
-		protected static ref SharedSystemChunk GetSerializerChunkData()
-		{
-			return ref SharedStatic<SharedSystemChunk>.GetOrCreate<ChunkKey>().Data;
-		}
-
-		protected static ref SharedSystemGhost GetDeserializerGhostData()
-		{
-			return ref SharedStatic<SharedSystemGhost>.GetOrCreate<GhostKey>().Data;
 		}
 
 		private class ChunkKey

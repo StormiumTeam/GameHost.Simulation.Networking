@@ -27,6 +27,7 @@ namespace Unity.NetCode
 		
 		private EntityQuery           m_PlayerQuery;
 		private EntityQuery m_Delayed;
+		private EntityQuery m_ReplicatedQuery;
 		
 		private DeserializeClientData m_DeserializeData;
 
@@ -46,6 +47,7 @@ namespace Unity.NetCode
 				None = new ComponentType[] {typeof(NetworkStreamDisconnected)}
 			});
 			m_Delayed = GetEntityQuery(typeof(DelayedSnapshotInfo), typeof(DelayedSnapshotBuffer));
+			m_ReplicatedQuery = GetEntityQuery(typeof(ReplicatedEntity));
 
 			m_ApplySnapshotSystem = World.GetOrCreateSystem<ApplySnapshotSystem>();
 
@@ -73,6 +75,13 @@ namespace Unity.NetCode
 				m_DeserializeData.GhostIds.Clear();
 				m_DeserializeData.KnownArchetypes.Clear();
 				m_DeserializeData.GhostToEntityMap.Clear();
+
+				using (var replicatedEntities = m_ReplicatedQuery.ToEntityArray(Allocator.TempJob))
+				{
+					foreach (var ent in replicatedEntities)
+						EntityManager.DestroyEntity(ent);
+				}
+
 				return;
 			}
 
@@ -89,6 +98,7 @@ namespace Unity.NetCode
 			var snapshot = incomingData.ToNativeArray(Allocator.TempJob);
 			var reader = new DataStreamReader(snapshot);
 			var ctx    = default(DataStreamReader.Context);
+			var snapshotCount = 0;
 			while (reader.GetBytesRead(ref ctx) < reader.Length)
 			{
 				var safetyData = reader.ReadByte(ref ctx);
@@ -201,6 +211,7 @@ namespace Unity.NetCode
 					compressedMemory.Dispose();
 
 					snapshotAck.LastReceivedSnapshotByLocal = tick;
+					snapshotCount++;
 				}
 				Profiler.EndSample();
 				EntityManager.SetComponentData(player, snapshotAck);

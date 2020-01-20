@@ -9,9 +9,6 @@ namespace Revolution
 	/// </summary>
 	public interface IDynamicSnapshotSystem
 	{
-		ref SharedSystemChunk GetSharedChunk();
-		ref SharedSystemGhost GetSharedGhost();
-
 		bool IsChunkValid(ArchetypeChunk                       chunk);
 		void OnDeserializerArchetypeUpdate(NativeArray<Entity> entities, NativeArray<uint> archetypes, Dictionary<uint, NativeArray<uint>> archetypeToSystems);
 	}

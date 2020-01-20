@@ -1,4 +1,5 @@
 using System;
+using ENet;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -6,6 +7,7 @@ using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using Unity.Networking.Transport.Utilities;
+using UnityEngine;
 
 namespace Unity.NetCode
 {
@@ -19,15 +21,13 @@ namespace Unity.NetCode
     [AlwaysUpdateSystem]
     public class NetworkStreamReceiveSystem : JobComponentSystem
     {
-        public   UdpNetworkDriver            Driver           => m_Driver;
-        internal UdpNetworkDriver.Concurrent ConcurrentDriver => m_ConcurrentDriver;
+        public   ENetDriver            Driver           => m_Driver;
         internal JobHandle                   LastDriverWriter;
 
         public NetworkPipeline UnreliablePipeline => m_UnreliablePipeline;
         public NetworkPipeline ReliablePipeline   => m_ReliablePipeline;
 
-        private UdpNetworkDriver                         m_Driver;
-        private UdpNetworkDriver.Concurrent              m_ConcurrentDriver;
+        private ENetDriver m_Driver;
         private NetworkPipeline                          m_UnreliablePipeline;
         private NetworkPipeline                          m_ReliablePipeline;
         private bool                                     m_DriverListening;
@@ -39,7 +39,7 @@ namespace Unity.NetCode
         private int                                      m_ClientPacketDrop;
         private EntityQuery                              m_NetworkStreamConnectionQuery;
 
-        public bool Listen(NetworkEndPoint endpoint)
+        public bool Listen(Address endpoint)
         {
             LastDriverWriter.Complete();
             if (m_UnreliablePipeline == NetworkPipeline.Null)
@@ -52,12 +52,10 @@ namespace Unity.NetCode
             if (m_Driver.Listen() != 0)
                 return false;
             m_DriverListening = true;
-            // FIXME: Bind breaks all copies of the driver nad makes them send to the wrong socket
-            m_ConcurrentDriver = m_Driver.ToConcurrent();
             return true;
         }
 
-        public Entity Connect(NetworkEndPoint endpoint)
+        public Entity Connect(Address endpoint)
         {
             LastDriverWriter.Complete();
             if (m_UnreliablePipeline == NetworkPipeline.Null)
@@ -99,6 +97,14 @@ namespace Unity.NetCode
 #endif
         protected override void OnCreate()
         {
+            if (!Library.Initialized)
+            {
+                if (!Library.Initialize())
+                    throw new InvalidOperationException("Library not initialized");
+
+                Application.quitting += Library.Deinitialize;
+            }
+
             var reliabilityParams = new ReliableUtility.Parameters {WindowSize = 32};
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -124,13 +130,12 @@ namespace Unity.NetCode
                 PacketDelayMs        = m_ClientPacketDelay, PacketJitterMs           = jitter,
                 PacketDropPercentage = m_ClientPacketDrop
             };
-            m_Driver = new UdpNetworkDriver(netParams, simulatorParams, reliabilityParams);
+            m_Driver = new ENetDriver(16);
             UnityEngine.Debug.Log($"Using simulator with latency={m_ClientPacketDelay} packet drop={m_ClientPacketDrop}");
 #else
-            m_Driver = new UdpNetworkDriver(reliabilityParams);
+            m_Driver = new ENetDriver(16);
 #endif
-
-            m_ConcurrentDriver             = m_Driver.ToConcurrent();
+ 
             m_UnreliablePipeline           = NetworkPipeline.Null;
             m_ReliablePipeline             = NetworkPipeline.Null;
             m_DriverListening              = false;
@@ -166,7 +171,7 @@ namespace Unity.NetCode
         struct ConnectionAcceptJob : IJob
         {
             public EntityCommandBuffer commandBuffer;
-            public UdpNetworkDriver    driver;
+            public ENetDriver driver;
 
             public NativeArray<int>          numNetworkId;
             public NativeQueue<int>          freeNetworkIds;
@@ -236,7 +241,7 @@ namespace Unity.NetCode
         struct DisconnectJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkStreamRequestDisconnect>
         {
             public EntityCommandBuffer.Concurrent commandBuffer;
-            public UdpNetworkDriver               driver;
+            public ENetDriver driver;
 
             public void Execute(Entity entity, int jobIndex, ref NetworkStreamConnection connection, [ReadOnly] ref NetworkStreamRequestDisconnect disconnect)
             {
@@ -250,7 +255,7 @@ namespace Unity.NetCode
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
             public            EntityCommandBuffer.Concurrent                              commandBuffer;
-            public            UdpNetworkDriver.Concurrent                                 driver;
+            public ENetDriver driver;
             public            NativeQueue<int>.ParallelWriter                             freeNetworkIds;
             [ReadOnly] public ComponentDataFromEntity<NetworkIdComponent>                 networkId;
             public            BufferFromEntity<IncomingRpcDataStreamBufferComponent>      rpcBuffer;
@@ -410,7 +415,7 @@ namespace Unity.NetCode
             // Schedule parallel update job
             var recvJob = new ConnectionReceiveJob();
             recvJob.commandBuffer  = m_Barrier.CreateCommandBuffer().ToConcurrent();
-            recvJob.driver         = m_ConcurrentDriver;
+            recvJob.driver         = Driver;
             recvJob.freeNetworkIds = concurrentFreeQueue;
             recvJob.networkId      = GetComponentDataFromEntity<NetworkIdComponent>();
             recvJob.rpcBuffer      = GetBufferFromEntity<IncomingRpcDataStreamBufferComponent>();

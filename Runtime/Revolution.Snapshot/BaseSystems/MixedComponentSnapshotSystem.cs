@@ -41,19 +41,24 @@ namespace Revolution
 		public static void Serialize(ref SerializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var chunks     = GetSerializerChunkData().Array;
+			
+			ref var clientData = ref parameters.GetClientData();
+			ref var stream     = ref parameters.GetStream();
 
+			var tick   = clientData.Tick;
+			var chunks = parameters.ChunksToSerialize;
+			
 			for (int c = 0, length = chunks.Length; c < length; c++)
 			{
 				var chunk          = chunks[c];
 				var componentArray = chunk.GetNativeArray(sharedData.ComponentTypeArch);
-				var ghostArray     = chunk.GetNativeArray(parameters.ClientData.GhostType);
+				var ghostArray     = chunk.GetNativeArray(clientData.GhostType);
 
 				bool          success;
 				GhostSnapshot ghostSnapshot;
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!parameters.ClientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(parameters.SystemId, out success);
 					if (!success)
@@ -62,7 +67,7 @@ namespace Revolution
 						baseline = default; // always set to default values!
 					}
 
-					componentArray[ent].WriteTo(parameters.Stream, ref baseline, sharedData.SetupData, parameters.ClientData);
+					componentArray[ent].WriteTo(stream, ref baseline, sharedData.SetupData, clientData);
 					baseline = componentArray[ent];
 				}
 			}
@@ -72,15 +77,17 @@ namespace Revolution
 		public static void Deserialize(ref DeserializeParameters parameters)
 		{
 			var sharedData = GetShared();
-			var ghostArray = GetDeserializerGhostData().Array;
+			var ghostArray = parameters.GhostsToDeserialize;
+
+			var clientData = parameters.GetClientData();
 
 			for (int ent = 0, length = ghostArray.Length; ent < length; ent++)
 			{
-				var entity      = parameters.ClientData.GhostToEntityMap[ghostArray[ent]];
+				var entity      = clientData.GhostToEntityMap[ghostArray[ent]];
 				var baseline    = sharedData.ComponentFromEntity[entity];
 				var newSnapshot = default(TComponent);
 
-				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, parameters.ClientData);
+				newSnapshot.ReadFrom(ref parameters.Ctx, parameters.Stream, ref baseline, clientData);
 
 				sharedData.ComponentFromEntity[entity] = newSnapshot;
 			}

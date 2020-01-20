@@ -6,12 +6,14 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Networking.Transport;
 using Unity.Transforms;
+using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace Unity.NetCode
 {
 	[UpdateInGroup(typeof(ServerSimulationSystemGroup))]
 	[UpdateAfter(typeof(TransformSystemGroup))]
+	[AlwaysUpdateSystem]
 	public unsafe class SnapshotSendSystem : ComponentSystem
 	{
 		private Dictionary<Entity, SerializeClientData> m_SerializeLookup;
@@ -43,7 +45,7 @@ namespace Unity.NetCode
 			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
 			m_CreateSnapshotSystem        = World.GetOrCreateSystem<CreateSnapshotSystem>();
 
-			m_DataStream = new DataStreamWriter(1440, Allocator.Persistent);
+			m_DataStream = new DataStreamWriter(8192, Allocator.Persistent);
 		}
 
 		protected override void OnUpdate()
@@ -113,13 +115,16 @@ namespace Unity.NetCode
 				var compressed       = UnsafeUtility.Malloc(LZ4Codec.MaximumOutputSize(buffer.Length), UnsafeUtility.AlignOf<byte>(), Allocator.Temp);
 				var compressedLength = LZ4Codec.MaximumOutputSize(buffer.Length);
 				{
-					var encoder = LZ4Level.L00_FAST; // default encoder
+					var encoder = LZ4Level.L04_HC; // default encoder
 					//encoder = LZ4Level.L12_MAX;
 
 					var size = LZ4Codec.Encode((byte*) buffer.GetUnsafePtr(), buffer.Length, (byte*) compressed, compressedLength, encoder);
 					Profiler.EndSample();
 					m_DataStream.Write(size);
 					m_DataStream.Write(buffer.Length);
+					
+					if (size > 1000)
+						Debug.Log($"s={size} c={compressedLength}");
 
 					m_DataStream.WriteBytes((byte*) compressed, size);
 				}

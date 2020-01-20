@@ -177,7 +177,7 @@ namespace Unity.NetCode.Editor
             }*/
             else if (ClientConnectionState == ConnectionState.TriggerConnect && !isConnected && m_prevEndPoint.IsValid)
             {
-                World.GetExistingSystem<NetworkStreamReceiveSystem>().Connect(m_prevEndPoint);
+               // World.GetExistingSystem<NetworkStreamReceiveSystem>().Connect(m_prevEndPoint);
             }
 
             // Update connection status
