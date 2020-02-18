@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 
@@ -20,6 +21,10 @@ namespace Revolution
 #endif
 		}
 
-		public uint this[Entity entity] => GhostIdentifierFromEntity.GetGhost(entity);
+		public uint this[Entity entity]
+		{
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			get { return GhostIdentifierFromEntity.GetGhost(entity); }
+		}
 	}
 }

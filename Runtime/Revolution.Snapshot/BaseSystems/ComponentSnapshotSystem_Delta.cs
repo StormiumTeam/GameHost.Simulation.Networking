@@ -86,7 +86,7 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					ghostSnapshot = clientData.GetSnapshot(ghostArray[ent].Value);
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TSnapshot>(parameters.SystemId, out success);
 					if (!success)

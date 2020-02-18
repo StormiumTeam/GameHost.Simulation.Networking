@@ -16,7 +16,7 @@ namespace Unity.NetCode
 	[AlwaysUpdateSystem]
 	public unsafe class SnapshotSendSystem : ComponentSystem
 	{
-		private Dictionary<Entity, SerializeClientData> m_SerializeLookup;
+		private Dictionary<Entity, ReferencableSerializeClientData> m_SerializeLookup;
 
 		private EntityQuery m_ConnectionGroup;
 		private EntityQuery m_ConnectionWithoutSnapshotBufferGroup;
@@ -31,7 +31,7 @@ namespace Unity.NetCode
 		{
 			base.OnCreate();
 
-			m_SerializeLookup = new Dictionary<Entity, SerializeClientData>(32);
+			m_SerializeLookup = new Dictionary<Entity, ReferencableSerializeClientData>(32);
 			m_ConnectionGroup = GetEntityQuery(new EntityQueryDesc
 			{
 				All = new ComponentType[] {typeof(NetworkStreamConnection), typeof(NetworkSnapshotAckComponent), /*typeof(NetworkStreamInGame)*/}
@@ -45,7 +45,7 @@ namespace Unity.NetCode
 			m_ReceiveSystem               = World.GetOrCreateSystem<NetworkStreamReceiveSystem>();
 			m_CreateSnapshotSystem        = World.GetOrCreateSystem<CreateSnapshotSystem>();
 
-			m_DataStream = new DataStreamWriter(8192, Allocator.Persistent);
+			m_DataStream = new DataStreamWriter(32_768, Allocator.Persistent);
 		}
 
 		protected override void OnUpdate()
@@ -73,7 +73,7 @@ namespace Unity.NetCode
 
 				foreach (var key in deleteKeys)
 				{
-					m_SerializeLookup[key].Dispose();
+					m_SerializeLookup[key].Data.Dispose();
 					m_SerializeLookup.Remove(key);
 				}
 			}
@@ -86,7 +86,10 @@ namespace Unity.NetCode
 				if (m_SerializeLookup.ContainsKey(entity))
 					continue;
 
-				m_SerializeLookup[entity] = new SerializeClientData(Allocator.Persistent);
+				m_SerializeLookup[entity] = new ReferencableSerializeClientData
+				{
+					Data = new SerializeClientData(Allocator.Persistent)
+				};
 			}
 
 			m_CreateSnapshotSystem.CreateSnapshot(m_ServerSimulationSystemGroup.ServerTick, m_SerializeLookup);
@@ -124,7 +127,7 @@ namespace Unity.NetCode
 					m_DataStream.Write(buffer.Length);
 					
 					if (size > 1000)
-						Debug.Log($"s={size} c={compressedLength}");
+						Debug.Log($"s={size} b={buffer.Length}");
 
 					m_DataStream.WriteBytes((byte*) compressed, size);
 				}
@@ -144,7 +147,7 @@ namespace Unity.NetCode
 
 			foreach (var kvp in m_SerializeLookup)
 			{
-				kvp.Value.Dispose();
+				kvp.Value.Data.Dispose();
 			}
 
 			m_SerializeLookup.Clear();

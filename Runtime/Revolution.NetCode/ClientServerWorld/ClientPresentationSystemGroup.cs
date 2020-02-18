@@ -12,11 +12,11 @@ namespace Unity.NetCode
                 return;
 
 #pragma warning disable 618
-            // we're keeping World.Active until we can properly remove them all
-            var defaultWorld = World.Active;
-            World.Active = World;
+            // we're keeping World.DefaultGameObjectInjectionWorld until we can properly remove them all
+            var defaultWorld = World.DefaultGameObjectInjectionWorld;
+            World.DefaultGameObjectInjectionWorld = World;
             base.OnUpdate();
-            World.Active = defaultWorld;
+            World.DefaultGameObjectInjectionWorld = defaultWorld;
 #pragma warning restore 618
         }
     }

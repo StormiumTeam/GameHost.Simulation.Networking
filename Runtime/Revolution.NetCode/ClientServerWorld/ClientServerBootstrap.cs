@@ -240,7 +240,7 @@ namespace Unity.NetCode
                 return null;
             return attribs[0] as T;
         }
-        protected internal static void GenerateSystemLists(List<Type> systems)
+        protected internal static void GenerateSystemLists(IEnumerable<Type> systems)
         {
             s_State.DefaultWorldSystems = new List<Type>();
             s_State.ExplicitDefaultWorldSystems = new List<Type>();

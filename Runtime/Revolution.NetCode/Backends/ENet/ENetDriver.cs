@@ -38,7 +38,7 @@ namespace ENet
 			private UnsafeList* m_DataStream;
 
 			public int IncomingEventCount => m_IncomingEvents->Length;
-			
+
 
 			public static Connection Create(Peer peer)
 			{
@@ -49,7 +49,7 @@ namespace ENet
 				(
 					UnsafeUtility.SizeOf<byte>(),
 					UnsafeUtility.AlignOf<byte>(),
-					2048,
+					4096,
 					Allocator.Persistent,
 					NativeArrayOptions.ClearMemory
 				);
@@ -132,8 +132,12 @@ namespace ENet
 				var connections = driver.m_Connections.GetValueArray(Allocator.Temp);
 				for (var i = 0; i != connections.Length; i++)
 				{
-					if (!driver.m_QueuedForDisconnection[i] && connections[i].IncomingEventCount > 0)
-						throw new InvalidOperationException("A connection still had events in queue!");
+					/*if (!driver.m_QueuedForDisconnection[i] && connections[i].IncomingEventCount > 0)
+						throw new InvalidOperationException("A connection still had events in queue!");*/
+					while (connections[i].PopEvent(out _) != NetworkEvent.Type.Empty)
+					{
+						
+					}
 
 					connections[i].ResetDataStream();
 					if (driver.m_QueuedForDisconnection[i])
@@ -157,11 +161,12 @@ namespace ENet
 
 					info.Peer.Send(info.Channel, ref packet);
 				}
+
 				driver.m_PacketsToSend.Clear();
 				driver.m_PacketsChannelToUse.Clear();
 
 				Event netEvent;
-				var polled = false;
+				var   polled = false;
 				while (!polled)
 				{
 					if (driver.m_Host.CheckEvents(out netEvent) <= 0)
@@ -171,13 +176,13 @@ namespace ENet
 
 						polled = true;
 					}
-					
+
 					var peerId = (int) netEvent.Peer.ID;
 					if (!driver.m_Connections.TryGetValue(netEvent.Peer.ID, out var connection))
 					{
 						connection = driver.AddConnection(netEvent.Peer);
 					}
-					
+
 					switch (netEvent.Type)
 					{
 						case NetEventType.None:
@@ -187,6 +192,7 @@ namespace ENet
 							{
 								driver.m_QueuedConnections.Enqueue(netEvent.Peer.ID);
 							}
+
 							break;
 						case NetEventType.Receive:
 							connection.AddMessage(netEvent.Packet.Data, netEvent.Packet.Length);
@@ -197,7 +203,7 @@ namespace ENet
 						{
 							connection.AddEvent(NetworkEvent.Type.Disconnect);
 							driver.m_QueuedForDisconnection[peerId] = true;
-							
+
 							// increment version
 							var ver = driver.m_ConnectionVersions[peerId];
 							ver++;
@@ -224,28 +230,28 @@ namespace ENet
 		[NativeDisableUnsafePtrRestriction]
 		private Address m_Address;
 
-		[NativeDisableParallelForRestriction] private NativeArray<int> m_ConnectionVersions;
+		[NativeDisableParallelForRestriction] private NativeArray<int>  m_ConnectionVersions;
 		[NativeDisableParallelForRestriction] private NativeArray<bool> m_QueuedForDisconnection;
-		
+
 		[NativeDisableParallelForRestriction] private NativeHashMap<uint, Connection> m_Connections;
 		[NativeDisableParallelForRestriction] private NativeQueue<uint>               m_QueuedConnections;
 		[NativeDisableParallelForRestriction] private NativeList<int>                 m_PipelineReliableIds;
 		[NativeDisableParallelForRestriction] private NativeList<int>                 m_PipelineUnreliableIds;
-		private int                             m_PipelineCount;
+		private                                       int                             m_PipelineCount;
 
 		private struct SendPacket
 		{
 			public Peer Peer;
 			public byte Channel;
 		}
-		
-		[NativeDisableParallelForRestriction] private NativeList<Packet> m_PacketsToSend;
+
+		[NativeDisableParallelForRestriction] private NativeList<Packet>     m_PacketsToSend;
 		[NativeDisableParallelForRestriction] private NativeList<SendPacket> m_PacketsChannelToUse;
-		
+
 		public Host Host => m_Host;
 
 		private uint m_MaxConnections;
-		public uint MaxConnections => m_MaxConnections;
+		public  uint MaxConnections => m_MaxConnections;
 
 		public ENetDriver(uint maxConnections)
 		{
@@ -254,7 +260,7 @@ namespace ENet
 			m_Address                = default;
 			m_Host                   = new Host();
 			m_PacketsToSend          = new NativeList<Packet>(32, Allocator.Persistent);
-			m_PacketsChannelToUse = new NativeList<SendPacket>(32, Allocator.Persistent);
+			m_PacketsChannelToUse    = new NativeList<SendPacket>(32, Allocator.Persistent);
 			m_ConnectionVersions     = new NativeArray<int>((int) maxConnections, Allocator.Persistent);
 			m_QueuedForDisconnection = new NativeArray<bool>((int) maxConnections, Allocator.Persistent);
 			m_Connections            = new NativeHashMap<uint, Connection>(32, Allocator.Persistent);
@@ -296,14 +302,14 @@ namespace ENet
 		}
 
 		private bool m_DidBind;
-		
+
 		public bool IsCreated => Host.IsCreated;
 
 		public JobHandle ScheduleUpdate(JobHandle dep = default(JobHandle))
 		{
 			if (!IsCreated)
 				return dep;
-			
+
 			dep = new CleanJob {driver = this}.Schedule(dep);
 			dep = new UpdateJob {driver = this}.Schedule(dep);
 			return dep;
@@ -343,7 +349,7 @@ namespace ENet
 
 			if (!m_QueuedConnections.TryDequeue(out var id))
 				return default;
-			
+
 			return new NetworkConnection {m_NetworkId = (int) id, m_NetworkVersion = 1};
 		}
 
@@ -367,7 +373,7 @@ namespace ENet
 			Debug.Log($"{address.GetIP()} {address.Port}");
 			var peer = m_Host.Connect(address, 32);
 			AddConnection(peer);
-			
+
 			return new NetworkConnection {m_NetworkId = (int) peer.ID, m_NetworkVersion = 1};
 		}
 
@@ -493,7 +499,11 @@ namespace ENet
 		{
 			bs = default;
 			if (!m_Connections.TryGetValue((uint) con.m_NetworkId, out var connection))
-				throw new InvalidOperationException($"No connection with id '{(uint) con.m_NetworkId}' found.");
+			{
+				//throw new InvalidOperationException($"No connection with id '{(uint) con.m_NetworkId}' found.");
+				// instead just throw a disconnection event...
+				return NetworkEvent.Type.Disconnect;
+			}
 
 			return connection.PopEvent(out bs);
 		}

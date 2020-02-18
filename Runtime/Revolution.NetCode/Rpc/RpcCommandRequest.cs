@@ -73,7 +73,7 @@ namespace Unity.NetCode
                 commandBuffer = m_CommandBufferSystem.CreateCommandBuffer().ToConcurrent(),
                 rpcFromEntity = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>(),
                 rpcQueue = m_RpcQueue,
-                connections = m_ConnectionsQuery.ToEntityArray(Allocator.TempJob, out var connectionsHandle)
+                connections = m_ConnectionsQuery.ToEntityArrayAsync(Allocator.TempJob, out var connectionsHandle)
             };
             var handle = sendJob.ScheduleSingle(this, JobHandle.CombineDependencies(inputDeps, connectionsHandle));
             m_CommandBufferSystem.AddJobHandleForProducer(handle);

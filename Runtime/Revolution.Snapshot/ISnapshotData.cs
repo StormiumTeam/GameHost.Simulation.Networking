@@ -26,7 +26,7 @@ namespace Revolution
 
 	public static unsafe class SnapshotDataExtensions
 	{
-		public const int SnapshotHistorySize = 32;
+		public const int SnapshotHistorySize = 24;
 
 		public static ref TSnapshot GetLastBaseline<TSnapshot>(this DynamicBuffer<TSnapshot> snapshotBuffer)
 			where TSnapshot : struct, ISnapshotData<TSnapshot>

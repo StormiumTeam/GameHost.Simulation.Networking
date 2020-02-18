@@ -2,6 +2,7 @@
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 
 namespace Unity.Networking.Transport
@@ -607,13 +608,18 @@ namespace Unity.Networking.Transport
 
         private void FlushBits()
         {
-            while (m_Data->bitIndex >= 8)
+            var data = *m_Data;
+            while (data.bitIndex >= 8)
             {
-                m_Data->buffer[m_Data->length++] = (byte)m_Data->bitBuffer;
-                m_Data->bitIndex -= 8;
-                m_Data->bitBuffer >>= 8;
+                data.buffer[data.length++] =   (byte) data.bitBuffer;
+                data.bitIndex              -=  8;
+                data.bitBuffer             >>= 8;
             }
+
+            UnsafeUtility.CopyStructureToPtr(ref data, m_Data);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void WriteRawBitsInternal(uint value, int numbits)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -622,11 +628,19 @@ namespace Unity.Networking.Transport
             if (value >= (1UL << numbits))
                 throw new ArgumentOutOfRangeException("Value does not fit in the specified number of bits");
 #endif
-
-            m_Data->bitBuffer |= ((ulong)value << m_Data->bitIndex);
-            m_Data->bitIndex += numbits;
+            
+            m_Data->bitBuffer |= ((ulong) value << m_Data->bitIndex);
+            m_Data->bitIndex  += numbits;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteBit(byte val)
+        {
+            WriteRawBitsInternal(val, 1);
+            FlushBits();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteBitBool(bool value)
         {
             WriteRawBitsInternal(value ? 1u : 0u, 1);

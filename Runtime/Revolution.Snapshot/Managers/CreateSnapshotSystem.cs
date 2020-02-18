@@ -13,6 +13,11 @@ using UnityEngine.Profiling;
 
 namespace Revolution
 {
+	public class ReferencableSerializeClientData
+	{
+		public SerializeClientData Data;
+	}
+	
 	public class CreateSnapshotSystem : ComponentSystem
 	{
 		private NativeHashMap<ArchetypeChunk, ArchData> m_ChunkToGhostArchetype;
@@ -59,7 +64,7 @@ namespace Revolution
 			m_GhostIdQueue          = new NativeQueue<uint>(Allocator.Persistent);
 			m_EntityToChunk         = new Dictionary<Entity, ArchetypeChunk>();
 			
-			writer = new DataStreamWriter(4096, Allocator.Persistent);
+			writer = new DataStreamWriter(24256, Allocator.Persistent);
 		}
 
 		protected override void OnUpdate()
@@ -114,10 +119,10 @@ namespace Revolution
 		/// </summary>
 		/// <param name="tick"></param>
 		/// <param name="lookup"></param>
-		public unsafe void CreateSnapshot(uint tick, in Dictionary<Entity, SerializeClientData> lookup)
+		public unsafe void CreateSnapshot(uint tick, in Dictionary<Entity, ReferencableSerializeClientData> lookup)
 		{
 			var blockedList = new NativeList<uint>(lookup.Count * 8, Allocator.Temp);
-			foreach (var data in lookup.Values) blockedList.AddRange(data.BlockedGhostIds);
+			foreach (var data in lookup.Values) blockedList.AddRange(data.Data.BlockedGhostIds);
 
 			CreateNewGhosts(blockedList);
 
@@ -220,14 +225,14 @@ namespace Revolution
 			foreach (var data in lookup)
 			{
 				var serializeData = data.Value;
-				serializeData.Client = data.Key;
-				serializeData.Tick   = tick;
-				CreateSnapshot(outgoing, serializeData, in chunks, in entities, in ghostArray, entityUpdate);
-				
+				serializeData.Data.Client = data.Key;
+				serializeData.Data.Tick   = tick;
+				CreateSnapshot(outgoing, ref serializeData.Data, in chunks, in entities, in ghostArray, entityUpdate);
+
 				var dBuffer = EntityManager.GetBuffer<ClientSnapshotBuffer>(data.Key);
 				dBuffer.Clear();
 				dBuffer.Reinterpret<byte>().AddRange(outgoing);
-				
+
 				outgoing.Clear();
 			}
 
@@ -288,7 +293,7 @@ namespace Revolution
 		/// <returns></returns>
 		/// <exception cref="NotImplementedException"></exception>
 		/// <exception cref="InvalidOperationException"></exception>
-		public unsafe void CreateSnapshot(NativeList<byte>       outgoing, SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
+		public unsafe void CreateSnapshot(NativeList<byte>       outgoing, ref SerializeClientData             baseline, in NativeArray<ArchetypeChunk> chunks,
 		                                  in NativeArray<Entity> entities, in NativeArray<GhostIdentifier> ghostArray,
 		                                  in NativeArray<Entity> entityUpdate,
 		                                  bool                   inChain = true)

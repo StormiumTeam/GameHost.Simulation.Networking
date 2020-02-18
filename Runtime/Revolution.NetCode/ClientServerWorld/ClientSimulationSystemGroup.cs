@@ -51,7 +51,7 @@ namespace Unity.NetCode
             float fixedTimeStep = 1.0f / (float) tickRate.SimulationTickRate;
             ServerTickDeltaTime = fixedTimeStep;
 
-            var previousTime = Time;
+            var   previousTime     = Time;
             float networkDeltaTime = Time.DeltaTime;
             // Set delta time for the NetworkTimeSystem
             if (networkDeltaTime > (float) tickRate.MaxSimulationStepsPerFrame / (float) tickRate.SimulationTickRate)
@@ -61,25 +61,25 @@ namespace Unity.NetCode
             }
 
 #pragma warning disable 618
-            var defaultWorld = World.Active;
-            World.Active = World;
+            var defaultWorld = World.DefaultGameObjectInjectionWorld;
+            World.DefaultGameObjectInjectionWorld = World;
 #pragma warning restore 618
             m_beginBarrier.Update();
             m_NetworkReceiveSystemGroup.Update();
 
             // Calculate update time based on values received from the network time system
-            var curServerTick = m_NetworkTimeSystem.predictTargetTick;
-            var curInterpoationTick = m_NetworkTimeSystem.interpolateTargetTick;
-            uint deltaTicks = curServerTick - m_previousServerTick;
+            var  curServerTick       = m_NetworkTimeSystem.predictTargetTick;
+            var  curInterpoationTick = m_NetworkTimeSystem.interpolateTargetTick;
+            uint deltaTicks          = curServerTick - m_previousServerTick;
 
-            bool fixedTick = HasSingleton<FixedClientTickRate>();
+            bool   fixedTick   = HasSingleton<FixedClientTickRate>();
             double currentTime = Time.ElapsedTime;
             if (fixedTick)
             {
                 if (curServerTick != 0)
                 {
                     m_serverTickFraction = m_interpolationTickFraction = 1;
-                    var fraction = m_NetworkTimeSystem.subPredictTargetTick;
+                    var fraction                                       = m_NetworkTimeSystem.subPredictTargetTick;
                     if (fraction < 1)
                         currentTime -= fraction * fixedTimeStep;
                     networkDeltaTime = fixedTimeStep;
@@ -93,7 +93,7 @@ namespace Unity.NetCode
             }
             else
             {
-                m_serverTickFraction = m_NetworkTimeSystem.subPredictTargetTick;
+                m_serverTickFraction        = m_NetworkTimeSystem.subPredictTargetTick;
                 m_interpolationTickFraction = m_NetworkTimeSystem.subInterpolateTargetTick;
 
                 // If the tick is within +/- 5% of a frame from matching a tick - just use the actual tick instead
@@ -110,17 +110,15 @@ namespace Unity.NetCode
                 if (m_interpolationTickFraction > 0.95f)
                     m_interpolationTickFraction = 1;
 
-                //Debug.Log(curInterpoationTick + " " + m_interpolationTickFraction);
-                
                 deltaTicks = curServerTick - m_previousServerTick;
                 if (deltaTicks > (uint) tickRate.MaxSimulationStepsPerFrame)
                     deltaTicks = (uint) tickRate.MaxSimulationStepsPerFrame;
                 networkDeltaTime = (deltaTicks + m_serverTickFraction - m_previousServerTickFraction) * fixedTimeStep;
-                deltaTicks = 1;
+                deltaTicks       = 1;
 
             }
 
-            m_previousServerTick = curServerTick;
+            m_previousServerTick         = curServerTick;
             m_previousServerTickFraction = m_serverTickFraction;
 
 
@@ -129,7 +127,7 @@ namespace Unity.NetCode
                 if (fixedTick)
                     m_fixedUpdateMarker.Begin();
                 var tickAge = deltaTicks - 1 - i;
-                m_serverTick = curServerTick - tickAge;
+                m_serverTick        = curServerTick - tickAge;
                 m_interpolationTick = curInterpoationTick - tickAge;
                 World.SetTime(new TimeData(currentTime - fixedTimeStep * tickAge, networkDeltaTime));
                 base.OnUpdate();
@@ -138,12 +136,12 @@ namespace Unity.NetCode
             }
 
 #pragma warning disable 618
-            World.Active = defaultWorld;
+            World.DefaultGameObjectInjectionWorld = defaultWorld;
 #pragma warning restore 618
             World.SetTime(previousTime);
         }
 
-        public override void SortSystemUpdateList()
+public override void SortSystemUpdateList()
         {
             // Extract list of systems to sort (excluding built-in systems that are inserted at fixed points)
             var toSort = new List<ComponentSystemBase>(m_systemsToUpdate.Count);

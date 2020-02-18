@@ -1,3 +1,4 @@
+using System;
 using K4os.Compression.LZ4;
 using Revolution;
 using Unity.Collections;
@@ -13,6 +14,7 @@ namespace Unity.NetCode
 	[AlwaysUpdateSystem]
 	[UpdateInGroup(typeof(ClientSimulationSystemGroup))]
 	[UpdateBefore(typeof(NetworkReceiveSnapshotSystemGroup))]
+	[UpdateBefore(typeof(GhostSimulationSystemGroup))]
 	public unsafe class SnapshotReceiveSystem : ComponentSystem
 	{
 		private struct DelayedSnapshotInfo : IComponentData
@@ -24,6 +26,9 @@ namespace Unity.NetCode
 		{
 			public byte val;
 		}
+
+		public int LastCompressedSnapshotSize;
+		public int LastUncompressedSnapshotSize;
 		
 		private EntityQuery           m_PlayerQuery;
 		private EntityQuery m_Delayed;
@@ -47,17 +52,39 @@ namespace Unity.NetCode
 				None = new ComponentType[] {typeof(NetworkStreamDisconnected)}
 			});
 			m_Delayed = GetEntityQuery(typeof(DelayedSnapshotInfo), typeof(DelayedSnapshotBuffer));
-			m_ReplicatedQuery = GetEntityQuery(typeof(ReplicatedEntity));
+			m_ReplicatedQuery = GetEntityQuery(typeof(ReplicatedEntity), ComponentType.Exclude<ManualDestroy>());
 
 			m_ApplySnapshotSystem = World.GetOrCreateSystem<ApplySnapshotSystem>();
 
 			m_PreviousTick = uint.MaxValue;
 		}
 
+		private int m_ErrorCount;
 		private void ApplySnapshot(uint tick, NativeArray<byte> data)
 		{
+			var player      = m_PlayerQuery.GetSingletonEntity();
+			var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);
+			snapshotAck.LastReceivedSnapshotByLocal = tick;
+			EntityManager.SetComponentData(player, snapshotAck);
+			
 			m_DeserializeData.Tick = tick;
-			m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, data);
+			try
+			{
+				m_ApplySnapshotSystem.ApplySnapshot(ref m_DeserializeData, data);
+			}
+			catch (Exception ex)
+			{
+				Debug.LogError(ex);
+				
+				m_ErrorCount++;
+				if (m_ErrorCount > 4)
+				{
+					Debug.LogError("Quit application before of snapshots errors...");
+					Application.Quit();
+					return;
+				}
+			}
+
 			m_PreviousTick = tick;
 		}
 
@@ -156,11 +183,11 @@ namespace Unity.NetCode
 							{
 								for (var index = 0; index < targets.Length; index++)
 								{
-									using (var data = EntityManager.GetBuffer<DelayedSnapshotBuffer>(snapshotEntities[index])
+									using (var data = EntityManager.GetBuffer<DelayedSnapshotBuffer>(targets[index])
 									                               .Reinterpret<byte>()
 									                               .ToNativeArray(Allocator.TempJob))
 									{
-										var info = snapshotInfoArray[index];
+										var info = EntityManager.GetComponentData<DelayedSnapshotInfo>(targets[index]);
 										ApplySnapshot(info.tick, data);
 									}
 								}
@@ -179,15 +206,17 @@ namespace Unity.NetCode
 				Profiler.EndSample();
 
 				Profiler.BeginSample("Apply current snapshot");
-				var snapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(player);
 				{
 					var compressedSize   = reader.ReadInt(ref ctx);
 					var uncompressedSize = reader.ReadInt(ref ctx);
 					var compressedMemory = new NativeArray<byte>(compressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 					reader.ReadBytes(ref ctx, (byte*) compressedMemory.GetUnsafePtr(), compressedSize);
 
-					var uncompressedMemory = new NativeArray<byte>(uncompressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory); 
-						
+					var uncompressedMemory = new NativeArray<byte>(uncompressedSize, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+					LastCompressedSnapshotSize = compressedSize;
+					LastUncompressedSnapshotSize = uncompressedSize;
+					
 					Profiler.BeginSample("Decompress");
 					LZ4Codec.Decode((byte*) compressedMemory.GetUnsafePtr(), compressedSize, 
 						(byte*) uncompressedMemory.GetUnsafePtr(), uncompressedSize);
@@ -210,11 +239,9 @@ namespace Unity.NetCode
 					uncompressedMemory.Dispose();
 					compressedMemory.Dispose();
 
-					snapshotAck.LastReceivedSnapshotByLocal = tick;
 					snapshotCount++;
 				}
 				Profiler.EndSample();
-				EntityManager.SetComponentData(player, snapshotAck);
 			}
 
 			EntityManager.GetBuffer<IncomingSnapshotDataStreamBufferComponent>(player).Clear();

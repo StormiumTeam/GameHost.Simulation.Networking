@@ -1,9 +1,12 @@
 using System;
+using System.Runtime.CompilerServices;
 using Collections.Unsafe;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
+using UnityEngine;
 
 namespace Revolution
 {
@@ -30,6 +33,8 @@ namespace Revolution
 
 		public Entity Client;
 
+		private NativeArray<IntPtr> m_GhostSnapshots;
+
 		public SerializeClientData(Allocator allocator)
 		{
 			if (allocator != Allocator.Persistent)
@@ -51,6 +56,8 @@ namespace Revolution
 
 			Client = default;
 			Tick   = 0;
+
+			m_GhostSnapshots = default;
 		}
 
 		public void BeginSerialize(ComponentSystemBase system, NativeArray<ArchetypeChunk> chunks)
@@ -65,11 +72,25 @@ namespace Revolution
 			var     ptr  = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<GhostSnapshot>(), UnsafeUtility.AlignOf<GhostSnapshot>(), Allocator.Persistent);
 			ref var data = ref UnsafeUtilityEx.AsRef<GhostSnapshot>(ptr);
 			data.Id         = ghostId;
-			data.SystemData = UnsafeHashMap.Allocate<uint, IntPtr>(256);
+			data.Allocate();
 
 			GhostSnapshots[ghostId] = (IntPtr) ptr;
+
+			var prevLength = m_GhostSnapshots.IsCreated ? m_GhostSnapshots.Length : 0;
+			if (m_GhostSnapshots.IsCreated)
+				m_GhostSnapshots.Dispose();
+			
+			m_GhostSnapshots = new NativeArray<IntPtr>((int) math.max(prevLength, ghostId + 1), Allocator.Persistent, NativeArrayOptions.ClearMemory);
+			for (var i = 0; i != m_GhostSnapshots.Length; i++)
+			{
+				if (!GhostSnapshots.TryGetValue((uint) i, out var snapPtr))
+					continue;
+
+				m_GhostSnapshots[i] = snapPtr;
+			}
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe bool TryGetSnapshot(uint ghostId, out GhostSnapshot snapshot)
 		{
 			if (GhostSnapshots.TryGetValue(ghostId, out var snapshotPtr))
@@ -80,6 +101,13 @@ namespace Revolution
 
 			snapshot = default;
 			return false;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public unsafe ref GhostSnapshot GetSnapshot(uint ghostId)
+		{
+			//return UnsafeUtilityEx.AsRef<GhostSnapshot>((void*) GhostSnapshots[ghostId]);
+			return ref UnsafeUtilityEx.AsRef<GhostSnapshot>((void*) m_GhostSnapshots[(int) ghostId]);
 		}
 
 		public unsafe void Dispose()
@@ -97,6 +125,7 @@ namespace Revolution
 			ProgressiveGhostIds.Dispose();
 			BlockedGhostIds.Dispose();
 			KnownArchetypes.Dispose();
+			m_GhostSnapshots.Dispose();
 		}
 	}
 }

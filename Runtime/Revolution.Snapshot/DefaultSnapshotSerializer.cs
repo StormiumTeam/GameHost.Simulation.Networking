@@ -10,6 +10,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
@@ -201,10 +202,9 @@ namespace Revolution
 						var serializer = Serializers[i];
 						var invoke     = serializer.Value.Invoke;
 
-						parameters.SystemId = serializer.SystemId;
-
 						var chunks = UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemChunkMap, serializer.SystemId)).Chunks;
 						parameters.ChunksToSerialize = new UnsafeAllocationLength<ArchetypeChunk>(chunks.Ptr, chunks.Length);
+						parameters.SystemId = serializer.SystemId;
 						invoke(ref parameters);
 					}
 				}
@@ -289,10 +289,9 @@ namespace Revolution
 						var serializer = Deserializers[i];
 						var invoke     = serializer.Value.Invoke;
 
-						parameters.SystemId = serializer.SystemId;
-
 						var ghostIds = UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemGhostIdMap, serializer.SystemId)).GhostIds;
 						parameters.GhostsToDeserialize = new UnsafeAllocationLength<uint>(ghostIds.Ptr, ghostIds.Length);
+						parameters.SystemId            = serializer.SystemId;
 						invoke(ref parameters);
 					}
 				}

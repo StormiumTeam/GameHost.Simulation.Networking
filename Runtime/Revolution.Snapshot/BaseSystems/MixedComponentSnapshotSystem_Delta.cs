@@ -2,6 +2,7 @@ using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine.Profiling;
 
 namespace Revolution
 {
@@ -72,8 +73,8 @@ namespace Revolution
 
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
-
+					ghostSnapshot = clientData.GetSnapshot(ghostArray[ent].Value);
+					
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TComponent>(parameters.SystemId, out success);
 					if (!success)
 					{
@@ -91,12 +92,12 @@ namespace Revolution
 						// no change? skip
 						if (!component.DidChange(baseline) && success)
 						{
-							stream.WriteBitBool(true);
+							stream.WriteBit(1);
 							continue;
 						}
 
 						// don't skip
-						stream.WriteBitBool(false);
+						stream.WriteBit(0);
 					}
 
 					component.WriteTo(stream, ref baseline, sharedData.SetupData, clientData);

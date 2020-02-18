@@ -28,6 +28,7 @@ namespace Unity.NetCode
 	}
 
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
+	[AlwaysSynchronizeSystem]
 	public abstract class ComponentUpdateSystemDirect<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>
@@ -62,7 +63,7 @@ namespace Unity.NetCode
 			return m_ReceiveSystem.AddDependency(new JobDirect
 			{
 				JobData = m_ReceiveSystem.JobData
-			}.Schedule(m_UpdateQuery, inputDeps));
+			}.Run(m_UpdateQuery));
 		}
 	}
 
@@ -77,6 +78,7 @@ namespace Unity.NetCode
 	}
 	
 	[UpdateInGroup(typeof(GhostUpdateSystemGroup))]
+	[AlwaysSynchronizeSystem]
 	public abstract class ComponentUpdateSystemInterpolated<TComponent, TSnapshot, TSetup> : JobComponentSystem
 		where TComponent : struct, IComponentData
 		where TSnapshot : struct, ISnapshotData<TSnapshot>, ISynchronizeImpl<TComponent, TSetup>, IInterpolatable<TSnapshot>
@@ -149,7 +151,7 @@ namespace Unity.NetCode
 					targetTick       = targetTick,
 					lastPredictTick  = lastPredictTick,
 					minPredictedTick = minPredictedTick
-				}.Schedule(m_RequiredQuery, inputDeps);
+				}.Run(m_RequiredQuery);
 
 				m_LastPredictTick = m_ClientGroup.ServerTick;
 				if (m_ClientGroup.ServerTickFraction < 1)
@@ -168,7 +170,7 @@ namespace Unity.NetCode
 					jobData    = jobData,
 					targetTick = targetTick,
 					fraction = fraction
-				}.Schedule(m_RequiredQuery, inputDeps);
+				}.Run(m_RequiredQuery);
 			}
 			
 			return Dependency = inputDeps;
@@ -180,13 +182,15 @@ namespace Unity.NetCode
 			[ReadOnly]
 			public DeserializeClientData jobData;
 
-			public uint targetTick;
+			public uint  targetTick;
 			public float fraction;
 
 			public void Execute(DynamicBuffer<TSnapshot> snapshots, ref TComponent component)
 			{
-				if (!snapshots.GetDataAtTick(targetTick, fraction, out var snapshotData))
-					snapshotData = snapshots.GetLastBaseline();
+				if (!snapshots.GetDataAtTick(targetTick, fraction, out var snapshotData)
+				    && snapshots.Length > 0)
+					snapshotData = snapshots[0];
+
 				snapshotData.SynchronizeTo(ref component, jobData);
 			}
 		}

@@ -39,7 +39,7 @@ namespace Revolution
 				var ghostArray     = chunk.GetNativeArray(clientData.GhostType);
 				for (int ent = 0, entityCount = chunk.Count; ent < entityCount; ent++)
 				{
-					if (!clientData.TryGetSnapshot(ghostArray[ent].Value, out var ghostSnapshot)) throw new InvalidOperationException("A ghost should have a snapshot.");
+					var ghostSnapshot = clientData.GetSnapshot(ghostArray[ent].Value);
 
 					ref var baseline = ref ghostSnapshot.TryGetSystemData<TripleBaseline>(parameters.SystemId, out var success);
 					if (!success)
