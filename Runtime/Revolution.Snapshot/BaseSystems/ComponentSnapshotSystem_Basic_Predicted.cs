@@ -121,7 +121,7 @@ namespace Revolution
 		internal override void SystemBeginSerialize(Entity entity)
 		{
 			ref var sharedData = ref GetShared();
-			sharedData.ComponentTypeArch = GetArchetypeChunkComponentType<TComponent>(true);
+			sharedData.ComponentTypeArch = GetComponentTypeHandle<TComponent>(true);
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 				, SafetyHandle
@@ -148,7 +148,7 @@ namespace Revolution
 		public struct SharedData
 		{
 			public TSetup                                  SetupData;
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public ComponentTypeHandle<TComponent> ComponentTypeArch;
 			public BufferFromEntity<TSnapshot>             SnapshotFromEntity;
 		}
 

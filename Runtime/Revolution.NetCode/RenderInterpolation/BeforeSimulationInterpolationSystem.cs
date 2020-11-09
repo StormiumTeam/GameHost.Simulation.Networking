@@ -28,9 +28,9 @@ namespace Unity.NetCode
         [BurstCompile]
         struct UpdatePos : IJobChunk
         {
-            public ArchetypeChunkComponentType<Translation> positionType;
-            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
-            public ArchetypeChunkComponentType<PreviousSimulatedPosition> prevPositionType;
+            public ComponentTypeHandle<Translation> positionType;
+            [ReadOnly] public ComponentTypeHandle<CurrentSimulatedPosition> curPositionType;
+            public ComponentTypeHandle<PreviousSimulatedPosition> prevPositionType;
             public uint simStartComponentVersion;
             public uint simEndComponentVersion;
 
@@ -38,7 +38,7 @@ namespace Unity.NetCode
             {
                 // For all chunks where currentTrans is newer than previousTrans
                 // Copy currentTrans to previous trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curPositionType),
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(curPositionType),
                     simStartComponentVersion))
                 {
                     var curPos = chunk.GetNativeArray(curPositionType);
@@ -52,7 +52,7 @@ namespace Unity.NetCode
 
                 // For all chunks where transform has changed since end of last simulation
                 // Copy currentTargs to trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(positionType), simEndComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(positionType), simEndComponentVersion))
                 {
                     // Transform was interpolated by the rendering system
                     var curPos = chunk.GetNativeArray(curPositionType);
@@ -69,9 +69,9 @@ namespace Unity.NetCode
         [BurstCompile]
         struct UpdateRot : IJobChunk
         {
-            public ArchetypeChunkComponentType<Rotation> rotationType;
-            [ReadOnly] public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
-            public ArchetypeChunkComponentType<PreviousSimulatedRotation> prevRotationType;
+            public ComponentTypeHandle<Rotation> rotationType;
+            [ReadOnly] public ComponentTypeHandle<CurrentSimulatedRotation> curRotationType;
+            public ComponentTypeHandle<PreviousSimulatedRotation> prevRotationType;
             public uint simStartComponentVersion;
             public uint simEndComponentVersion;
 
@@ -79,7 +79,7 @@ namespace Unity.NetCode
             {
                 // For all chunks where currentTrans is newer than previousTrans
                 // Copy currentTrans to previous trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(curRotationType),
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(curRotationType),
                     simStartComponentVersion))
                 {
                     var curRot = chunk.GetNativeArray(curRotationType);
@@ -93,7 +93,7 @@ namespace Unity.NetCode
 
                 // For all chunks where transform has changed since end of last simulation
                 // Copy currentTargs to trans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(rotationType), simEndComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(rotationType), simEndComponentVersion))
                 {
                     // Transform was interpolated by the rendering system
                     var curRot = chunk.GetNativeArray(curRotationType);
@@ -113,16 +113,16 @@ namespace Unity.NetCode
             RenderInterpolationSystem.parameters.fixedDeltaTime = Time.DeltaTime;
 
             var posJob = new UpdatePos();
-            posJob.positionType = GetArchetypeChunkComponentType<Translation>();
-            posJob.curPositionType = GetArchetypeChunkComponentType<CurrentSimulatedPosition>(true);
-            posJob.prevPositionType = GetArchetypeChunkComponentType<PreviousSimulatedPosition>();
+            posJob.positionType = GetComponentTypeHandle<Translation>();
+            posJob.curPositionType = GetComponentTypeHandle<CurrentSimulatedPosition>(true);
+            posJob.prevPositionType = GetComponentTypeHandle<PreviousSimulatedPosition>();
             posJob.simStartComponentVersion = simStartComponentVersion;
             posJob.simEndComponentVersion = simEndComponentVersion;
 
             var rotJob = new UpdateRot();
-            rotJob.rotationType = GetArchetypeChunkComponentType<Rotation>();
-            rotJob.curRotationType = GetArchetypeChunkComponentType<CurrentSimulatedRotation>(true);
-            rotJob.prevRotationType = GetArchetypeChunkComponentType<PreviousSimulatedRotation>();
+            rotJob.rotationType = GetComponentTypeHandle<Rotation>();
+            rotJob.curRotationType = GetComponentTypeHandle<CurrentSimulatedRotation>(true);
+            rotJob.prevRotationType = GetComponentTypeHandle<PreviousSimulatedRotation>();
             rotJob.simStartComponentVersion = simStartComponentVersion;
             rotJob.simEndComponentVersion = simEndComponentVersion;
 

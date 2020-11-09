@@ -26,7 +26,7 @@ namespace Unity.NetCode
     {
         struct SendRpc : IJobForEachWithEntity<SendRpcCommandRequestComponent, TActionRequest>
         {
-            public EntityCommandBuffer.Concurrent commandBuffer;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
             public BufferFromEntity<OutgoingRpcDataStreamBufferComponent> rpcFromEntity;
             public RpcQueue<TActionRequest> rpcQueue;
             [DeallocateOnJobCompletion][ReadOnly] public NativeArray<Entity> connections;
@@ -70,7 +70,7 @@ namespace Unity.NetCode
         {
             var sendJob = new SendRpc
             {
-                commandBuffer = m_CommandBufferSystem.CreateCommandBuffer().ToConcurrent(),
+                commandBuffer = m_CommandBufferSystem.CreateCommandBuffer().AsParallelWriter(),
                 rpcFromEntity = GetBufferFromEntity<OutgoingRpcDataStreamBufferComponent>(),
                 rpcQueue = m_RpcQueue,
                 connections = m_ConnectionsQuery.ToEntityArrayAsync(Allocator.TempJob, out var connectionsHandle)

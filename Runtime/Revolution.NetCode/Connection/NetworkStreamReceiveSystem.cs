@@ -228,7 +228,7 @@ namespace Unity.NetCode
         [ExcludeComponent(typeof(OutgoingRpcDataStreamBufferComponent))]
         struct CompleteConnectionJob : IJobForEachWithEntity<NetworkStreamConnection>
         {
-            public EntityCommandBuffer.Concurrent commandBuffer;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
             public NetworkProtocolVersion         protocolVersion;
 
             public void Execute(Entity entity, int jobIndex, [ReadOnly] ref NetworkStreamConnection con)
@@ -240,7 +240,7 @@ namespace Unity.NetCode
 
         struct DisconnectJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkStreamRequestDisconnect>
         {
-            public EntityCommandBuffer.Concurrent commandBuffer;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
             public ENetDriver driver;
 
             public void Execute(Entity entity, int jobIndex, ref NetworkStreamConnection connection, [ReadOnly] ref NetworkStreamRequestDisconnect disconnect)
@@ -254,7 +254,7 @@ namespace Unity.NetCode
         [ExcludeComponent(typeof(NetworkStreamDisconnected))]
         struct ConnectionReceiveJob : IJobForEachWithEntity<NetworkStreamConnection, NetworkSnapshotAckComponent>
         {
-            public            EntityCommandBuffer.Concurrent                              commandBuffer;
+            public            EntityCommandBuffer.ParallelWriter                              commandBuffer;
             public ENetDriver driver;
             public            NativeQueue<int>.ParallelWriter                             freeNetworkIds;
             [ReadOnly] public ComponentDataFromEntity<NetworkIdComponent>                 networkId;
@@ -286,7 +286,7 @@ namespace Unity.NetCode
                             rpcBuffer[entity].Clear();
                             cmdBuffer[entity].Clear();
                             connection.Value = default(NetworkConnection);
-                            if (networkId.Exists(entity))
+                            if (networkId.HasComponent(entity))
                                 freeNetworkIds.Enqueue(networkId[entity].Value);
                             return;
                         case NetworkEvent.Type.Data:
@@ -399,7 +399,7 @@ namespace Unity.NetCode
 
             var completeJob = new CompleteConnectionJob
             {
-                commandBuffer   = m_Barrier.CreateCommandBuffer().ToConcurrent(),
+                commandBuffer   = m_Barrier.CreateCommandBuffer().AsParallelWriter(),
                 protocolVersion = GetSingleton<NetworkProtocolVersion>()
             };
             inputDeps = completeJob.Schedule(this, inputDeps);
@@ -407,14 +407,14 @@ namespace Unity.NetCode
             inputDeps = JobHandle.CombineDependencies(inputDeps, LastDriverWriter);
             var disconnectJob = new DisconnectJob
             {
-                commandBuffer = m_Barrier.CreateCommandBuffer().ToConcurrent(),
+                commandBuffer = m_Barrier.CreateCommandBuffer().AsParallelWriter(),
                 driver        = m_Driver
             };
             inputDeps = disconnectJob.ScheduleSingle(this, inputDeps);
 
             // Schedule parallel update job
             var recvJob = new ConnectionReceiveJob();
-            recvJob.commandBuffer  = m_Barrier.CreateCommandBuffer().ToConcurrent();
+            recvJob.commandBuffer  = m_Barrier.CreateCommandBuffer().AsParallelWriter();
             recvJob.driver         = Driver;
             recvJob.freeNetworkIds = concurrentFreeQueue;
             recvJob.networkId      = GetComponentDataFromEntity<NetworkIdComponent>();

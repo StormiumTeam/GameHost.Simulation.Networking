@@ -76,7 +76,7 @@ namespace Unity.Networking.Transport
     [NativeContainer]
     public unsafe struct DataStreamWriter : IDisposable
     {
-        public unsafe void WritePackedStringDelta(NativeString64 str, NativeString64 baseline, NetworkCompressionModel model)
+        public unsafe void WritePackedStringDelta(FixedString64 str, FixedString64 baseline, NetworkCompressionModel model)
         {
             ushort length     = *((ushort*)&str);
             byte*  data       = ((byte*)&str) + 2;
@@ -97,7 +97,7 @@ namespace Unity.Networking.Transport
             }
         }
         
-        public unsafe void WritePackedStringDelta(NativeString512 str, NativeString512 baseline, NetworkCompressionModel model)
+        public unsafe void WritePackedStringDelta(FixedString512 str, FixedString512 baseline, NetworkCompressionModel model)
         {
             ushort length     = *((ushort*)&str);
             byte*  data       = ((byte*)&str) + 2;
@@ -1094,14 +1094,14 @@ namespace Unity.Networking.Transport
             return baseline - delta;
         }
         
-        public unsafe NativeString64 ReadPackedStringDelta(ref Context ctx, NativeString64 baseline, NetworkCompressionModel model)
+        public unsafe FixedString64 ReadPackedStringDelta(ref Context ctx, FixedString64 baseline, NetworkCompressionModel model)
         {
-            NativeString64 str;
+            FixedString64 str;
             byte*          data       = ((byte*)&str) + 2;
             ushort         baseLength = *((ushort*)&baseline);
             byte*          baseData   = ((byte*)&baseline) + 2;
             uint           length     = ReadPackedUIntDelta(ref ctx, baseLength, model);
-            if (length > NativeString64.MaxLength)
+            if (length > FixedString64.UTF8MaxLengthInBytes)
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                 throw new InvalidOperationException("Invalid string length");
 #else
@@ -1123,14 +1123,14 @@ namespace Unity.Networking.Transport
             return str;
         }
         
-        public unsafe NativeString512 ReadPackedStringDelta(ref Context ctx, NativeString512 baseline, NetworkCompressionModel model)
+        public unsafe FixedString512 ReadPackedStringDelta(ref Context ctx, FixedString512 baseline, NetworkCompressionModel model)
         {
-            NativeString512 str;
+            FixedString512 str;
             byte*          data       = ((byte*)&str) + 2;
             ushort         baseLength = *((ushort*)&baseline);
             byte*          baseData   = ((byte*)&baseline) + 2;
             uint           length     = ReadPackedUIntDelta(ref ctx, baseLength, model);
-            if (length > NativeString512.MaxLength)
+            if (length > FixedString512.UTF8MaxLengthInBytes)
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                 throw new InvalidOperationException("Invalid string length");
 #else

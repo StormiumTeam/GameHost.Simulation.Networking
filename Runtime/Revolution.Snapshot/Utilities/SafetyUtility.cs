@@ -31,7 +31,7 @@ namespace Revolution
 
 		private static int s_ArchetypeComponentSafetyVarPos = -1;
 
-		public static void Replace<T>(ref ArchetypeChunkComponentType<T> bfe, AtomicSafetyHandle safetyHandle)
+		public static void Replace<T>(ref ComponentTypeHandle<T> bfe, AtomicSafetyHandle safetyHandle)
 			where T : struct, IComponentData
 		{
 			if (s_ArchetypeComponentSafetyVarPos < 0) Init();
@@ -44,7 +44,7 @@ namespace Revolution
 
 		private static void Init()
 		{
-			var type = typeof(ArchetypeChunkComponentType<>);
+			var type = typeof(ComponentTypeHandle<>);
 			var field = type.GetField("m_Safety", BindingFlags.NonPublic |
 			                                      BindingFlags.Instance |
 			                                      BindingFlags.GetField);

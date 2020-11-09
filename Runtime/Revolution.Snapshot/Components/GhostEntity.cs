@@ -40,7 +40,7 @@ namespace Revolution
 	{
 		public static uint GetGhost(this ComponentDataFromEntity<GhostIdentifier> ghostIdentifier, Entity entity)
 		{
-			if (ghostIdentifier.Exists(entity))
+			if (ghostIdentifier.HasComponent(entity))
 				return ghostIdentifier[entity].Value;
 			return 0;
 		}

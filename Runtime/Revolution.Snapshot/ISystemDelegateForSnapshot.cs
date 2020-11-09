@@ -19,7 +19,7 @@ namespace Revolution
 		/// </summary>
 		FunctionPointer<OnDeserializeSnapshot> DeserializeDelegate { get; }
 
-		NativeString512 NativeName { get; }
+		FixedString512 NativeName { get; }
 
 		/// <summary>
 		///     Called when a snapshot system is beginning to serialize

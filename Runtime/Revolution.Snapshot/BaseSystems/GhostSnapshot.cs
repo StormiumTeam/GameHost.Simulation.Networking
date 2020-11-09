@@ -69,7 +69,7 @@ namespace Revolution
 		{
 			var sd = SystemData->Ptr[systemId];
 			success = sd != null;
-			return ref UnsafeUtilityEx.AsRef<T>(sd);
+			return ref UnsafeUtility.AsRef<T>(sd);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,7 +83,7 @@ namespace Revolution
 			}
 
 			SystemData->Ptr[systemId] = ptr;
-			return ref UnsafeUtilityEx.AsRef<T>(ptr);
+			return ref UnsafeUtility.AsRef<T>(ptr);
 		}
 
 		public void Allocate()

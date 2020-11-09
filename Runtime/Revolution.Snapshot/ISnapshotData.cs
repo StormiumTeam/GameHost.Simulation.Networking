@@ -35,7 +35,7 @@ namespace Revolution
 				snapshotBuffer.Add(default); // needed or else we will read out of range on first execution
 
 			var ptr = snapshotBuffer.GetUnsafePtr();
-			return ref UnsafeUtilityEx.ArrayElementAsRef<TSnapshot>(ptr, snapshotBuffer.Length - 1);
+			return ref UnsafeUtility.ArrayElementAsRef<TSnapshot>(ptr, snapshotBuffer.Length - 1);
 		}
 
 		public static TSnapshot GetLastBaselineReadOnly<TSnapshot>(this DynamicBuffer<TSnapshot> snapshotBuffer)

@@ -8,7 +8,7 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.LowLevel.Unsafe;
-using UnityEngine;
+
 using UnityEngine.Profiling;
 
 namespace Revolution
@@ -137,8 +137,8 @@ namespace Revolution
 			GhostToEntityMap.Clear();
 			foreach (var chunk in chunks)
 			{
-				var entityArray  = chunk.GetNativeArray(GetArchetypeChunkEntityType());
-				var ghostIdArray = chunk.GetNativeArray(GetArchetypeChunkComponentType<GhostIdentifier>());
+				var entityArray  = chunk.GetNativeArray(GetEntityTypeHandle());
+				var ghostIdArray = chunk.GetNativeArray(GetComponentTypeHandle<GhostIdentifier>());
 				for (var index = 0; index < ghostIdArray.Length; index++)
 				{
 					entities[x]                                 = entityArray[index];
@@ -196,7 +196,7 @@ namespace Revolution
 
 					if (archetypeChanged)
 					{
-						var chunkEntities = chunk.GetNativeArray(GetArchetypeChunkEntityType());
+						var chunkEntities = chunk.GetNativeArray(GetEntityTypeHandle());
 						foreach (var ent in chunkEntities)
 							if (!entityUpdate.Contains(ent))
 								entityUpdate.Add(ent);

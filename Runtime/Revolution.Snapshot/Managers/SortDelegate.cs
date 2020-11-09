@@ -8,7 +8,7 @@ namespace Revolution
 	{
 		public FunctionPointer<T> Value;
 		public uint                SystemId;
-		public NativeString512     Name;
+		public FixedString512     Name;
 
 		public int CompareTo(SortDelegate<T> other)
 		{

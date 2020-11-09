@@ -22,21 +22,21 @@ namespace Unity.NetCode
 
         protected override void OnCreate()
         {
-            positionInterpolationGroup = GetEntityQuery(ComponentType.ReadOnly<CurrentSimulatedPosition>(),
-                ComponentType.ReadOnly<PreviousSimulatedPosition>(), ComponentType.ReadWrite<Translation>());
-            rotationInterpolationGroup = GetEntityQuery(ComponentType.ReadOnly<CurrentSimulatedRotation>(),
-                ComponentType.ReadOnly<PreviousSimulatedRotation>(), ComponentType.ReadWrite<Rotation>());
+            positionInterpolationGroup = GetEntityQuery(ComponentType.ReadWrite<CurrentSimulatedPosition>(),
+                ComponentType.ReadOnly<PreviousSimulatedPosition>(), ComponentType.ReadOnly<Translation>());
+            rotationInterpolationGroup = GetEntityQuery(ComponentType.ReadWrite<CurrentSimulatedRotation>(),
+                ComponentType.ReadOnly<PreviousSimulatedRotation>(), ComponentType.ReadOnly<Rotation>());
             newPositionInterpolationGroup = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
                 {
-                    ComponentType.ReadWrite<Translation>(), ComponentType.ReadOnly<CurrentSimulatedPosition>()
+                    ComponentType.ReadOnly<Translation>(), ComponentType.ReadWrite<CurrentSimulatedPosition>()
                 },
                 None = new[] {ComponentType.ReadWrite<PreviousSimulatedPosition>()}
             });
             newRotationInterpolationGroup = GetEntityQuery(new EntityQueryDesc
             {
-                All = new[] {ComponentType.ReadWrite<Rotation>(), ComponentType.ReadOnly<CurrentSimulatedRotation>()},
+                All = new[] {ComponentType.ReadOnly<Rotation>(), ComponentType.ReadWrite<CurrentSimulatedRotation>()},
                 None = new[] {ComponentType.ReadWrite<PreviousSimulatedRotation>()}
             });
 
@@ -47,15 +47,15 @@ namespace Unity.NetCode
         [BurstCompile]
         struct UpdateCurrentPosJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkComponentType<Translation> positionType;
-            public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
+            [ReadOnly] public ComponentTypeHandle<Translation> positionType;
+            public ComponentTypeHandle<CurrentSimulatedPosition> curPositionType;
             public uint simStartComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where trans has changed since start of simulation
                 // Copy trans to currentTrans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(positionType), simStartComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(positionType), simStartComponentVersion))
                 {
                     // Transform was interpolated by the rendering system
                     var curPos = chunk.GetNativeArray(curPositionType);
@@ -72,15 +72,15 @@ namespace Unity.NetCode
         [BurstCompile]
         struct UpdateCurrentRotJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkComponentType<Rotation> rotationType;
-            public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
+            [ReadOnly] public ComponentTypeHandle<Rotation> rotationType;
+            public ComponentTypeHandle<CurrentSimulatedRotation> curRotationType;
             public uint simStartComponentVersion;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
                 // For all chunks where trans has changed since start of simulation
                 // Copy trans to currentTrans
-                if (ChangeVersionUtility.DidChange(chunk.GetComponentVersion(rotationType), simStartComponentVersion))
+                if (ChangeVersionUtility.DidChange(chunk.GetChangeVersion(rotationType), simStartComponentVersion))
                 {
                     // Transform was interpolated by the rendering system
                     var curRot = chunk.GetNativeArray(curRotationType);
@@ -94,12 +94,13 @@ namespace Unity.NetCode
             }
         }
 
+        [BurstCompile]
         struct InitCurrentPosJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkEntityType entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<Translation> positionType;
-            public ArchetypeChunkComponentType<CurrentSimulatedPosition> curPositionType;
-            public EntityCommandBuffer.Concurrent commandBuffer;
+            [ReadOnly] public EntityTypeHandle entityType;
+            [ReadOnly] public ComponentTypeHandle<Translation> positionType;
+            public ComponentTypeHandle<CurrentSimulatedPosition> curPositionType;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
@@ -117,12 +118,13 @@ namespace Unity.NetCode
             }
         }
 
+        [BurstCompile]
         struct InitCurrentRotJob : IJobChunk
         {
-            [ReadOnly] public ArchetypeChunkEntityType entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<Rotation> rotationType;
-            public ArchetypeChunkComponentType<CurrentSimulatedRotation> curRotationType;
-            public EntityCommandBuffer.Concurrent commandBuffer;
+            [ReadOnly] public EntityTypeHandle entityType;
+            [ReadOnly] public ComponentTypeHandle<Rotation> rotationType;
+            public ComponentTypeHandle<CurrentSimulatedRotation> curRotationType;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
 
             public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
             {
@@ -144,21 +146,21 @@ namespace Unity.NetCode
         {
             var handles = new NativeArray<JobHandle>(2, Allocator.Temp);
             var curPosJob = new UpdateCurrentPosJob();
-            curPosJob.positionType = GetArchetypeChunkComponentType<Translation>(true);
-            curPosJob.curPositionType = GetArchetypeChunkComponentType<CurrentSimulatedPosition>();
+            curPosJob.positionType = GetComponentTypeHandle<Translation>(true);
+            curPosJob.curPositionType = GetComponentTypeHandle<CurrentSimulatedPosition>();
             curPosJob.simStartComponentVersion = beforeSystem.simStartComponentVersion;
             handles[0] = curPosJob.Schedule(positionInterpolationGroup, inputDeps);
 
             var curRotJob = new UpdateCurrentRotJob();
-            curRotJob.rotationType = GetArchetypeChunkComponentType<Rotation>(true);
-            curRotJob.curRotationType = GetArchetypeChunkComponentType<CurrentSimulatedRotation>();
+            curRotJob.rotationType = GetComponentTypeHandle<Rotation>(true);
+            curRotJob.curRotationType = GetComponentTypeHandle<CurrentSimulatedRotation>();
             curRotJob.simStartComponentVersion = beforeSystem.simStartComponentVersion;
             handles[1] = curRotJob.Schedule(rotationInterpolationGroup, inputDeps);
 
             var initPosJob = new InitCurrentPosJob();
             initPosJob.positionType = curPosJob.positionType;
             initPosJob.curPositionType = curPosJob.curPositionType;
-            initPosJob.entityType = GetArchetypeChunkEntityType();
+            initPosJob.entityType = GetEntityTypeHandle();
 
             var initRotJob = new InitCurrentRotJob();
             initRotJob.rotationType = curRotJob.rotationType;
@@ -168,8 +170,8 @@ namespace Unity.NetCode
             if (!newPositionInterpolationGroup.IsEmptyIgnoreFilter ||
                 !newRotationInterpolationGroup.IsEmptyIgnoreFilter)
             {
-                initPosJob.commandBuffer = barrier.CreateCommandBuffer().ToConcurrent();
-                initRotJob.commandBuffer = barrier.CreateCommandBuffer().ToConcurrent();
+                initPosJob.commandBuffer = barrier.CreateCommandBuffer().AsParallelWriter();
+                initRotJob.commandBuffer = barrier.CreateCommandBuffer().AsParallelWriter();
                 handles[0] = initPosJob.Schedule(newPositionInterpolationGroup, handles[0]);
                 handles[1] = initRotJob.Schedule(newRotationInterpolationGroup, handles[1]);
             }

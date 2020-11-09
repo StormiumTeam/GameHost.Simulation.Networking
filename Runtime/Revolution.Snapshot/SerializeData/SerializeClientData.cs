@@ -26,10 +26,10 @@ namespace Revolution
 		public NativeArray<ArchetypeChunk> AllChunks;
 
 		[ReadOnly]
-		public ArchetypeChunkComponentType<GhostIdentifier> GhostType;
+		public ComponentTypeHandle<GhostIdentifier> GhostType;
 
 		[ReadOnly]
-		public ArchetypeChunkEntityType EntityType;
+		public EntityTypeHandle EntityType;
 
 		public Entity Client;
 
@@ -63,14 +63,14 @@ namespace Revolution
 		public void BeginSerialize(ComponentSystemBase system, NativeArray<ArchetypeChunk> chunks)
 		{
 			AllChunks  = chunks;
-			GhostType  = system.GetArchetypeChunkComponentType<GhostIdentifier>();
-			EntityType = system.GetArchetypeChunkEntityType();
+			GhostType  = system.GetComponentTypeHandle<GhostIdentifier>();
+			EntityType = system.GetEntityTypeHandle();
 		}
 
 		internal unsafe void CreateSnapshotFor(uint ghostId)
 		{
 			var     ptr  = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<GhostSnapshot>(), UnsafeUtility.AlignOf<GhostSnapshot>(), Allocator.Persistent);
-			ref var data = ref UnsafeUtilityEx.AsRef<GhostSnapshot>(ptr);
+			ref var data = ref UnsafeUtility.AsRef<GhostSnapshot>(ptr);
 			data.Id         = ghostId;
 			data.Allocate();
 
@@ -107,14 +107,14 @@ namespace Revolution
 		public unsafe ref GhostSnapshot GetSnapshot(uint ghostId)
 		{
 			//return UnsafeUtilityEx.AsRef<GhostSnapshot>((void*) GhostSnapshots[ghostId]);
-			return ref UnsafeUtilityEx.AsRef<GhostSnapshot>((void*) m_GhostSnapshots[(int) ghostId]);
+			return ref UnsafeUtility.AsRef<GhostSnapshot>((void*) m_GhostSnapshots[(int) ghostId]);
 		}
 
 		public unsafe void Dispose()
 		{
 			foreach (var value in GhostSnapshots.GetValueArray(Allocator.Temp))
 			{
-				ref var data = ref UnsafeUtilityEx.AsRef<GhostSnapshot>(value.ToPointer());
+				ref var data = ref UnsafeUtility.AsRef<GhostSnapshot>(value.ToPointer());
 				data.Dispose();
 
 				UnsafeUtility.Free(value.ToPointer(), Allocator.Persistent);

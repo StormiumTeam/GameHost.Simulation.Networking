@@ -38,7 +38,7 @@ namespace Revolution
 		protected ref T GetData<T>(UnsafeHashMap<uint, IntPtr> map, uint index)
 			where T : struct
 		{
-			return ref UnsafeUtilityEx.AsRef<T>((void*) map[index]);
+			return ref UnsafeUtility.AsRef<T>((void*) map[index]);
 		}
 
 		public ref SystemChunkData GetChunkData(uint systemId)
@@ -48,10 +48,10 @@ namespace Revolution
 				var data                     = new SystemChunkData {Chunks = new UnsafeList<ArchetypeChunk>(64, Allocator.Persistent)};
 				UnsafeHashMap.Set(SystemToChunks, systemId, UnsafeUtility.AddressOf(ref data), UnsafeUtility.SizeOf<SystemChunkData>());
 				
-				return ref UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, systemId));
+				return ref UnsafeUtility.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, systemId));
 			}
 
-			return ref UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, systemId));
+			return ref UnsafeUtility.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, systemId));
 		}
 
 		public ref SystemGhostData GetGhostData(uint systemId)
@@ -61,10 +61,10 @@ namespace Revolution
 				var data = new SystemGhostData {GhostIds = new UnsafeList<uint>(64, Allocator.Persistent)};
 				UnsafeHashMap.Set(SystemToGhostIds, systemId, UnsafeUtility.AddressOf(ref data), UnsafeUtility.SizeOf<SystemGhostData>());
 
-				return ref UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, systemId));
+				return ref UnsafeUtility.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, systemId));
 			}
 
-			return ref UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, systemId));
+			return ref UnsafeUtility.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, systemId));
 		}
 
 		public override void ClearChunks(uint systemId, IDynamicSnapshotSystem system)
@@ -142,12 +142,12 @@ namespace Revolution
 		{
 			foreach (var kvp in UnsafeHashMap.GetIterator<uint, IntPtr>(SystemToChunks))
 			{
-				UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, kvp.key)).Chunks.Dispose();
+				UnsafeUtility.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemToChunks, kvp.key)).Chunks.Dispose();
 			}
 
 			foreach (var kvp in UnsafeHashMap.GetIterator<uint, IntPtr>(SystemToGhostIds))
 			{
-				UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, kvp.key)).GhostIds.Dispose();
+				UnsafeUtility.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemToGhostIds, kvp.key)).GhostIds.Dispose();
 			}
 
 			UnsafeHashMap.Free(SystemToChunks);
@@ -187,7 +187,7 @@ namespace Revolution
 
 						parameters.SystemId = serializer.SystemId;
 
-						var chunks = UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemChunkMap, serializer.SystemId)).Chunks;
+						var chunks = UnsafeUtility.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemChunkMap, serializer.SystemId)).Chunks;
 						parameters.ChunksToSerialize = new UnsafeAllocationLength<ArchetypeChunk>(chunks.Ptr, chunks.Length);
 						invoke(ref parameters);
 
@@ -202,7 +202,7 @@ namespace Revolution
 						var serializer = Serializers[i];
 						var invoke     = serializer.Value.Invoke;
 
-						var chunks = UnsafeUtilityEx.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemChunkMap, serializer.SystemId)).Chunks;
+						var chunks = UnsafeUtility.AsRef<SystemChunkData>(UnsafeHashMap.GetPtr(SystemChunkMap, serializer.SystemId)).Chunks;
 						parameters.ChunksToSerialize = new UnsafeAllocationLength<ArchetypeChunk>(chunks.Ptr, chunks.Length);
 						parameters.SystemId = serializer.SystemId;
 						invoke(ref parameters);
@@ -270,7 +270,7 @@ namespace Revolution
 
 						parameters.SystemId = serializer.SystemId;
 
-						var ghostIds = UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemGhostIdMap, serializer.SystemId)).GhostIds;
+						var ghostIds = UnsafeUtility.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemGhostIdMap, serializer.SystemId)).GhostIds;
 						parameters.GhostsToDeserialize = new UnsafeAllocationLength<uint>(ghostIds.Ptr, ghostIds.Length);
 						invoke(ref parameters);
 
@@ -289,7 +289,7 @@ namespace Revolution
 						var serializer = Deserializers[i];
 						var invoke     = serializer.Value.Invoke;
 
-						var ghostIds = UnsafeUtilityEx.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemGhostIdMap, serializer.SystemId)).GhostIds;
+						var ghostIds = UnsafeUtility.AsRef<SystemGhostData>(UnsafeHashMap.GetPtr(SystemGhostIdMap, serializer.SystemId)).GhostIds;
 						parameters.GhostsToDeserialize = new UnsafeAllocationLength<uint>(ghostIds.Ptr, ghostIds.Length);
 						parameters.SystemId            = serializer.SystemId;
 						invoke(ref parameters);

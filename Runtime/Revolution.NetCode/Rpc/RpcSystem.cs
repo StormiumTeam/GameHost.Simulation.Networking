@@ -19,7 +19,7 @@ namespace Unity.NetCode
             public DataStreamReader Reader;
             public DataStreamReader.Context ReaderContext;
             public Entity Connection;
-            public EntityCommandBuffer.Concurrent CommandBuffer;
+            public EntityCommandBuffer.ParallelWriter CommandBuffer;
             public int JobIndex;
         }
         public delegate void ExecuteDelegate(ref Parameters parameters);
@@ -137,11 +137,11 @@ namespace Unity.NetCode
         [BurstCompile]
         struct RpcExecJob : IJobChunk
         {
-            public EntityCommandBuffer.Concurrent commandBuffer;
-            [ReadOnly] public ArchetypeChunkEntityType entityType;
-            [ReadOnly] public ArchetypeChunkComponentType<NetworkStreamConnection> connectionType;
-            public ArchetypeChunkBufferType<IncomingRpcDataStreamBufferComponent> inBufferType;
-            public ArchetypeChunkBufferType<OutgoingRpcDataStreamBufferComponent> outBufferType;
+            public EntityCommandBuffer.ParallelWriter commandBuffer;
+            [ReadOnly] public EntityTypeHandle entityType;
+            [ReadOnly] public ComponentTypeHandle<NetworkStreamConnection> connectionType;
+            public BufferTypeHandle<IncomingRpcDataStreamBufferComponent> inBufferType;
+            public BufferTypeHandle<OutgoingRpcDataStreamBufferComponent> outBufferType;
             [ReadOnly] public NativeList<RpcData> execute;
             [ReadOnly] public NativeHashMap<ulong, int> hashToIndex;
 
@@ -272,11 +272,11 @@ namespace Unity.NetCode
             inputDeps = JobHandle.CombineDependencies(inputDeps, m_ReceiveSystem.LastDriverWriter);
             var execJob = new RpcExecJob
             {
-                commandBuffer = m_Barrier.CreateCommandBuffer().ToConcurrent(),
-                entityType = GetArchetypeChunkEntityType(),
-                connectionType = GetArchetypeChunkComponentType<NetworkStreamConnection>(),
-                inBufferType = GetArchetypeChunkBufferType<IncomingRpcDataStreamBufferComponent>(),
-                outBufferType = GetArchetypeChunkBufferType<OutgoingRpcDataStreamBufferComponent>(),
+                commandBuffer = m_Barrier.CreateCommandBuffer().AsParallelWriter(),
+                entityType = GetEntityTypeHandle(),
+                connectionType = GetComponentTypeHandle<NetworkStreamConnection>(),
+                inBufferType = GetBufferTypeHandle<IncomingRpcDataStreamBufferComponent>(),
+                outBufferType = GetBufferTypeHandle<OutgoingRpcDataStreamBufferComponent>(),
                 execute = m_RpcData,
                 hashToIndex = m_RpcTypeHashToIndex,
                 driver = m_ReceiveSystem.Driver,

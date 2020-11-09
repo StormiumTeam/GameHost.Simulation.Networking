@@ -1,7 +1,7 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Networking.Transport;
-using UnityEngine;
+
 using UnityEngine.Profiling;
 
 namespace Unity.NetCode
@@ -64,9 +64,9 @@ namespace Unity.NetCode
 
         private void OnChunkProcess(ArchetypeChunk chunk, in uint localTime, in uint targetTick)
         {
-            var connectionArray  = chunk.GetNativeArray(GetArchetypeChunkComponentType<NetworkStreamConnection>(true));
-            var snapshotAckArray = chunk.GetNativeArray(GetArchetypeChunkComponentType<NetworkSnapshotAckComponent>(true));
-            var targetArray      = chunk.GetNativeArray(GetArchetypeChunkComponentType<CommandTargetComponent>(true));
+            var connectionArray  = chunk.GetNativeArray(GetComponentTypeHandle<NetworkStreamConnection>(true));
+            var snapshotAckArray = chunk.GetNativeArray(GetComponentTypeHandle<NetworkSnapshotAckComponent>(true));
+            var targetArray      = chunk.GetNativeArray(GetComponentTypeHandle<CommandTargetComponent>(true));
             for (var ent = 0; ent < chunk.Count; ent++)
             {
                 var target = targetArray[ent];

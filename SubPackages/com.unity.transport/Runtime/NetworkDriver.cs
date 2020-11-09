@@ -333,7 +333,7 @@ namespace Unity.Networking.Transport
             "Received an invalid implicit connection accept without a token",
         };
 
-        [ReadOnly] private NativeArray<NativeString512> m_StringDB;
+        [ReadOnly] private NativeArray<FixedString512> m_StringDB;
         /// <summary>
         /// Constructor for GenericNetworkDriver.
         /// </summary>
@@ -344,12 +344,12 @@ namespace Unity.Networking.Transport
         public GenericNetworkDriver(params INetworkParameter[] param)
         {
             m_Logger = new NetworkLogger(NetworkLogger.LogLevel.Debug);
-            m_StringDB = new NativeArray<NativeString512>((int)StringType.NumStrings, Allocator.Persistent);
+            m_StringDB = new NativeArray<FixedString512>((int)StringType.NumStrings, Allocator.Persistent);
             if (StringValue.Length != (int)StringType.NumStrings)
                 throw new InvalidOperationException("Bad string database");
             for (int i = 0; i < (int) StringType.NumStrings; ++i)
             {
-                m_StringDB[i] = new NativeString512(StringValue[i]);
+                m_StringDB[i] = new FixedString512(StringValue[i]);
             }
             m_updateTime = Stopwatch.GetTimestamp() / TimeSpan.TicksPerMillisecond;
             m_updateTimeAdjustment = 0;
@@ -435,11 +435,11 @@ namespace Unity.Networking.Transport
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         struct MissingClearMessage : INetworkLogMessage
         {
-            public NativeArray<NativeString512> stringDB;
+            public NativeArray<FixedString512> stringDB;
             public int count;
             public int connection;
             public int listening;
-            public void Print(ref NativeString512 msg)
+            public void Print(ref FixedString512 msg)
             {
                 var str = stringDB[(int) StringType.ResetErrorCount];
                 msg.AppendFrom(str);
@@ -459,7 +459,7 @@ namespace Unity.Networking.Transport
             public NetworkEventQueue eventQueue;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             public NetworkLogger logger;
-            public NativeArray<NativeString512> stringDB;
+            public NativeArray<FixedString512> stringDB;
             [ReadOnly] public NativeList<Connection> connectionList;
             [ReadOnly] public NativeArray<int> internalState;
 #endif
@@ -513,9 +513,9 @@ namespace Unity.Networking.Transport
 
         struct PipelineOverflowMessage : INetworkLogMessage
         {
-            public NativeArray<NativeString512> stringDB;
+            public NativeArray<FixedString512> stringDB;
             public int count;
-            public void Print(ref NativeString512 msg)
+            public void Print(ref FixedString512 msg)
             {
                 var str = stringDB[(int)StringType.PipelineOverflow];
                 msg.AppendFrom(str);
@@ -924,9 +924,9 @@ namespace Unity.Networking.Transport
 
         struct ReceiveErrorMessage : INetworkLogMessage
         {
-            public NativeArray<NativeString512> stringDB;
+            public NativeArray<FixedString512> stringDB;
             public int errorCode;
-            public void Print(ref NativeString512 msg)
+            public void Print(ref FixedString512 msg)
             {
                 var str = stringDB[(int) StringType.ReceiveError];
                 msg.AppendFrom(str);

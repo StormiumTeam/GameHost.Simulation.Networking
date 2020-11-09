@@ -28,8 +28,8 @@ namespace Revolution
 		private         BurstDelegate<OnSerializeSnapshot> m_SerializeDelegate;
 		public abstract ComponentType                      ExcludeComponent { get; }
 
-		private NativeString512 m_NativeName;
-		public NativeString512 NativeName => m_NativeName;
+		private FixedString512 m_NativeName;
+		public FixedString512 NativeName => m_NativeName;
 
 		public bool IsChunkValid(ArchetypeChunk chunk)
 		{
@@ -125,7 +125,7 @@ namespace Revolution
 
 		public abstract void OnBeginDeserialize(Entity entity);
 
-		public void SetEmptySafetyHandle<TComponent>(ref ArchetypeChunkComponentType<TComponent> comp) where TComponent : struct, IComponentData
+		public void SetEmptySafetyHandle<TComponent>(ref ComponentTypeHandle<TComponent> comp) where TComponent : struct, IComponentData
 		{
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
 			SafetyUtility.Replace(ref comp, SafetyHandle);
@@ -184,7 +184,7 @@ namespace Revolution
 		{
 			if (s_SharedData == null)
 				throw new Exception("null shared data");
-			return ref UnsafeUtilityEx.AsRef<TSharedData>(s_SharedData);
+			return ref UnsafeUtility.AsRef<TSharedData>(s_SharedData);
 		}
 
 		private class SharedKey

@@ -163,10 +163,8 @@ namespace Revolution
 			CustomSerializer = ns;
 		}
 
-		protected override void OnCreate()
+		public SnapshotManager()
 		{
-			base.OnCreate();
-
 			IdToSystems = new FastDictionary<uint, object>
 			{
 				[0] = null

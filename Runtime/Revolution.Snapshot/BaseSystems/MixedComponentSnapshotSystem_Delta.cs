@@ -166,7 +166,7 @@ namespace Revolution
 		{
 			ref var sharedData = ref GetShared();
 			sharedData.Delta              = DeltaType;
-			sharedData.ComponentTypeArch  = GetArchetypeChunkComponentType<TComponent>(true);
+			sharedData.ComponentTypeArch  = GetComponentTypeHandle<TComponent>(true);
 			sharedData.SnapshotFromEntity = GetComponentDataFromEntity<TComponent>();
 			sharedData.SetupData.BeginSetup(this
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
@@ -201,7 +201,7 @@ namespace Revolution
 			public uint            SystemVersion;
 			public DeltaChangeType Delta;
 
-			public ArchetypeChunkComponentType<TComponent> ComponentTypeArch;
+			public ComponentTypeHandle<TComponent> ComponentTypeArch;
 			public ComponentDataFromEntity<TComponent>     SnapshotFromEntity;
 		}
 
