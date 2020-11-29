@@ -1,64 +1,82 @@
 ## Snapshot Format
-````csharp
-uint entity_update_count; // How many entities had their archetype changed?
+### Notes
+- Those use compressed data (bool is transformed into one bit, zig-zag encoding, delta encoding, ...)
+- Delta encoding is done in this way (Writing: `Write(Value - Baseline); Baseline = Value;`; Reading: `Value += Read(Baseline); Baseline = Value;`)
 
-packed_uint("tick");
-// -- 'entity_count' is set to 0 if no ghosts were added or removed
-packed_uint("entity_count");
-if (entity_count > 0) {
-	write_missing_archetype();
-	// -- temporaly used until unity fix the bug after a writer.flush()
-	byte("seperator"); //< 42
-	
-	uint previousGhostId;
-	uint previousArchetypeId;
-	
-	// The client will know if a ghost was added or removed.
-	foreach (ghost in ghostArray) {
-		packed_uint_delta("ghost_id", previousGhostId);
-		// -- for now, we write the archetype of all ghosts
-		// -- in future it will be optimized to only write the changed ghosts.
-		packed_uint_delta("ghost_arch", previousArchetypeId);
-		
-		previousGhostIndex = ghost.id;
-		previousArchetypeId = ghost.arch;
-	}
-} else if (entity_update_count > 0) {
-	packed_uint("entity_update_count");
-	// -- be sure to only read incoming archetypes if 'entity_update_count' is superior than 0!
-	write_missing_archetype();
-	// -- temporaly used until unity fix the bug after a writer.flush()
-	byte("seperator"); //< 42
-	
-	uint previousGhostIndex;
-	uint previousArchetypeId;
-	
-	// We use the index instead of the id, so delta compression will do a better job here.
-	foreach (change in entity_update) {
-		packed_uint_delta("ghost_index", previousGhostIndex);
-		packed_uint_delta("ghost_arch", previousArchetypeId);
-		
-		previousGhostIndex = change.ghostIndex;
-		previousArchetypeId = change.arch;
-	}
+````csharp
+var tick = uint();
+var isRemake = bool();
+if (isRemake) {
+	archetypes_data();
+	entities();
+
+	// -- Removed entities
+	uint prevLocalId;
+	uint prevLocalVersion;
+
+	var removedCount = uintD4();
+	while (removedCount-->0) {
+		var localId      = uintD4Delta(prevLocalId);
+		var localVersion = uintD4Delta(prevLocalVersion);
+
+		prevLocalId      = localId;
+		prevLocalVersion = localVersion;
+	} 
+} else {
+	archetypes_data();
+	entities();
 }
 
 // -- Write the rest of the data from systems
-system_snapshot_data();
+while (!isFinishedReading) {
+	var systemId = uintD4();
+	var length = uintD4();
 
-write_missing_archetype() {
-	packed_uint("new_archetype_count");
+	// ...
+	var systemData = new byte[length];
+	readArray(systemData, length); 
+}
+
+archetypes_data() {
+	var newArchetypeCount = uintD4();
 	uint previousArchetypeId;
 	foreach (arch in new_archetypes)
 	{
-		packed_uint_delta("arch_id", previousArchetypeId);
-		packed_uint("arch_system_count");
+		uintD4Delta(arch.Id, previousArchetypeId);
+		uintD4(arch.systems.count);
+
+		uint previousSystemId;
 		foreach (system in arch.systems)
 		{
-			packed_uint("system_id");
+			uintD4Delta(system.Id, previousSystemId);
+			previousSystemId = system.Id;
 		}
 		
 		previousArchetypeId = arch.id;
+	}
+}
+
+entities() {
+	// Delta variables
+	uint prevLocalId;
+	uint prevLocalVersion;
+	uint prevRemoteId;
+	uint prevRemoteVersion;
+	uint prevArchetype;
+	int  prevInstigator;
+
+	var updateCount = uintD4();
+	while (updateCount-->0) {
+		var localId       = uintD4Delta(prevLocalId);
+		var localVersion  = uintD4Delta(prevLocalVersion);
+		var remoteId      = uintD4Delta(prevRemoteId);
+		var remoteVersion = uintD4Delta(prevRemoteVersion);
+		var archetype     = uintD4Delta(prevArchetype);
+		var instigator    = uintD4Delta(prevInstigator);
+
+		prevLocalId      = localId;
+		prevLocalVersion = localVersion;
+		// ^ do the same for prevRemoteId, prevRemoteVersion... prevInstigator.
 	}
 }
 ````

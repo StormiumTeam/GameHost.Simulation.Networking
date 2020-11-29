@@ -1,5 +1,6 @@
-# Getting Started with StormiumTeam Multiplayer package
+# Getting Started
+## GameHost.Simulation.Networking
 
 ## References:
-- [Data Buffers](References/DataBuffer.md)
-- [Snapshot](References/Snapshot.md)
+- [Snapshot Systems](References/component_snapshot_system.md)
+- [Snapshot Format](References/snapshot_format.md)
