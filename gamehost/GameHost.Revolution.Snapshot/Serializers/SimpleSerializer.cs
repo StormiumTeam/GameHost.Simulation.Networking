@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
 using DefaultEcs;
@@ -44,12 +46,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// <summary>
 		///     Serialize immediately without doing it on another thread.
 		/// </summary>
-		public virtual bool SynchronousSerialize => true;
+		public virtual bool SynchronousSerialize => false;
 
 		/// <summary>
 		///     Deserialize immediately without doing it on another thread.
 		/// </summary>
-		public virtual bool SynchronousDeserialize => true;
+		public virtual bool SynchronousDeserialize => false;
 
 
 		public ISnapshotInstigator Instigator { get; set; }
@@ -58,11 +60,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public SnapshotSerializerSystem System              { get; set; }
 
 		public abstract void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection);
-
+		
 		public virtual Span<UniTask> PrepareSerializeTask(SerializationParameters parameters, MergeGroupCollection groupCollection, ReadOnlySpan<GameEntityHandle> entities)
 		{
 			PrepareGlobal();
-
 			if (SynchronousSerialize)
 			{
 				foreach (var group in groupCollection)
@@ -120,7 +121,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			bytePool.Clear();
 			var span = bytePool.AddSpan(bitBuffer.Length);
-			bitBuffer.ToSpan(ref span);
+			bitBuffer.ToSpan(span);
+			//Console.WriteLine($"WRITE {string.Join(',', span.ToArray())}");
 
 			return span;
 		}
@@ -145,29 +147,21 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			return UniTask.Run(__deserialize);
 		}
-
+		
 		private void __serialize(object? state)
 		{
 			var (parameters, group, handles) = dict[(MergeGroup) state!];
 			Serialize(parameters, group, handles.Span);
 		}
 
-		public Span<byte> Serialize(SerializationParameters parameters, MergeGroup group, ReadOnlySpan<GameEntityHandle> entities)
+		public void Serialize(SerializationParameters parameters, MergeGroup group, ReadOnlySpan<GameEntityHandle> entities)
 		{
 			lock (Synchronization)
 			{
 				var bitBuffer = dataPerGroup[group];
-
 				bitBuffer.Clear();
-				bytePool.Clear();
 
 				OnSerialize(bitBuffer, parameters, group, entities);
-
-				bytePool.AddSpan(bitBuffer.Length);
-
-				var span = bytePool.Span;
-				bitBuffer.ToSpan(ref span);
-				return span;
 			}
 		}
 
@@ -186,9 +180,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			lock (Synchronization)
 			{
 				deserializeBitBuffer.Clear();
-
-				var ro = (ReadOnlySpan<byte>) data;
-				deserializeBitBuffer.FromSpan(ref ro, data.Length);
+				deserializeBitBuffer.AddSpan(data);
+				
+				//Console.WriteLine($"READ {string.Join(',', data.ToArray())}");
 
 				OnDeserialize(deserializeBitBuffer, parameters, entities);
 			}

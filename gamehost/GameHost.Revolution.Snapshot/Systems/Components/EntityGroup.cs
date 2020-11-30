@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Collections.Pooled;
 using GameHost.Simulation.TabEcs;
 
 namespace GameHost.Revolution.Snapshot.Systems.Components
@@ -33,36 +34,36 @@ namespace GameHost.Revolution.Snapshot.Systems.Components
 		SendAtAllCost = 3
 	}
 
-	public class EntityGroup : Dictionary<GameEntity, EntitySnapshotPriority>
+	public class EntityGroup : PooledList<GameEntity>
 	{
+		public EntitySnapshotPriority[] Values = Array.Empty<EntitySnapshotPriority>();
+		
 		public EntityGroup()
 		{
 		}
 
-		public EntityGroup(EntityGroup other) : base(other)
+		public EntitySnapshotPriority this[GameEntity entity]
 		{
-		}
-
-		public void Set(EntitySnapshotPriority[] array)
-		{
-			foreach (var (entity, priority) in this)
+			get => Values[entity.Id];
+			set
 			{
-				ref var currPriority = ref array[entity.Id];
-				currPriority = (EntitySnapshotPriority) Math.Max((int) currPriority, (int) priority);
+				if (entity.Id + 1 >= Values.Length)
+				{
+					Array.Resize(ref Values, (int) entity.Id * 2 + 1);
+				}
+
+				if (value != default && Values[entity.Id] == default)
+				{
+					Values[entity.Id] = value;
+					Add(entity);
+				}
 			}
 		}
 
-		// kinda slow
-		public void IntersectWith(List<GameEntity> entityList, List<EntitySnapshotPriority> priorityList, EntityGroup other)
+		public void FullClear()
 		{
-			foreach (var (entity, priority) in other)
-			{
-				if (!TryGetValue(entity, out var thisPriority))
-					continue;
-
-				entityList.Add(entity);
-				priorityList.Add((EntitySnapshotPriority) Math.Max((int) thisPriority, (int) priority));
-			}
+			Clear();
+			Array.Fill(Values, default);
 		}
 	}
 }

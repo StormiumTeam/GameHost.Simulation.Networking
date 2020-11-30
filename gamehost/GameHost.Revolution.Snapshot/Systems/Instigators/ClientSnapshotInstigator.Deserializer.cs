@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
 using GameHost.Core.Threading;
@@ -29,19 +32,23 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			private ClientSnapshotInstigator client;
 			private ClientSnapshotState      readState;
 
-			public void Deserialize(ClientSnapshotInstigator c, ReadOnlySpan<byte> data)
+			public void Deserialize(ClientSnapshotInstigator c, Span<byte> data)
 			{
 				client    = c;
 				readState = (ClientSnapshotState) client.State;
 				readState.Prepare();
 
-				bitBuffer.FromSpan(ref data, data.Length);
+				bitBuffer.readPosition = 0;
+				bitBuffer.nextPosition = 0;
+				bitBuffer.AddSpan(data);
 
 				tasks.Clear();
 				toDestroy.Clear();
+				entityUpdateList.Clear();
+				archetypeUpdateList.Clear();
 				
 				readState.Tick = bitBuffer.ReadUInt();
-
+				
 				var isRemake = bitBuffer.ReadBool();
 				if (isRemake)
 				{
@@ -54,7 +61,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					ReadEntityUpdateOrAdd();
 					ReadRemovedEntity();
 				}
-
+				
 				readState.FinalizeEntities();
 
 				foreach (var (systemId, serializer) in client.Serializers)
@@ -65,27 +72,31 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					entityList.Clear();
 
 					serializer.Instigator = c;
-					if (serializer.SerializerArchetype is { } serializerArchetype) serializerArchetype.OnDeserializerArchetypeUpdate(entityUpdateList.Span, archetypeUpdateList.Span, readState.archetypeToSystems);
+
+					if (entityUpdateList.Count > 0
+					    && serializer.SerializerArchetype is { } serializerArchetype)
+						serializerArchetype.OnDeserializerArchetypeUpdate(entityUpdateList.Span, archetypeUpdateList.Span, readState.archetypeToSystems);
 				}
 
 				foreach (var entity in client.State.GetAllEntities())
 				{
-					var archetypeSystems = client.State.GetArchetypeSystems(client.State.GetArchetypeOfEntity(entity));
+					var archetypeSystems = readState.archetypeToSystems[readState.archetype[entity]];
 					foreach (var sys in archetypeSystems) systemToEntities[sys].Add(new GameEntityHandle(entity));
 				}
 
-				// we need an interface in ISnapshotInstigator that would contains systems
-				var post = new Scheduler();
+				var post       = new Scheduler();
+				var parameters = new DeserializationParameters(readState.Tick, post);
+				
 				while (!bitBuffer.IsFinished)
 				{
 					var systemId = bitBuffer.ReadUIntD4();
 					var length   = bitBuffer.ReadUIntD4();
-
+					
 					bytePool.Clear();
 					var span = bytePool.AddSpan((int) length);
 					bitBuffer.ReadSpan(span, (int) length);
 
-					if (client.Serializers.TryGetValue(systemId, out var serializer)) tasks.Add(serializer.PrepareDeserializeTask(new DeserializationParameters(0, post), span, systemToEntities[systemId].Span));
+					if (client.Serializers.TryGetValue(systemId, out var serializer)) tasks.Add(serializer.PrepareDeserializeTask(parameters, span, systemToEntities[systemId].Span));
 				}
 
 				foreach (var task in tasks)
@@ -94,8 +105,6 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					while (!awaiter.IsCompleted)
 					{
 					}
-
-					Console.WriteLine(task.AsTask().Exception);
 				}
 
 				post.Run();

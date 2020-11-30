@@ -57,24 +57,18 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		public void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, Dictionary<uint, uint[]> archetypeToSystems)
 		{
-			Console.WriteLine("OnDeserializerUpdate - " + entities.Length);
 			for (int ent = 0, length = entities.Length; ent < length; ent++)
 			{
 				var archetype = archetypes[ent];
 				var models    = archetypeToSystems[archetype.Id];
 				var hasModel  = false;
-
-				Console.WriteLine($"\t{archetype.Id} - {models.Length}");
-
+				
 				// Search if this entity has our system from the model list
 				foreach (var model in models)
 				{
-					Console.WriteLine($"\t\tmodel {model} against {System.Id}");
 					// Bingo! This entity got our system
 					if (model == System.Id)
 					{
-						Console.WriteLine("Bingo");
-
 						// If this entity don't have the snapshot buffer yet, add it.
 						if (!gameWorld.HasComponent(entities[ent].Handle, CoreComponentBackend)) gameWorld.AddComponent(entities[ent].Handle, CoreComponentBackend);
 

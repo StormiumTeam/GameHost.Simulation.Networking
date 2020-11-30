@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 // Original Here: https://github.com/nxrighthere/NetStack/blob/master/Source/NetStack.Serialization/BitBuffer.cs
@@ -196,34 +197,6 @@ namespace GameHost.Revolution.Snapshot.Utilities
 			nextPosition = (length - 1) * 8 + (positionInByte - 1);
 			readPosition = 0;
 		}
-		
-		public int ToSpan(ref Span<byte> data)
-		{
-			Add(1, 1);
-
-			var numChunks = (nextPosition >> 5) + 1;
-			var length    = data.Length;
-
-			for (var i = 0; i < numChunks; i++)
-			{
-				var dataIdx = i * 4;
-				var chunk   = chunks[i];
-
-				if (dataIdx < length)
-					data[dataIdx] = (byte) chunk;
-
-				if (dataIdx + 1 < length)
-					data[dataIdx + 1] = (byte) (chunk >> 8);
-
-				if (dataIdx + 2 < length)
-					data[dataIdx + 2] = (byte) (chunk >> 16);
-
-				if (dataIdx + 3 < length)
-					data[dataIdx + 3] = (byte) (chunk >> 24);
-			}
-
-			return Length;
-		}
 
 		public void AddBitBuffer(BitBuffer other)
 		{
@@ -300,52 +273,113 @@ namespace GameHost.Revolution.Snapshot.Utilities
 			}
 		}
 
-		public void AddSpan(ReadOnlySpan<byte> data)
+		public void AddAlign()
 		{
+			var index = nextPosition >> 5;
+			var used  = nextPosition & 0x0000001F;
+			
+			if (used == 0) // already aligned
+				return;
+			
+			chunks[index + 1] =  0;
+			nextPosition      += 32 - used;
+		}
+
+		public void ReadAlign()
+		{
+			var used  = readPosition & 0x0000001F;
+
+			if (used == 0) // already aligned
+				return;
+			
+			readPosition      += 32 - used;
+		}
+
+		public unsafe void AddSpan(Span<byte> data)
+		{
+			AddAlign();
+			var index = nextPosition >> 5;
+			while (index + data.Length > chunks.Length)
+			{
+				ExpandArray(index + data.Length);
+			}
+
+			if (data.Length == 0)
+				return;
+			
+			fixed (uint* chunkPtr = chunks)
+			fixed (byte* dataPtr = data)
+			{
+				// note for future self. Adding an offset on an uint ptr increase it by 4 bytes, not one (which is logic lol, but can confuse)
+				Unsafe.CopyBlock(chunkPtr + index, dataPtr, (uint) data.Length);
+				nextPosition += data.Length * 8;
+				return;
+			}
+
 			for (var i = 0; i != data.Length; i++)
 				AddByte(data[i]);
 		}
 
-		public void ReadSpan(Span<byte> data, int length)
+		public void ToSpan(Span<byte> data)
+		{
+			Clear();
+			ReadSpan(data, data.Length);
+			readPosition = data.Length * 32;
+			nextPosition = data.Length * 32;
+		}
+
+		public unsafe void ReadSpan(Span<byte> data, int length)
 		{
 			if (data.Length < length)
 				throw new ArgumentOutOfRangeException();
-
-			for (var i = 0; i != length; i++)
-				data[i] = ReadByte();
-		}
-
-		public void FromSpan(ref ReadOnlySpan<byte> data, int length)
-		{
-			var numChunks = length / 4 + 1;
-
-			if (chunks.Length < numChunks)
-				chunks = new uint[numChunks];
-
-			for (var i = 0; i < numChunks; i++)
+			
+			ReadAlign();
+			if (data.Length == 0)
+				return;
+			
+			var index = readPosition >> 5;
+			fixed (uint* chunkPtr = chunks)
+			fixed (byte* dataPtr = data)
 			{
-				var  dataIdx = i * 4;
-				uint chunk   = 0;
-
-				if (dataIdx < length)
-					chunk = data[dataIdx];
-
-				if (dataIdx + 1 < length)
-					chunk = chunk | ((uint) data[dataIdx + 1] << 8);
-
-				if (dataIdx + 2 < length)
-					chunk = chunk | ((uint) data[dataIdx + 2] << 16);
-
-				if (dataIdx + 3 < length)
-					chunk = chunk | ((uint) data[dataIdx + 3] << 24);
-
-				chunks[i] = chunk;
+				Unsafe.CopyBlock(dataPtr, chunkPtr + index, (uint) length);
+				readPosition += length * 8;
+				return;
 			}
 
-			var positionInByte = FindHighestBitPosition(data[length - 1]);
+			return;
 
-			nextPosition = (length - 1) * 8 + (positionInByte - 1);
-			readPosition = 0;
+			unsafe
+			{
+				fixed (byte* source = data)
+				{
+					var ptr = source;
+					while (true)
+					{
+						if (length is { } and >= sizeof(uint))
+						{
+							Unsafe.Write(ptr, Read(32));
+							length -= sizeof(uint);
+							ptr    += sizeof(uint);
+						}
+
+						if (length is { } and >= sizeof(ushort))
+						{
+							Unsafe.Write(ptr, Read(16));
+							length -= sizeof(ushort);
+							ptr    += sizeof(ushort);
+						}
+
+						if (length is { } and >= sizeof(byte))
+						{
+							Unsafe.Write(ptr, Read(8));
+							length -= sizeof(byte);
+							ptr    += sizeof(byte);
+						}
+						else
+							break;
+					}
+				}
+			}
 		}
 
 		[MethodImpl(256)]
@@ -661,7 +695,10 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		{
 			var builder = new StringBuilder();
 
-			for (var i = chunks.Length - 1; i >= 0; i--) builder.Append(Convert.ToString(chunks[i], 2).PadLeft(32, '0'));
+			foreach (var chunk in chunks)
+			{
+				builder.Append(Convert.ToString(chunk, 2).PadLeft(32, '0'));
+			}
 
 			var spaced = new StringBuilder();
 
@@ -669,7 +706,9 @@ namespace GameHost.Revolution.Snapshot.Utilities
 			{
 				spaced.Append(builder[i]);
 
-				if ((i + 1) % 8 == 0)
+				if ((i + 1) % 32 == 0)
+					spaced.Append(",");
+				else if ((i + 1) % 8 == 0)
 					spaced.Append(" ");
 			}
 
@@ -679,6 +718,15 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		private void ExpandArray()
 		{
 			var newCapacity = chunks.Length * growFactor + minGrow;
+			var newChunks   = new uint[newCapacity];
+
+			Array.Copy(chunks, newChunks, chunks.Length);
+			chunks = newChunks;
+		}
+		
+		private void ExpandArray(int expectedLength)
+		{
+			var newCapacity = Math.Max(chunks.Length * growFactor + minGrow, expectedLength + minGrow);
 			var newChunks   = new uint[newCapacity];
 
 			Array.Copy(chunks, newChunks, chunks.Length);

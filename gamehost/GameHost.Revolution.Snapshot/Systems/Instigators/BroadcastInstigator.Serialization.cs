@@ -53,7 +53,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				WriterState.Prepare((int) BoardContainerExt.GetBoard(entityBoard).MaxId);
 				unchecked
 				{
-					foreach (var ent in broadcast.QueuedEntities.Keys)
+					foreach (var ent in broadcast.QueuedEntities)
 					{
 						if (entityBoard.VersionColumn[(int) ent.Id] != ent.Version)
 							continue;
@@ -87,7 +87,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				archetypeAddedList.Clear();
 				WriterState.FinalizeRegister((entityList, entityUpdateList, entityRemoveList), (archetypeList, archetypeAddedList));
 
-				broadcast.QueuedEntities.Clear();
+				broadcast.QueuedEntities.FullClear();
 
 				// Entities must be in order for:
 				// - Delta compression
@@ -138,15 +138,15 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var groupCollection = groupsPerSystem[serializer.System];
 					foreach (var group in groupCollection)
 					{
-						ReadOnlySpan<byte> data = serializer.FinalizeSerialize(group);
-
-						bitBuffer.Clear();
-						bitBuffer.AddUIntD4(serializer.System.Id)
-						         .AddUIntD4((uint) data.Length);
-						bitBuffer.AddSpan(data);
-
+						var data = serializer.FinalizeSerialize(group);
+						
 						foreach (var client in group.ClientSpan)
-							client.Get<ClientData>().CopyFrom(bitBuffer);
+						{
+							var clientData = client.Get<ClientData>();
+							clientData.AddUIntD4(serializer.System.Id)
+							          .AddUIntD4((uint) data.Length);
+							clientData.AddSpan(data);
+						}
 					}
 				}
 

@@ -119,7 +119,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 						var snapshot = default(TSnapshot);
 						snapshot.Tick = parameters.Tick;
 						snapshot.FromComponent(accessor[ent]);
-						Console.WriteLine("Initial data " + ent.Id);
 						snapshot.Serialize(bitBuffer, baseline);
 
 						baseline = snapshot;
@@ -132,7 +131,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 						var snapshot = default(TSnapshot);
 						snapshot.Tick = parameters.Tick;
 						snapshot.FromComponent(accessor[ent]);
-						Console.WriteLine("No initial data " + ent.Id);
 						snapshot.Serialize(bitBuffer, default);
 
 						baselineArray[ent.Id] = snapshot;

@@ -63,7 +63,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public int InstigatorId { get; }
 
-		public void Deserialize(ReadOnlySpan<byte> data)
+		public void Deserialize(Span<byte> data)
 		{
 			deserialization.Deserialize(this, data);
 		}
