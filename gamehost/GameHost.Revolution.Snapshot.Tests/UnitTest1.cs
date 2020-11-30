@@ -181,7 +181,7 @@ namespace GameHost.Revolution.Snapshot.Tests
 				Assert.AreEqual(gameWorld.GetComponentData<TestComponent>(globalEntity).Position, component.Position);
 			}
 			
-			Span<GameEntityHandle> entities = new GameEntityHandle[1000];
+			Span<GameEntityHandle> entities = new GameEntityHandle[1_000];
 			gameWorld.CreateEntityBulk(entities);
 			foreach (var ent in entities)
 			{
@@ -206,7 +206,6 @@ namespace GameHost.Revolution.Snapshot.Tests
 			worldCollection.Ctx.Container
 			               .GetOrDefault<IScheduler>()
 			               .Run();
-
 
 			var sw             = new Stopwatch();
 			var minSerialize   = TimeSpan.MaxValue;

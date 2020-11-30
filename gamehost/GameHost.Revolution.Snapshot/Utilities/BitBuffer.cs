@@ -324,8 +324,8 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		{
 			Clear();
 			ReadSpan(data, data.Length);
-			readPosition = data.Length * 32;
-			nextPosition = data.Length * 32;
+			readPosition = data.Length * 8;
+			nextPosition = data.Length * 8;
 		}
 
 		public unsafe void ReadSpan(Span<byte> data, int length)
