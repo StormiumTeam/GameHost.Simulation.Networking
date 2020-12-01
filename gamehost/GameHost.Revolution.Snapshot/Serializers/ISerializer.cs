@@ -7,6 +7,7 @@ using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.TabEcs;
+using StormiumTeam.GameBase.Utility.Misc;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -76,6 +77,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     The archetype manager.
 		/// </summary>
 		ISerializerArchetype? SerializerArchetype { get; }
+
+		/// <summary>
+		/// The serializer identifier
+		/// </summary>
+		string Identifier => TypeExt.GetFriendlyName(GetType());
 
 		/// <summary>
 		///     The system state of this serializer

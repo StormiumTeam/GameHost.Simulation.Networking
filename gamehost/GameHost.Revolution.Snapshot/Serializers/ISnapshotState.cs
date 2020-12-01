@@ -151,6 +151,18 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return archetypeAssigned[entity.Id];
 		}
 
+		public void ClearAllAssignedArchetype()
+		{
+			// ReSharper disable ConditionIsAlwaysTrueOrFalse
+			if (archetypes == null)
+				return;
+			// ReSharper restore ConditionIsAlwaysTrueOrFalse
+
+			Array.Fill(archetypes, default);
+			Array.Fill(archetypeUpdate, false);
+			Array.Fill(archetypeAssigned, false);
+		}
+
 		public void AssignSnapshotArchetype(GameEntity entity, uint snapshotArchetype)
 		{
 			if (!archetypeToSystems.ContainsKey(snapshotArchetype))

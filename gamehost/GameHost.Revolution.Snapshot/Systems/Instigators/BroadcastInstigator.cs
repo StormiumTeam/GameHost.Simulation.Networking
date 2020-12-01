@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Core.Ecs;
@@ -15,7 +16,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 	 */
 	public partial class BroadcastInstigator : AppObject, ISnapshotInstigator
 	{
-		private readonly PooledList<ClientSnapshotInstigator> clients;
+		public readonly PooledList<ClientSnapshotInstigator> clients;
 
 		private readonly Serialization           serialization = new();
 		private readonly PooledList<ISerializer> serializers;
@@ -56,6 +57,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			queuedEntity.SetAsChildOf(Storage);
 
 			DependencyResolver.Add(() => ref gameWorld);
+			DependencyResolver.TryComplete();
 		}
 
 		public EntityGroup QueuedEntities { get; }
@@ -68,12 +70,27 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public int InstigatorId { get; }
 
+		public bool TryGetClient(int clientId, [NotNullWhen(true)] out ClientSnapshotInstigator client)
+		{
+			foreach (var c in clients)
+			{
+				if (c.InstigatorId == clientId)
+				{
+					client = c;
+					return true;
+				}
+			}
+
+			client = null!;
+			return false;
+		}
+
 		public ClientSnapshotInstigator AddClient(int clientId)
 		{
 			if (clientId == InstigatorId)
 				throw new InvalidOperationException("clientId shouldn't be GroupId");
 
-			var client = new ClientSnapshotInstigator(Storage.World.CreateEntity(), clientId, gameWorld)
+			var client = new ClientSnapshotInstigator(Storage.World.CreateEntity(), clientId, InstigatorId, gameWorld)
 			{
 				Serializers = Serializers
 			};
@@ -83,16 +100,33 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			return client;
 		}
 
-		public void AddSerializer(ISerializer serializer, bool disposeOnThisDispose = true)
+		public void SetSerializer(uint id, ISerializer serializer, bool disposeOnThisDispose = true)
 		{
 			serializers.Add(serializer);
 
-			serializer.System                 = new SnapshotSerializerSystem((uint) serializers.Count);
+			serializer.System                 = new SnapshotSerializerSystem(id);
 			Serializers[serializer.System.Id] = serializer;
+
+			if (serializer is AppObject appObject)
+				appObject.DependencyResolver.TryComplete();
+		}
+
+		public void AddSerializer(ISerializer serializer, bool disposeOnThisDispose = true)
+		{
+			SetSerializer((uint) serializers.Count + 1, serializer, disposeOnThisDispose);
 		}
 
 		public void Serialize(uint tick)
 		{
+#if DEBUG
+			foreach (var serializer in serializers)
+			{
+				if (serializer is AppObject appObject && appObject.DependencyResolver.Dependencies.Count > 0)
+				{
+					Console.WriteLine($"{serializer.Identifier} still has dependencies!");
+				}
+			}
+#endif
 			serialization.Execute(tick, this);
 		}
 	}

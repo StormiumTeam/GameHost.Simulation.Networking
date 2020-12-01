@@ -68,3 +68,6 @@ msbuild.err
 msbuild.wrn
 
 .vs/
+
+# Temporary (forks)
+GameHostLibs*/

@@ -116,13 +116,51 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 				foreach (var entity in entityList)
 				{
-					WriterState.TryGetArchetypeFromEntity(entity, out var netArchetype);
+					uint netArchetype;
+					// If the entity is from another broadcaster or client, and that we 'own' it, use that archetype.
+					// Note that the data we sent to the client will use the archetype we assigned earlier, not this one.
+					if (gameWorld.HasComponent<SnapshotOwnedWriteArchetype>(entity.Handle))
+					{
+						netArchetype = gameWorld.GetComponentData<SnapshotOwnedWriteArchetype>(entity.Handle).OwnedArchetype;
+					}
+					// Else, use the archetype we assigned earlier...
+					else
+					{
+						WriterState.TryGetArchetypeFromEntity(entity, out netArchetype);
+					}
 
 					var systems = WriterState.GetArchetypeSystems(netArchetype);
 					foreach (var sys in systems) entitiesPerSystem[new SnapshotSerializerSystem(sys)].Add(entity.Handle);
 				}
 
+				// ---- ENTITY
 				WriteEntities(broadcast, gameWorld);
+				foreach (var client in broadcast.clients)
+				{
+					var clientData = client.GetClientData();
+					var owned      = client.OwnedEntities;
+
+					var prevLocalId = 0u;
+					var prevLocalVer = 0u;
+					var prevCdArch  = 0u;
+					var prevPerm    = 0u;
+
+					clientData.AddUIntD4((uint) owned.Count);
+					foreach (var data in owned)
+					{
+						clientData.AddUIntD4Delta(data.Entity.Id, prevLocalId)
+						          .AddUIntD4Delta(data.Entity.Version, prevLocalVer)
+						          .AddUIntD4Delta(data.ComponentDataArchetype, prevCdArch)
+						          .AddUIntD4Delta((uint) data.Permission, prevPerm);
+						prevLocalId = data.Entity.Id;
+						prevCdArch  = data.ComponentDataArchetype;
+						prevPerm    = (uint) data.Permission;
+					}
+
+					owned.Clear();
+				}
+
+				// ---- SYSTEMS
 				PrepareSerializers(broadcast);
 
 				foreach (var task in tasks)

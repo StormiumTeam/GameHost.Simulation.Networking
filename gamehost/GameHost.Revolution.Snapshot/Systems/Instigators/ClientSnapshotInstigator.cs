@@ -38,14 +38,38 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		All = CreateEntity | DestroyCreatedEntity | ModifyArchetypeOfOwnedEntity | DestroyOwnedEntity
 	}
 
+	public readonly struct ClientOwnedEntity
+	{
+		public readonly GameEntity               Entity;
+		/// <summary>
+		/// Represent which components can be modified by this entity
+		/// </summary>
+		public readonly uint                     ComponentDataArchetype;
+		/// <summary>
+		/// Get the permission on this entity
+		/// </summary>
+		/// <remarks>
+		/// <see cref="ClientSnapshotPermission.CreateEntity"/> will not work.
+		/// </remarks>
+		public readonly ClientSnapshotPermission Permission;
+
+		public ClientOwnedEntity(GameEntity entity, uint componentDataArchetype, ClientSnapshotPermission permission)
+		{
+			Entity                 = entity;
+			ComponentDataArchetype = componentDataArchetype;
+			Permission             = permission;
+		}
+	}
+
 	public partial class ClientSnapshotInstigator : ISnapshotInstigator
 	{
 		private readonly Deserialization deserialization = new();
 		private readonly GameWorld       gameWorld;
 
-		public ClientSnapshotInstigator(Entity storage, int groupId, GameWorld gameWorld)
+		public ClientSnapshotInstigator(Entity storage, int groupId, int parentGroupId, GameWorld gameWorld)
 		{
 			InstigatorId = groupId;
+			ParentInstigatorId = parentGroupId;
 
 			storage.Set(new ClientData());
 
@@ -54,13 +78,19 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			this.gameWorld = gameWorld;
 			clientState    = new ClientState();
 			State          = new ClientSnapshotState(InstigatorId);
+			OwnedEntities  = new PooledList<ClientOwnedEntity>();
 		}
 
-		public PooledDictionary<uint, ISerializer> Serializers { get; set; }
+		public PooledDictionary<uint, ISerializer> Serializers   { get; set; }
+		/// <summary>
+		/// A client can possess entities that were not created by itself.
+		/// </summary>
+		public PooledList<ClientOwnedEntity>       OwnedEntities { get; }
 
 		public Entity         Storage { get; }
 		public ISnapshotState State   { get; }
 
+		public int ParentInstigatorId { get; }
 		public int InstigatorId { get; }
 
 		public void Deserialize(Span<byte> data)
@@ -133,6 +163,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public PooledList<uint> createdEntities = new();
 		public PooledList<uint> entities        = new();
+		public bool[]           parentOwned;
 		public bool[]           owned;
 
 		public PooledList<uint> ownedEntities = new();
@@ -200,6 +231,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				Array.Resize(ref snapshot, entityCount);
 				Array.Resize(ref remote, entityCount);
 				Array.Resize(ref created, entityCount);
+				Array.Resize(ref parentOwned, entityCount);
 				Array.Resize(ref owned, entityCount);
 				Array.Resize(ref archetype, entityCount);
 			}
@@ -221,7 +253,15 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			remote[self.Id]   = default;
 		}
 
-		public void AddEntity(GameEntity self, GameEntity snapshotLocal, SnapshotEntity snapshotRemote, bool isOwned)
+		/// <summary>
+		/// Add an entity to this snapshot state.
+		/// </summary>
+		/// <param name="self">The self (aka on this application) version of the entity</param>
+		/// <param name="snapshotLocal">The entity identifier on the snapshot</param>
+		/// <param name="snapshotRemote">The entity identifier from the origin</param>
+		/// <param name="isParentOwned">Is this entity owned by the parent of this client?</param>
+		/// <param name="isOwned">Is this client owning the entity?</param>
+		public void AddEntity(GameEntity self, GameEntity snapshotLocal, SnapshotEntity snapshotRemote, bool isParentOwned, bool isOwned)
 		{
 			IncreaseCapacity((int) self.Id + 1);
 
@@ -231,6 +271,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				owned[self.Id]   = true;
 			}
 
+			parentOwned[self.Id]          = isParentOwned;
 			owned[self.Id]                = isOwned;
 			snapshot[self.Id]             = snapshotLocal;
 			remote[self.Id]               = snapshotRemote;

@@ -8,13 +8,16 @@ namespace GameHost.Revolution.Snapshot.Systems.Components
 	{
 	}
 
-	public struct SnapshotStorageOwned : IComponentData
+	public struct SnapshotOwnedWriteArchetype : IComponentData
 	{
-		public Entity Storage;
-
 		/// <summary>
 		///     This represent the owned archetype, that contains systems that the client is allowed to serialize.
 		/// </summary>
 		public uint OwnedArchetype;
+
+		public SnapshotOwnedWriteArchetype(uint ownedArchetype)
+		{
+			OwnedArchetype = ownedArchetype;
+		}
 	}
 }
