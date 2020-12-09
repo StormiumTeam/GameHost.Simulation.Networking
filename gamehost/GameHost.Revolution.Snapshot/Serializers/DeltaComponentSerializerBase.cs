@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using DefaultEcs;
 using GameHost.Injection;
 using GameHost.Revolution.Snapshot.Systems;
@@ -39,15 +40,39 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// <summary>
 		///     Whether or not the component should be directly updated instead of using the snapshot buffer.
 		/// </summary>
-		public readonly bool DirectComponentSet;
+		/// <remarks>
+		///	Default False
+		/// </remarks>
+		public bool DirectComponentSettings;
+
+		/// <summary>
+		/// Whether or not we should add the deserialized snapshot into the snapshot buffer
+		/// </summary>
+		/// <remarks>
+		///	Default True
+		/// </remarks>
+		public bool AddToBufferSettings;
+
+		/// <summary>
+		/// Whether or not the data should still be written to the buffer (if <see cref="AddToBufferSettings"/> is true) if the entity is ignored (owner reason)
+		/// </summary>
+		/// <remarks>
+		///	Default False
+		/// </remarks>
+		public bool ForceToBufferIfEntityIgnoredSettings;
 
 		#endregion
 
 		private readonly Dictionary<ISnapshotInstigator, InstigatorData> instigatorDataMap = new();
 
+		public override bool SynchronousSerialize   => true;
+		public override bool SynchronousDeserialize => true;
+
 		public DeltaComponentSerializerBase(ISnapshotInstigator instigator, Context ctx) : base(instigator, ctx)
 		{
-			DirectComponentSet = false;
+			DirectComponentSettings              = false;
+			AddToBufferSettings                  = true;
+			ForceToBufferIfEntityIgnoredSettings = false;
 		}
 
 		protected override ISerializerArchetype GetSerializerArchetype()
@@ -100,50 +125,38 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		protected override void OnSerialize(BitBuffer bitBuffer, SerializationParameters parameters, MergeGroup group, ReadOnlySpan<GameEntityHandle> entities)
 		{
-			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
+			var         hadInitialData = group.Storage.Has<InitialData>();
+			TSnapshot[] writeArray;
 
-			GetColumn(ref baselineArray, entities);
+			ref var readArray = ref instigatorDataMap[Instigator].BaselineArray;
+			GetColumn(ref readArray, entities);
+
+			if (!hadInitialData)
+			{
+				writeArray = new TSnapshot[entities.Length];
+				parameters.Post.Schedule(setComponent, group.Storage, default);
+			}
+			else
+				writeArray = readArray;
 
 			var accessor = new ComponentDataAccessor<TComponent>(GameWorld);
-
-			// The only problem here is that we are repeating both code for either it have data or not...
-			// We could have done an if condition here, but it would have been a bit slower than a simple switch case...
-			var hadInitialData = group.Storage.Has<InitialData>();
-			switch (hadInitialData)
+			foreach (var ent in entities)
 			{
-				case true:
-					foreach (var ent in entities)
-					{
-						ref var baseline = ref baselineArray[ent.Id];
+				var snapshot = default(TSnapshot);
+				snapshot.Tick = parameters.Tick;
+				snapshot.FromComponent(accessor[ent]);
+				snapshot.Serialize(bitBuffer, readArray[ent.Id]);
 
-						var snapshot = default(TSnapshot);
-						snapshot.Tick = parameters.Tick;
-						snapshot.FromComponent(accessor[ent]);
-						snapshot.Serialize(bitBuffer, baseline);
-
-						baseline = snapshot;
-					}
-
-					break;
-				case false:
-					foreach (var ent in entities)
-					{
-						var snapshot = default(TSnapshot);
-						snapshot.Tick = parameters.Tick;
-						snapshot.FromComponent(accessor[ent]);
-						snapshot.Serialize(bitBuffer, default);
-
-						baselineArray[ent.Id] = snapshot;
-					}
-
-					// Make sure that these clients will go into a group that now have a baseline data.
-					parameters.Post.Schedule(setComponent, group.Storage, default);
-
-					break;
+				writeArray[ent.Id] = snapshot;
 			}
 		}
 
-		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities)
+		private static void Set(int yes)
+		{
+			
+		}
+
+		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet)
 		{
 			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
 
@@ -160,38 +173,37 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				parameters.Post.Schedule(setComponent, Instigator.Storage, default);
 			}
-
-			switch (DirectComponentSet)
+			
+			foreach (var ent in entities)
 			{
-				case true:
-					foreach (var ent in entities)
+				ref var baseline = ref baselineArray[ent.Id];
+
+				var snapshot = default(TSnapshot);
+				snapshot.Tick = parameters.Tick;
+				snapshot.Deserialize(bitBuffer, baseline);
+
+				if (ignoreSet[(int) ent.Id])
+				{
+					if (ForceToBufferIfEntityIgnoredSettings && AddToBufferSettings)
 					{
-						ref var baseline = ref baselineArray[ent.Id];
-
-						var snapshot = default(TSnapshot);
-						snapshot.Tick = parameters.Tick;
-						snapshot.Deserialize(bitBuffer, baseline);
-						snapshot.ToComponent(ref dataAccessor[ent]);
-
-						baseline = snapshot;
-					}
-
-					break;
-				case false:
-					foreach (var ent in entities)
-					{
-						ref var baseline = ref baselineArray[ent.Id];
-
-						var snapshot = default(TSnapshot);
-						snapshot.Tick = parameters.Tick;
-						snapshot.Deserialize(bitBuffer, baseline);
-
 						bufferAccessor[ent].Add(snapshot);
-
-						baseline = snapshot;
+						if (bufferAccessor[ent].Count > 32)
+							bufferAccessor[ent].RemoveAt(0);
 					}
+				}
+				else
+				{
+					if (DirectComponentSettings)
+						snapshot.ToComponent(ref dataAccessor[ent]);
+					if (AddToBufferSettings)
+					{
+						bufferAccessor[ent].Add(snapshot);
+						if (bufferAccessor[ent].Count > 32)
+							bufferAccessor[ent].RemoveAt(0);
+					}
+				}
 
-					break;
+				baseline = snapshot;
 			}
 		}
 

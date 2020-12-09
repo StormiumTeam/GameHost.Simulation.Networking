@@ -49,6 +49,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				                                                   .CreateEntity();
 				AddDisposable(Storage);
 			}
+			
+			Storage.Set<ISnapshotInstigator>(this);
 
 			QueuedEntities = new EntityGroup();
 			InstigatorId   = groupId;
@@ -90,7 +92,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			if (clientId == InstigatorId)
 				throw new InvalidOperationException("clientId shouldn't be GroupId");
 
-			var client = new ClientSnapshotInstigator(Storage.World.CreateEntity(), clientId, InstigatorId, gameWorld)
+			var client = new ClientSnapshotInstigator(Storage.World.CreateEntity(), clientId, this, gameWorld)
 			{
 				Serializers = Serializers
 			};
@@ -98,6 +100,15 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 			clients.Add(client);
 			return client;
+		}
+
+		public void RemoveClient(int clientId)
+		{
+			var count = clients.RemoveAll(c => c.InstigatorId == clientId);
+			if (count == 0)
+				return;
+			
+			// todo: logging
 		}
 
 		public void SetSerializer(uint id, ISerializer serializer, bool disposeOnThisDispose = true)

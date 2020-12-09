@@ -59,8 +59,18 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     Entities and Archetypes are part of the same 'array'.
 		///     This mean that you get the archetype of an entity when you use the same index as you do for traversing the entity
 		///     list.
+		///
+		///		ParentAuthority is a column.
+		///		So you must index it via the entity Id:
+		///			parentAuthority[entity.Id]
 		/// </remarks>
-		void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, Dictionary<uint, uint[]> archetypeToSystems);
+		void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, Dictionary<uint, uint[]> archetypeToSystems, Span<bool> parentAuthority);
+	}
+
+	public interface IAuthorityArchetype
+	{
+		bool IsArchetypeValid(in EntityArchetype archetype);
+		void TryKeepAuthority(GameEntity    entity, bool enable, HashSet<ComponentType> kept);
 	}
 
 	/// <summary>
@@ -77,6 +87,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     The archetype manager.
 		/// </summary>
 		ISerializerArchetype? SerializerArchetype { get; }
+
+		IAuthorityArchetype? AuthorityArchetype { get; }
 
 		/// <summary>
 		/// The serializer identifier
@@ -112,6 +124,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     Prepare the deserialization
 		/// </summary>
 		/// <returns>Return a task that can be done in parallel and must be terminated later.</returns>
-		UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities);
+		UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet);
 	}
 }

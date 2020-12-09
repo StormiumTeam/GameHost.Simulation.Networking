@@ -3,11 +3,6 @@ using GameHost.Simulation.TabEcs.Interfaces;
 
 namespace GameHost.Revolution.Snapshot.Systems.Components
 {
-	public struct IsComponentOwned<TComponent> : IComponentData
-		where TComponent : IEntityComponent
-	{
-	}
-
 	public struct SnapshotOwnedWriteArchetype : IComponentData
 	{
 		/// <summary>

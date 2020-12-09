@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
 using DefaultEcs;
@@ -64,17 +65,25 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						// Entities must have an archetype assigned.
 						// Even if it's an empty archetype.
 						var localArchetype = gameWorld.GetArchetype(ent.Handle);
-						if (!WriterState.TryGetArchetypeFromEntity(ent, out var archetype))
+						if (!WriterState.AreSameLocalArchetype(ent, localArchetype.Id)
+						    || !WriterState.TryGetArchetypeFromEntity(ent, out var archetype))
 						{
-							using var systems = new PooledList<uint>();
+							using var systems          = new PooledList<uint>();
+							using var authoritySystems = new PooledList<uint>();
 							foreach (var (id, serializer) in broadcast.Serializers)
+							{
 								if (serializer.SerializerArchetype?.IsArchetypeValid(localArchetype) == true)
 									systems.Add(id);
+								if (serializer.AuthorityArchetype?.IsArchetypeValid(localArchetype) == true)
+									authoritySystems.Add(id);
+							}
 
 							if (!WriterState.TryGetArchetypeWithSystems(systems.Span, out archetype))
 								archetype = WriterState.CreateArchetype(systems.Span);
+							if (!WriterState.TryGetArchetypeWithSystems(authoritySystems.Span, out var authorityArchetype))
+								authorityArchetype = WriterState.CreateArchetype(authoritySystems.Span);
 
-							WriterState.AssignSnapshotArchetype(ent, archetype);
+							WriterState.AssignSnapshotArchetype(ent, archetype, authorityArchetype, localArchetype.Id);
 						}
 					}
 				}
@@ -98,7 +107,10 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var handle = entity.Handle;
 
 					// If nobody assigned the SnapshotEntity component, this mean we created it (or that we can take possession of it)
-					if (!gameWorld.HasComponent<SnapshotEntity>(handle)) gameWorld.AddComponent(handle, new SnapshotEntity(new GameEntity(handle.Id, entity.Version), broadcast.InstigatorId));
+					if (!gameWorld.HasComponent<SnapshotEntity>(handle))
+					{
+						gameWorld.AddComponent(handle, new SnapshotEntity(new GameEntity(handle.Id, entity.Version), broadcast.InstigatorId, broadcast.Storage));
+					}
 				}
 
 				foreach (var serializer in broadcast.serializers)
@@ -117,17 +129,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				foreach (var entity in entityList)
 				{
 					uint netArchetype;
-					// If the entity is from another broadcaster or client, and that we 'own' it, use that archetype.
-					// Note that the data we sent to the client will use the archetype we assigned earlier, not this one.
-					if (gameWorld.HasComponent<SnapshotOwnedWriteArchetype>(entity.Handle))
-					{
-						netArchetype = gameWorld.GetComponentData<SnapshotOwnedWriteArchetype>(entity.Handle).OwnedArchetype;
-					}
-					// Else, use the archetype we assigned earlier...
-					else
-					{
-						WriterState.TryGetArchetypeFromEntity(entity, out netArchetype);
-					}
+					WriterState.TryGetArchetypeFromEntity(entity, out netArchetype);
 
 					var systems = WriterState.GetArchetypeSystems(netArchetype);
 					foreach (var sys in systems) entitiesPerSystem[new SnapshotSerializerSystem(sys)].Add(entity.Handle);
@@ -135,26 +137,39 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 				// ---- ENTITY
 				WriteEntities(broadcast, gameWorld);
+				
+				// Write Owned entities
 				foreach (var client in broadcast.clients)
 				{
-					var clientData = client.GetClientData();
-					var owned      = client.OwnedEntities;
+					var clientData  = client.GetClientData();
+					var clientState = (ClientSnapshotState) client.State;
 
-					var prevLocalId = 0u;
+					var owned = client.OwnedEntities.Span;
+
+					var prevLocalId  = 0u;
 					var prevLocalVer = 0u;
-					var prevCdArch  = 0u;
-					var prevPerm    = 0u;
+					var prevCdArch   = 0u;
+					var prevPerm     = 0u;
 
-					clientData.AddUIntD4((uint) owned.Count);
+					clientData.AddUIntD4((uint) owned.Length);
 					foreach (var data in owned)
 					{
+						// The caller did not assign any archetype to this entity, so let's set it
+						var componentDataArchetype = data.ComponentDataArchetype;
+						if (componentDataArchetype == 0)
+							componentDataArchetype = WriterState.GetAuthorityArchetypeOfEntity(data.Entity.Id);
+
 						clientData.AddUIntD4Delta(data.Entity.Id, prevLocalId)
 						          .AddUIntD4Delta(data.Entity.Version, prevLocalVer)
-						          .AddUIntD4Delta(data.ComponentDataArchetype, prevCdArch)
+						          .AddUIntD4Delta(componentDataArchetype, prevCdArch)
 						          .AddUIntD4Delta((uint) data.Permission, prevPerm);
-						prevLocalId = data.Entity.Id;
-						prevCdArch  = data.ComponentDataArchetype;
-						prevPerm    = (uint) data.Permission;
+						prevLocalId  = data.Entity.Id;
+						prevLocalVer = data.Entity.Version;
+						prevCdArch   = componentDataArchetype;
+						prevPerm     = (uint) data.Permission;
+
+						if (clientState.ownedArch.Length > prevLocalId)
+							clientState.ownedArch[prevLocalId] = prevCdArch;
 					}
 
 					owned.Clear();

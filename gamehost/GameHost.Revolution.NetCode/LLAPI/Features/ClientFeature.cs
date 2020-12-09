@@ -23,7 +23,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 		protected override void OnFeatureAdded(Entity entity, ClientFeature obj)
 		{
-			entity.Set(new BroadcastInstigator(entity, 0, Context));
 		}
 
 		protected override void OnFeatureRemoved(Entity entity, ClientFeature obj)

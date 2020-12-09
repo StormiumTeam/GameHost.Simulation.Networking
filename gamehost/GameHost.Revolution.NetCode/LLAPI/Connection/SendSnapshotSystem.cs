@@ -1,62 +1,78 @@
 ﻿using System;
 using System.Buffers;
+using System.Threading;
 using GameHost.Applications;
+using GameHost.Core;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
+using GameHost.Simulation.Application;
 using GameHost.Simulation.TabEcs;
 using GameHost.Simulation.Utility.EntityQuery;
+using GameHost.Simulation.Utility.Time;
 using GameHost.Worlds.Components;
 using RevolutionSnapshot.Core.Buffers;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
 {
+	[RestrictToApplication(typeof(SimulationApplication))]
+	[UpdateAfter(typeof(UpdateDriverSystem))]
 	public class SendSnapshotSystem : AppSystemWithFeature<MultiplayerFeature>
 	{
-		private GameWorld         gameWorld;
-		private IManagedWorldTime worldTime;
+		private GameWorld          gameWorld;
+		private UpdateDriverSystem driverSystem;
 
 		public SendSnapshotSystem(WorldCollection collection) : base(collection)
 		{
 			DependencyResolver.Add(() => ref gameWorld);
-			DependencyResolver.Add(() => ref worldTime);
+			DependencyResolver.Add(() => ref driverSystem);
 		}
 
-		public uint? Tick { get; set; }
+		private GameTime gameTime;
+		
+		public bool     UseCustomGameTime { get; set; }
+
+		public GameTime GameTime
+		{
+			get => gameTime;
+			set => gameTime = value;
+		}
+
+		public override bool CanUpdate()
+		{
+			return base.CanUpdate() && !UseCustomGameTime && gameWorld.TryGetSingleton(out gameTime) || UseCustomGameTime;
+		}
 
 		protected override void OnUpdate()
 		{
 			base.OnUpdate();
 			
-			var tickFormat = Tick ?? (uint) worldTime.Total.Ticks;
 			foreach (var (entity, feature) in Features)
 			{
 				if (!entity.TryGet(out BroadcastInstigator instigator))
 					continue;
 
-				Serialize(tickFormat, feature, instigator);
+				Serialize(feature, instigator);
 			}
 		}
 
-		private void Serialize(uint tickFormat, MultiplayerFeature feature, BroadcastInstigator instigator)
+		private void Serialize(MultiplayerFeature feature, BroadcastInstigator instigator)
 		{
 			if (instigator.DependencyResolver.Dependencies.Count != 0)
 				return;
 			
-			instigator.Serialize(tickFormat);
+			instigator.Serialize((uint) gameTime.Frame);
 
 			Span<TransportConnection> connections = stackalloc TransportConnection[feature.Driver.GetConnectionCount()];
 			{
 				feature.Driver.GetConnections(connections);
 			}
-
-			Console.WriteLine($"Send from {instigator.InstigatorId}");
-
+			
 			foreach (var connection in connections)
 			{
 				ClientSnapshotInstigator? client = null;
-				if (instigator.InstigatorId == 0 && !instigator.TryGetClient((int) connection.Id, out client))
+				if (instigator.InstigatorId == 0 && !instigator.TryGetClient(driverSystem.conClientIdMap.Forward[connection.Id], out client))
 					continue;
 				if (instigator.InstigatorId > 0 && !instigator.TryGetClient(0, out client))
 					continue;
@@ -70,7 +86,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					using (buffer)
 					{
 						buffer.WriteValue(NetCodeMessageType.Snapshot);
-						buffer.WriteValue(TimeSpan.FromTicks(tickFormat));
+						buffer.WriteValue(gameTime);
 						buffer.WriteInt(clientData.Length);
 
 						clientData.readPosition = 0;

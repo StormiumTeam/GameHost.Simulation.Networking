@@ -9,14 +9,17 @@ using GameHost.Core.IO;
 using GameHost.Revolution.Snapshot.Serializers;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
+using GameHost.Simulation.Application;
+using GameHost.Worlds.Components;
 using RevolutionSnapshot.Core.Buffers;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
 {
+	[RestrictToApplication(typeof(SimulationApplication))]
 	public class SendSystems : AppSystemWithFeature<ServerFeature>
 	{
 		private SerializerCollection serializerCollection;
-		
+
 		public SendSystems(WorldCollection collection) : base(collection)
 		{
 			DependencyResolver.Add(() => ref serializerCollection);
@@ -74,6 +77,10 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 				broadcast.AddSerializer(createFunc(broadcast));
 			}
+			
+			// Clear all archetypes
+			Console.WriteLine($"    CLEAR! ! ! ! ! !");
+			(broadcast.State as BroadcastInstigator.SnapshotState).ClearAllAssignedArchetype();
 
 			// TODO: Check for removed serializers
 			// (right now it's not really possible to remove a serializer in SerializerCollection, so it's not really yet necessary)

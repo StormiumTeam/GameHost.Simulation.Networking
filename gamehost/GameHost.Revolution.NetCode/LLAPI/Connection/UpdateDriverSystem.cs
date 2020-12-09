@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using BidirectionalMap;
 using DefaultEcs;
 using GameHost.Applications;
 using GameHost.Core.Ecs;
@@ -6,17 +9,23 @@ using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
+using GameHost.Simulation.Application;
+using GameHost.Simulation.Utility.Time;
 using Microsoft.Extensions.Logging;
 using RevolutionSnapshot.Core.Buffers;
 using ZLogger;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
 {
+	[RestrictToApplication(typeof(SimulationApplication))]
 	public class UpdateDriverSystem : AppSystemWithFeature<MultiplayerFeature>
 	{
 		private SerializerCollection serializerCollection;
 		private SendSystems          sendSystems;
 		private ILogger              logger;
+
+		private  int              serverCountNextId = 1;
+		internal BiMap<uint, int> conClientIdMap    = new();
 
 		public UpdateDriverSystem(WorldCollection collection) : base(collection)
 		{
@@ -31,40 +40,73 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 			foreach (var (entity, feature) in Features)
 			{
+				if (entity.TryGet(out BroadcastInstigator broadcaster))
+				{
+					foreach (var client in broadcaster.clients)
+					{
+						if (!client.Storage.TryGet(out List<GameTime> times))
+							continue;
+						
+						times.Clear();
+					}
+				}
+				
+				feature.Driver.Update();
+				
 				while (feature.Driver.Accept().IsCreated)
 				{
 				}
-
-				feature.Driver.Update();
-
+				
 				TransportEvent ev;
 				while ((ev = feature.Driver.PopEvent()).Type != TransportEvent.EType.None)
 				{
-					Console.WriteLine($"{ev.Type}");
 					switch (ev.Type)
 					{
 						case TransportEvent.EType.Connect:
+						{
 							if (feature is ServerFeature serverFeature)
 							{
 								using var writer = new DataBufferWriter(8);
 								writer.WriteValue(NetCodeMessageType.ClientConnection);
-								writer.WriteInt((int) ev.Connection.Id);
+								writer.WriteInt(serverCountNextId);
 
-								var client = entity.Get<BroadcastInstigator>().AddClient((int) ev.Connection.Id);
+								var client = entity.Get<BroadcastInstigator>().AddClient(serverCountNextId);
 								client.Storage.Set(ev.Connection);
 
 								feature.Driver.Send(feature.ReliableChannel, ev.Connection, writer.Span);
+
+								conClientIdMap.Add(ev.Connection.Id, serverCountNextId);
+								Console.WriteLine($"Register Client {ev.Connection} --> {serverCountNextId}");
+								serverCountNextId++;
 
 								// Send snapshot systems to this client
 								sendSystems.SendToClient(entity, serverFeature, ev.Connection);
 							}
 
 							break;
+						}
 
 						case TransportEvent.EType.Data:
 							var reader = new DataBufferReader(ev.Data);
 							ReadNetCodeMessage((entity, feature), ev, reader);
 							break;
+
+						case TransportEvent.EType.Disconnect:
+						{
+							if (feature is ServerFeature serverFeature
+							    && entity.TryGet(out BroadcastInstigator broadcast))
+							{
+								if (!broadcast.TryGetClient(conClientIdMap.Forward[ev.Connection.Id], out var client))
+								{
+									logger.ZLogWarning("A client (id={0}) has been disconnected but had no {1}.", ev.Connection.Id, nameof(ClientSnapshotInstigator));
+									continue;
+								}
+
+								broadcast.RemoveClient(client.InstigatorId);
+							}
+
+							break;
+						}
 					}
 				}
 			}
@@ -92,7 +134,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				}
 				case NetCodeMessageType.Snapshot:
 				{
-					var currentTick  = reader.ReadValue<TimeSpan>();
+					var gameTime     = reader.ReadValue<GameTime>();
 					var snapshotSpan = reader.ReadSpanDirect<byte>();
 
 					if (!entity.TryGet(out BroadcastInstigator broadcaster))
@@ -108,7 +150,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					}
 					else
 					{
-						if (!broadcaster.TryGetClient((int) ev.Connection.Id, out client))
+						if (!broadcaster.TryGetClient(conClientIdMap.Forward[ev.Connection.Id], out client))
 							throw new InvalidOperationException($"No client found with Id={ev.Connection.Id}");
 					}
 
@@ -116,6 +158,13 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						throw new InvalidOperationException("??");
 
 					client.Deserialize(snapshotSpan);
+					if (!client.Storage.TryGet(out List<GameTime> times))
+						client.Storage.Set(times = new List<GameTime>());
+
+					if (times.Count > Consts.TIME_HISTORY)
+						times.RemoveAt(0);
+					times.Add(gameTime);
+					client.Storage.Set(gameTime);
 					break;
 				}
 				case NetCodeMessageType.SendSnapshotSystems:

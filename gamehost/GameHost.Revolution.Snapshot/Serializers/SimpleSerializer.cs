@@ -27,7 +27,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		private readonly PooledList<UniTask> tasks = new();
 
-		private (DeserializationParameters p, PooledList<byte>? data, PooledList<GameEntityHandle>? handles) deserializeArgs;
+		private (DeserializationParameters p, PooledList<byte>? data, PooledList<GameEntityHandle>? handles, PooledList<bool>? valids) deserializeArgs;
 
 		/// <summary>
 		///     GameWorld reference
@@ -57,6 +57,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public ISnapshotInstigator Instigator { get; set; }
 
 		public ISerializerArchetype     SerializerArchetype { get; private set; }
+		public IAuthorityArchetype?     AuthorityArchetype  { get; private set; }
 		public SnapshotSerializerSystem System              { get; set; }
 
 		public abstract void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection);
@@ -127,17 +128,20 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return span;
 		}
 
-		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities)
+		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet)
 		{
 			PrepareGlobal();
 
 			deserializeArgs.p       =   parameters;
 			deserializeArgs.data    ??= new PooledList<byte>();
 			deserializeArgs.handles ??= new PooledList<GameEntityHandle>();
+			deserializeArgs.valids ??= new PooledList<bool>();
 			deserializeArgs.data.Clear();
 			deserializeArgs.data.AddRange(data);
 			deserializeArgs.handles.Clear();
 			deserializeArgs.handles.AddRange(entities);
+			deserializeArgs.valids.Clear();
+			deserializeArgs.valids.AddRange(ignoreSet);
 
 			if (SynchronousDeserialize)
 			{
@@ -172,10 +176,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		private void __deserialize()
 		{
 			// these variables shouldn't be null when this is called
-			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, deserializeArgs.handles!.Span);
+			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, deserializeArgs.handles!.Span, deserializeArgs.valids!.Span);
 		}
 
-		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities)
+		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet) 
 		{
 			lock (Synchronization)
 			{
@@ -184,13 +188,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				
 				//Console.WriteLine($"READ {string.Join(',', data.ToArray())}");
 
-				OnDeserialize(deserializeBitBuffer, parameters, entities);
+				OnDeserialize(deserializeBitBuffer, parameters, entities, ignoreSet);
 			}
 		}
 
 		protected virtual void OnDependenciesResolved(IEnumerable<object> deps)
 		{
 			SerializerArchetype = GetSerializerArchetype();
+			AuthorityArchetype  = GetAuthorityArchetype();
 		}
 
 		/// <summary>
@@ -198,8 +203,16 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </summary>
 		protected abstract ISerializerArchetype GetSerializerArchetype();
 
-		protected abstract void OnSerialize(BitBuffer   bitBuffer, SerializationParameters   parameters, MergeGroup                     group, ReadOnlySpan<GameEntityHandle> entities);
-		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities);
+		/// <summary>
+		///     Get a <see cref="IAuthorityArchetype" /> object which will manage entity authority on deserialization.
+		/// </summary>
+		protected virtual IAuthorityArchetype? GetAuthorityArchetype()
+		{
+			return null;
+		}
+
+		protected abstract void OnSerialize(BitBuffer   bitBuffer, SerializationParameters   parameters, MergeGroup                     group,    ReadOnlySpan<GameEntityHandle> entities);
+		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool>             ignoreSet);
 
 		/// <summary>
 		///     Automatically resize a column based on the maximum entity id.

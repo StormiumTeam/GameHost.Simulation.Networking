@@ -4,10 +4,12 @@ using GameHost.Core.Ecs;
 using GameHost.Injection;
 using GameHost.Revolution.Snapshot.Serializers;
 using GameHost.Revolution.Snapshot.Systems;
+using GameHost.Simulation.Application;
 using StormiumTeam.GameBase.Utility.Misc;
 
 namespace GameHost.Revolution.NetCode.LLAPI
 {
+	[RestrictToApplication(typeof(SimulationApplication))]
 	public class SerializerCollection : AppSystem
 	{
 		private Dictionary<string, (Type type, Func<ISnapshotInstigator, ISerializer> createFunc)> map = new();

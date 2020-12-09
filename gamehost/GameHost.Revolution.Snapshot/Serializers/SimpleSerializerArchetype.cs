@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Collections.Pooled;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Simulation.TabEcs;
+using StormiumTeam.GameBase.Utility.Misc;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -52,10 +53,13 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					match++;
 			}
 
+			Console.WriteLine($"{match} == {ownLength}");
 			return match == ownLength;
 		}
 
-		public void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, Dictionary<uint, uint[]> archetypeToSystems)
+		public void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, 
+		                                          Dictionary<uint, uint[]> archetypeToSystems,
+		                                          Span<bool> authority)
 		{
 			for (int ent = 0, length = entities.Length; ent < length; ent++)
 			{
@@ -70,14 +74,21 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					if (model == System.Id)
 					{
 						// If this entity don't have the snapshot buffer yet, add it.
-						if (!gameWorld.HasComponent(entities[ent].Handle, CoreComponentBackend)) gameWorld.AddComponent(entities[ent].Handle, CoreComponentBackend);
+						if (!gameWorld.HasComponent(entities[ent].Handle, CoreComponentBackend))
+						{
+							gameWorld.AddComponent(entities[ent].Handle, CoreComponentBackend);
+							// Don't add components if we don't have the authority to do so.
+							if (!authority[(int) entities[ent].Id])
+								gameWorld.AddMultipleComponent(entities[ent].Handle, EntityComponents);
+						}
 
 						hasModel = true;
 						break;
 					}
 				}
 
-				if (hasModel)
+				// If we have a model, or if the parent instigator has an authority, continue...
+				if (hasModel || authority[(int) entities[ent].Id])
 					continue;
 				if (!gameWorld.HasComponent(entities[ent].Handle, CoreComponentBackend))
 					continue;

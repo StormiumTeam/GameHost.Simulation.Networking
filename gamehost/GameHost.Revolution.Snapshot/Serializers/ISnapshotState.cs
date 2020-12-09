@@ -44,8 +44,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		private readonly Dictionary<uint, uint[]> archetypeToSystems = new();
 		private readonly PooledList<uint>         totalArchetypes    = new();
 		protected        bool[]                   archetypeAssigned;
+		protected        uint[]                   authorityArchetypes;
 		protected        uint[]                   archetypes;
 		protected        bool[]                   archetypeUpdate;
+		protected        uint[]                   localArchetypes;
 
 		private   bool   canRegisterEntityAndArchetype;
 		protected bool[] created;
@@ -68,6 +70,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public uint GetArchetypeOfEntity(uint entity)
 		{
 			return archetypes[entity];
+		}
+
+		public uint GetAuthorityArchetypeOfEntity(uint entity)
+		{
+			return authorityArchetypes[entity];
 		}
 
 		public Span<uint> GetArchetypeSystems(uint archetype)
@@ -115,8 +122,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				Array.Resize(ref created, entityCount);
 				Array.Resize(ref owned, entityCount);
 				Array.Resize(ref archetypes, entityCount);
+				Array.Resize(ref authorityArchetypes, entityCount);
 				Array.Resize(ref archetypeAssigned, entityCount);
 				Array.Resize(ref archetypeUpdate, entityCount);
+				Array.Resize(ref localArchetypes, entityCount);
 				Array.Resize(ref versions, entityCount);
 			}
 
@@ -144,6 +153,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return false;
 		}
 
+		public bool AreSameLocalArchetype(GameEntity entity, in uint localArchetype)
+		{
+			return localArchetypes[entity.Id] == localArchetype;
+		}
+
 		public bool TryGetArchetypeFromEntity(GameEntity entity, out uint snapshotArchetype)
 		{
 			var arch = archetypes[entity.Id];
@@ -161,12 +175,17 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			Array.Fill(archetypes, default);
 			Array.Fill(archetypeUpdate, false);
 			Array.Fill(archetypeAssigned, false);
+			
+			archetypeToSystems.Clear();
 		}
 
-		public void AssignSnapshotArchetype(GameEntity entity, uint snapshotArchetype)
+		public void AssignSnapshotArchetype(GameEntity entity, uint snapshotArchetype, uint authorityArchetype, uint localArchetype)
 		{
 			if (!archetypeToSystems.ContainsKey(snapshotArchetype))
 				throw new InvalidOperationException($"network archetype {snapshotArchetype} not registered (perhaps it's a local one?)");
+
+			localArchetypes[entity.Id]     = localArchetype;
+			authorityArchetypes[entity.Id] = authorityArchetype;
 
 			if (archetypes[entity.Id] == snapshotArchetype && archetypeAssigned[entity.Id])
 				return;

@@ -66,12 +66,17 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		private readonly Deserialization deserialization = new();
 		private readonly GameWorld       gameWorld;
 
-		public ClientSnapshotInstigator(Entity storage, int groupId, int parentGroupId, GameWorld gameWorld)
+		private readonly BroadcastInstigator parent;
+
+		public ClientSnapshotInstigator(Entity storage, int groupId, BroadcastInstigator parent, GameWorld gameWorld)
 		{
 			InstigatorId = groupId;
-			ParentInstigatorId = parentGroupId;
+			ParentInstigatorId = parent.InstigatorId;
+
+			this.parent = parent;
 
 			storage.Set(new ClientData());
+			storage.Set<ISnapshotInstigator>(this);
 
 			Storage = storage;
 
@@ -165,6 +170,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		public PooledList<uint> entities        = new();
 		public bool[]           parentOwned;
 		public bool[]           owned;
+		public uint[]           ownedArch;
+		public bool[]           dataIgnored;
 
 		public PooledList<uint> ownedEntities = new();
 
@@ -178,6 +185,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		public ClientSnapshotState(int instigatorId)
 		{
 			InstigatorId = instigatorId;
+
+			IncreaseCapacity(16);
 		}
 
 		public uint Tick { get; set; }
@@ -222,7 +231,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			entities.Clear();
 		}
 
-		private void IncreaseCapacity(int entityCount)
+		public void IncreaseCapacity(int entityCount)
 		{
 			if (entityCount > previousEntityCount)
 			{
@@ -233,7 +242,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				Array.Resize(ref created, entityCount);
 				Array.Resize(ref parentOwned, entityCount);
 				Array.Resize(ref owned, entityCount);
+				Array.Resize(ref ownedArch, entityCount);
 				Array.Resize(ref archetype, entityCount);
+				Array.Resize(ref dataIgnored, entityCount);
 			}
 		}
 
@@ -247,10 +258,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		{
 			snapshotToSelf.Remove(snapshot[self.Id]);
 
-			created[self.Id]  = false;
-			owned[self.Id]    = false;
-			snapshot[self.Id] = default;
-			remote[self.Id]   = default;
+			created[self.Id]     = false;
+			owned[self.Id]       = false;
+			snapshot[self.Id]    = default;
+			remote[self.Id]      = default;
+			dataIgnored[self.Id] = false;
 		}
 
 		/// <summary>
@@ -276,6 +288,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			snapshot[self.Id]             = snapshotLocal;
 			remote[self.Id]               = snapshotRemote;
 			snapshotToSelf[snapshotLocal] = self;
+			dataIgnored[self.Id]          = false;
 		}
 
 		public void FinalizeEntities()
