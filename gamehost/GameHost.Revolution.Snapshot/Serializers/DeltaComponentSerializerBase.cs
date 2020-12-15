@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Threading;
 using DefaultEcs;
+using GameHost.Core.Ecs;
 using GameHost.Injection;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.TabEcs;
 using GameHost.Simulation.TabEcs.HLAPI;
 using GameHost.Simulation.TabEcs.Interfaces;
+using JetBrains.Annotations;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -16,22 +18,66 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		uint Tick { get; set; }
 	}
 
-	public interface IReadWriteSnapshotData<T> : ISnapshotData
+	public interface ISnapshotSetupData
+	{
+		void Create(SerializerBase serializer);
+
+		void Begin(bool isSerialization);
+		void Clean();
+	}
+
+	public struct EmptySnapshotSetup : ISnapshotSetupData
+	{
+		public void Create(SerializerBase serializer)
+		{
+		}
+
+		public void Begin(bool isSerialization)
+		{
+		}
+
+		public void Clean()
+		{
+		}
+	}
+	
+	public interface IReadWriteSnapshotData<T> : IReadWriteSnapshotData<T, EmptySnapshotSetup>
 		where T : ISnapshotData
 	{
-		void Serialize(in   BitBuffer buffer, in T baseline);
-		void Deserialize(in BitBuffer buffer, in T baseline);
 	}
 
-	public interface ISnapshotSyncWithComponent<TComponent> : ISnapshotData
+	public interface IReadWriteSnapshotData<T, TSetup> : ISnapshotData
+		where T : ISnapshotData
+		where TSetup : struct, ISnapshotSetupData
 	{
-		void FromComponent(in TComponent component);
-		void ToComponent(ref  TComponent component);
+		void Serialize(in   BitBuffer buffer, in T baseline, in TSetup setup);
+		void Deserialize(in BitBuffer buffer, in T baseline, in TSetup setup);
 	}
 
-	public abstract class DeltaComponentSerializerBase<TSnapshot, TComponent> : SerializerBase
+	public interface ISnapshotSyncWithComponent<TComponent> : ISnapshotSyncWithComponent<TComponent, EmptySnapshotSetup>
+	{
+	}
+
+	public interface ISnapshotSyncWithComponent<TComponent, TSetup> : ISnapshotData
+		where TSetup : struct, ISnapshotSetupData
+	{
+		void FromComponent(in TComponent component, in TSetup setup);
+		void ToComponent(ref  TComponent component, in TSetup setup);
+	}
+
+	public abstract class DeltaComponentSerializerBase<TSnapshot, TComponent> : DeltaComponentSerializerBase<TSnapshot, TComponent, EmptySnapshotSetup>
 		where TSnapshot : struct, ISnapshotData, IReadWriteSnapshotData<TSnapshot>, ISnapshotSyncWithComponent<TComponent>
 		where TComponent : struct, IComponentData
+	{
+		protected DeltaComponentSerializerBase([NotNull] ISnapshotInstigator instigator, [NotNull] Context ctx) : base(instigator, ctx)
+		{
+		}
+	}
+		
+	public abstract class DeltaComponentSerializerBase<TSnapshot, TComponent, TSetup> : SerializerBase
+		where TSnapshot : struct, ISnapshotData, IReadWriteSnapshotData<TSnapshot, TSetup>, ISnapshotSyncWithComponent<TComponent, TSetup>
+		where TComponent : struct, IComponentData
+		where TSetup : struct, ISnapshotSetupData
 	{
 		private static readonly Action<Entity> setComponent = c => c.Set<InitialData>();
 
@@ -41,7 +87,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     Whether or not the component should be directly updated instead of using the snapshot buffer.
 		/// </summary>
 		/// <remarks>
-		///	Default False
+		///	Default True
 		/// </remarks>
 		public bool DirectComponentSettings;
 
@@ -68,11 +114,26 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public override bool SynchronousSerialize   => true;
 		public override bool SynchronousDeserialize => true;
 
+		protected TSetup setup;
+
 		public DeltaComponentSerializerBase(ISnapshotInstigator instigator, Context ctx) : base(instigator, ctx)
 		{
-			DirectComponentSettings              = false;
+			// The reason why we both directly set the component and buffer is that the game client (eg: Unity client) will use the buffer for interpolated data when available...
+			// It doesn't really make sense to interpolate data that isn't visible to the end-user.
+			//
+			// If you require interpolation (or something like prediction) on the simulation client, then you should use disable this and run prediction stuff
+			DirectComponentSettings              = true;
 			AddToBufferSettings                  = true;
 			ForceToBufferIfEntityIgnoredSettings = false;
+
+			setup = new TSetup();
+		}
+
+		protected override void OnDependenciesResolved(IEnumerable<object> deps)
+		{
+			base.OnDependenciesResolved(deps);
+			
+			setup.Create(this);
 		}
 
 		protected override ISerializerArchetype GetSerializerArchetype()
@@ -125,6 +186,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		protected override void OnSerialize(BitBuffer bitBuffer, SerializationParameters parameters, MergeGroup group, ReadOnlySpan<GameEntityHandle> entities)
 		{
+			setup.Begin(true);
+			
 			var         hadInitialData = group.Storage.Has<InitialData>();
 			TSnapshot[] writeArray;
 
@@ -144,8 +207,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			{
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
-				snapshot.FromComponent(accessor[ent]);
-				snapshot.Serialize(bitBuffer, readArray[ent.Id]);
+				snapshot.FromComponent(accessor[ent], setup);
+				snapshot.Serialize(bitBuffer, readArray[ent.Id], setup);
 
 				writeArray[ent.Id] = snapshot;
 			}
@@ -156,11 +219,13 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			
 		}
 
-		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet)
+		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
 		{
+			setup.Begin(false);
+			
 			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
 
-			GetColumn(ref baselineArray, entities);
+			GetColumn(ref baselineArray, refData.Self);
 
 			var dataAccessor   = new ComponentDataAccessor<TComponent>(GameWorld);
 			var bufferAccessor = new ComponentBufferAccessor<TSnapshot>(GameWorld);
@@ -173,33 +238,40 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				parameters.Post.Schedule(setComponent, Instigator.Storage, default);
 			}
-			
-			foreach (var ent in entities)
+
+			for (var ent = 0; ent < refData.Self.Length; ent++)
 			{
-				ref var baseline = ref baselineArray[ent.Id];
+				var self = refData.Self[ent];
+
+				ref var baseline = ref baselineArray[refData.Snapshot[ent].Id];
 
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
-				snapshot.Deserialize(bitBuffer, baseline);
+				snapshot.Deserialize(bitBuffer, baseline, setup);
 
-				if (ignoreSet[(int) ent.Id])
+				// If we have been requested to add data to ignored entities, and those entities aren't null, do it.
+				// The entity can be null (aka zero) if it doesn't exist. (This can happen if it got destroyed on our side, but not on the sender side)
+				if (self.Id == 0)
+					continue;
+
+				if (refData.IgnoredSet[ent])
 				{
 					if (ForceToBufferIfEntityIgnoredSettings && AddToBufferSettings)
 					{
-						bufferAccessor[ent].Add(snapshot);
-						if (bufferAccessor[ent].Count > 32)
-							bufferAccessor[ent].RemoveAt(0);
+						bufferAccessor[self].Add(snapshot);
+						if (bufferAccessor[self].Count > 32)
+							bufferAccessor[self].RemoveAt(0);
 					}
 				}
 				else
 				{
 					if (DirectComponentSettings)
-						snapshot.ToComponent(ref dataAccessor[ent]);
+						snapshot.ToComponent(ref dataAccessor[self], setup);
 					if (AddToBufferSettings)
 					{
-						bufferAccessor[ent].Add(snapshot);
-						if (bufferAccessor[ent].Count > 32)
-							bufferAccessor[ent].RemoveAt(0);
+						bufferAccessor[self].Add(snapshot);
+						if (bufferAccessor[self].Count > 32)
+							bufferAccessor[self].RemoveAt(0);
 					}
 				}
 

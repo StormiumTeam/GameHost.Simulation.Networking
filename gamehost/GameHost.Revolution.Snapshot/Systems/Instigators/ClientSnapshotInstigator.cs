@@ -169,6 +169,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		public PooledList<uint> createdEntities = new();
 		public PooledList<uint> entities        = new();
 		public bool[]           parentOwned;
+		public bool[]           parentDestroyed;
 		public bool[]           owned;
 		public uint[]           ownedArch;
 		public bool[]           dataIgnored;
@@ -221,6 +222,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			return entities.Span;
 		}
 
+		public GameEntity LocalToSelf(GameEntity local)
+		{
+			snapshotToSelf.TryGetValue(local, out var self);
+			return self;
+		}
+
 		public bool Own(GameEntity local, SnapshotEntity remote)
 		{
 			return owned[local.Id] || remote.Instigator == InstigatorId;
@@ -241,6 +248,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				Array.Resize(ref remote, entityCount);
 				Array.Resize(ref created, entityCount);
 				Array.Resize(ref parentOwned, entityCount);
+				Array.Resize(ref parentDestroyed, entityCount);
 				Array.Resize(ref owned, entityCount);
 				Array.Resize(ref ownedArch, entityCount);
 				Array.Resize(ref archetype, entityCount);
@@ -273,7 +281,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		/// <param name="snapshotRemote">The entity identifier from the origin</param>
 		/// <param name="isParentOwned">Is this entity owned by the parent of this client?</param>
 		/// <param name="isOwned">Is this client owning the entity?</param>
-		public void AddEntity(GameEntity self, GameEntity snapshotLocal, SnapshotEntity snapshotRemote, bool isParentOwned, bool isOwned)
+		/// <param name="isParentDestroyed">Is this entity destroyed on the parent?</param>
+		public void AddEntity(GameEntity self, GameEntity snapshotLocal, SnapshotEntity snapshotRemote, bool isParentOwned, bool isOwned, bool isParentDestroyed)
 		{
 			IncreaseCapacity((int) self.Id + 1);
 
@@ -288,6 +297,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			snapshot[self.Id]             = snapshotLocal;
 			remote[self.Id]               = snapshotRemote;
 			snapshotToSelf[snapshotLocal] = self;
+			parentDestroyed[self.Id]      = isParentDestroyed;
 			dataIgnored[self.Id]          = false;
 		}
 

@@ -22,8 +22,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			
 			private readonly PooledList<GameEntity> ownedUpdateList = new();
 
-			private readonly PooledDictionary<uint, PooledList<GameEntityHandle>> systemToEntities = new();
-			private readonly PooledDictionary<uint, PooledList<bool>> systemToIgnored = new();
+			private readonly PooledDictionary<uint, (PooledList<GameEntityHandle> snapshot, PooledList<GameEntityHandle> self)> systemToEntities = new();
+			private readonly PooledDictionary<uint, PooledList<bool>>                                      systemToIgnored  = new();
 
 			private readonly PooledList<UniTask> tasks = new();
 
@@ -124,15 +124,16 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					PooledList<bool> ignoredList;
 					if (!systemToEntities.TryGetValue(systemId, out var entityList))
 					{
-						systemToEntities[systemId] = entityList = new PooledList<GameEntityHandle>();
-						systemToIgnored[systemId]  = ignoredList    = new PooledList<bool>();
+						systemToEntities[systemId] = entityList  = (new(), new());
+						systemToIgnored[systemId]  = ignoredList = new PooledList<bool>();
 					}
 					else
 					{
 						ignoredList = systemToIgnored[systemId];
 					}
 
-					entityList.Clear();
+					entityList.self.Clear();
+					entityList.snapshot.Clear();
 					ignoredList.Clear();
 					ignoredList.AddRange(readState.dataIgnored);
 
@@ -150,21 +151,38 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var archetypeSystems = readState.archetypeToSystems[readState.archetype[entity]];
 					//Console.WriteLine($"Entity {entity} (Remote={readState.remote[entity]}) - {Thread.CurrentThread.Name}");
 					//Console.WriteLine($"\tArchetype {readState.archetype[entity]}; {archetypeSystems.Length}");
+
+					// We've already set the ignored data in top
+					if (readState.dataIgnored[entity])
+					{
+						foreach (var sys in archetypeSystems)
+						{
+							if (systemToEntities.TryGetValue(sys, out var list))
+							{
+								// If the parent is destroyed, set the ID to 0.
+								list.self.Add(new GameEntityHandle(readState.parentDestroyed[entity] ? 0 : entity));
+								list.snapshot.Add(readState.snapshot[entity].Handle);
+							}
+						}
+
+						continue;
+					}
+
 					foreach (var sys in archetypeSystems)
 					{
 						//Console.WriteLine($"\t\tsys -> {sys}");
 						if (systemToEntities.TryGetValue(sys, out var list))
 						{
 							systemToIgnored[sys][(int) entity] = false;
-							list.Add(new GameEntityHandle(entity));
+							list.self.Add(new GameEntityHandle(entity));
+							list.snapshot.Add(readState.snapshot[entity].Handle);
 						}
 					}
-
+					
 					if (readState.parentOwned[entity])
 					{
 						//Console.WriteLine($"\tAuthority {readState.ownedArch[entity]};");
-						var ownedSystems = parentState.GetArchetypeSystems(readState.ownedArch[entity]);
-
+						var ownedSystems  = parentState.GetArchetypeSystems(readState.ownedArch[entity]);
 						var parentSystems = parentState.GetArchetypeSystems(parentState.GetArchetypeOfEntity(entity));
 						foreach (var sys in parentSystems)
 						{
@@ -213,7 +231,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 					if (client.Serializers.TryGetValue(systemId, out var serializer))
 					{
-						var task = serializer.PrepareDeserializeTask(parameters, span, systemToEntities[systemId].Span, systemToIgnored[systemId].Span);
+						var task = serializer.PrepareDeserializeTask(parameters, span, new ISerializer.RefData
+						{
+							Snapshot = systemToEntities[systemId].snapshot.Span,
+							Self = systemToEntities[systemId].self.Span,
+							IgnoredSet = systemToIgnored[systemId].Span
+						});
 						tasks.Add(task);
 					}
 				}
@@ -298,12 +321,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						if (prevInstigator == client.ParentInstigatorId && client.gameWorld.Exists(new GameEntity(prevRemoteId, prevRemoteVersion)))
 						{
 							self = new GameEntity(prevRemoteId, prevRemoteVersion);
-							readState.AddEntity(self, snapshotLocal, remote, true, true);
+							readState.AddEntity(self, snapshotLocal, remote, true, true, false);
 						}
 						else
 						{
 							self = client.gameWorld.Safe(client.gameWorld.CreateEntity());
-							readState.AddEntity(self, snapshotLocal, remote, false, false);
+							readState.AddEntity(self, snapshotLocal, remote, prevInstigator == client.ParentInstigatorId, false, prevInstigator == client.ParentInstigatorId);
 
 							if (prevInstigator == client.ParentInstigatorId)
 								readState.dataIgnored[self.Id] = true;

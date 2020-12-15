@@ -27,7 +27,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		private readonly PooledList<UniTask> tasks = new();
 
-		private (DeserializationParameters p, PooledList<byte>? data, PooledList<GameEntityHandle>? handles, PooledList<bool>? valids) deserializeArgs;
+		private (DeserializationParameters p, PooledList<byte>? data, PooledList<GameEntityHandle>? handles, PooledList<GameEntityHandle>? snapshot, PooledList<bool>? valids) deserializeArgs;
 
 		/// <summary>
 		///     GameWorld reference
@@ -128,20 +128,23 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return span;
 		}
 
-		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet)
+		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ISerializer.RefData refData)
 		{
 			PrepareGlobal();
 
-			deserializeArgs.p       =   parameters;
-			deserializeArgs.data    ??= new PooledList<byte>();
-			deserializeArgs.handles ??= new PooledList<GameEntityHandle>();
-			deserializeArgs.valids ??= new PooledList<bool>();
+			deserializeArgs.p        =   parameters;
+			deserializeArgs.data     ??= new PooledList<byte>();
+			deserializeArgs.handles  ??= new PooledList<GameEntityHandle>();
+			deserializeArgs.snapshot ??= new PooledList<GameEntityHandle>();
+			deserializeArgs.valids   ??= new PooledList<bool>();
 			deserializeArgs.data.Clear();
 			deserializeArgs.data.AddRange(data);
 			deserializeArgs.handles.Clear();
-			deserializeArgs.handles.AddRange(entities);
+			deserializeArgs.handles.AddRange(refData.Self);
+			deserializeArgs.snapshot.Clear();
+			deserializeArgs.snapshot.AddRange(refData.Snapshot);
 			deserializeArgs.valids.Clear();
-			deserializeArgs.valids.AddRange(ignoreSet);
+			deserializeArgs.valids.AddRange(refData.IgnoredSet);
 
 			if (SynchronousDeserialize)
 			{
@@ -151,7 +154,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			return UniTask.Run(__deserialize);
 		}
-		
+
 		private void __serialize(object? state)
 		{
 			var (parameters, group, handles) = dict[(MergeGroup) state!];
@@ -176,10 +179,15 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		private void __deserialize()
 		{
 			// these variables shouldn't be null when this is called
-			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, deserializeArgs.handles!.Span, deserializeArgs.valids!.Span);
+			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, new ISerializer.RefData
+			{
+				Snapshot   = deserializeArgs.snapshot!.Span,
+				Self       = deserializeArgs.handles!.Span,
+				IgnoredSet = deserializeArgs.valids!.Span
+			});
 		}
 
-		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet) 
+		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ISerializer.RefData refData) 
 		{
 			lock (Synchronization)
 			{
@@ -188,7 +196,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				
 				//Console.WriteLine($"READ {string.Join(',', data.ToArray())}");
 
-				OnDeserialize(deserializeBitBuffer, parameters, entities, ignoreSet);
+				OnDeserialize(deserializeBitBuffer, parameters, refData);
 			}
 		}
 
@@ -211,8 +219,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return null;
 		}
 
-		protected abstract void OnSerialize(BitBuffer   bitBuffer, SerializationParameters   parameters, MergeGroup                     group,    ReadOnlySpan<GameEntityHandle> entities);
-		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool>             ignoreSet);
+		protected abstract void OnSerialize(BitBuffer   bitBuffer, SerializationParameters   parameters, MergeGroup          group, ReadOnlySpan<GameEntityHandle> entities);
+		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData);
 
 		/// <summary>
 		///     Automatically resize a column based on the maximum entity id.

@@ -33,6 +33,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public Span<uint> GetAllEntities();
 
 		/// <summary>
+		/// Convert a local entity (snapshot) to self (on this world)
+		/// </summary>
+		public GameEntity LocalToSelf(GameEntity local);
+
+		/// <summary>
 		///     Do we own this entity?
 		/// </summary>
 		public bool Own(GameEntity local, SnapshotEntity remote);
@@ -100,6 +105,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public virtual Span<uint> GetAllEntities()
 		{
 			throw new NotImplementedException();
+		}
+
+		public GameEntity LocalToSelf(GameEntity local)
+		{
+			return local;
 		}
 
 		public virtual bool Own(GameEntity local, SnapshotEntity remote)

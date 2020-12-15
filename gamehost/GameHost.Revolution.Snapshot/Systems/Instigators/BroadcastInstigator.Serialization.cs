@@ -144,15 +144,16 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var clientData  = client.GetClientData();
 					var clientState = (ClientSnapshotState) client.State;
 
-					var owned = client.OwnedEntities.Span;
+					var owned = client.OwnedEntities;
 
 					var prevLocalId  = 0u;
 					var prevLocalVer = 0u;
 					var prevCdArch   = 0u;
 					var prevPerm     = 0u;
 
-					clientData.AddUIntD4((uint) owned.Length);
-					foreach (var data in owned)
+					var b = clientData.Length;
+					clientData.AddUIntD4((uint) owned.Count);
+					foreach (var data in owned.Span)
 					{
 						// The caller did not assign any archetype to this entity, so let's set it
 						var componentDataArchetype = data.ComponentDataArchetype;

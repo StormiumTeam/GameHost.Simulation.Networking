@@ -619,6 +619,18 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		}
 
 		[MethodImpl(256)]
+		public BitBuffer AddLongDelta(long value, long baseline)
+		{
+			return AddLong(value - baseline);
+		}
+
+		[MethodImpl(256)]
+		public long ReadLongDelta(long baseline)
+		{
+			return baseline + ReadLong();
+		}
+
+		[MethodImpl(256)]
 		public long PeekLong()
 		{
 			var tempPosition = readPosition;

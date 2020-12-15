@@ -78,6 +78,13 @@ namespace GameHost.Revolution.Snapshot.Serializers
 	/// </summary>
 	public interface ISerializer
 	{
+		public ref struct RefData
+		{
+			public ReadOnlySpan<GameEntityHandle> Snapshot;
+			public ReadOnlySpan<GameEntityHandle> Self;
+			public ReadOnlySpan<bool>             IgnoredSet;
+		}
+
 		/// <summary>
 		///     Attached Instigator on current operations. This value can change.
 		/// </summary>
@@ -124,6 +131,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///     Prepare the deserialization
 		/// </summary>
 		/// <returns>Return a task that can be done in parallel and must be terminated later.</returns>
-		UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ReadOnlySpan<GameEntityHandle> entities, ReadOnlySpan<bool> ignoreSet);
+		UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, RefData entities);
 	}
 }
