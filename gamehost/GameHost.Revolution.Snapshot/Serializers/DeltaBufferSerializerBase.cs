@@ -146,7 +146,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				var prevReadLength = readArray[ent].Count;
 				if (buffer.Count > readArray[ent].Count)
-					readArray[ent].AddSpan(buffer.Count - readArray[ent].Count);
+					readArray[ent].AddSpan(buffer.Count - readArray[ent].Count).Clear();
 				else if (buffer.Count < readArray[ent].Count)
 					readArray[ent].RemoveRange(buffer.Count, readArray[ent].Count - buffer.Count);
 
