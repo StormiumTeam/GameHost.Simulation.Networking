@@ -109,6 +109,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		public GameEntity LocalToSelf(GameEntity local)
 		{
+			// We don't have this entity being serialized
+			if (!registered[local.Id])
+				return default;
+			
 			return local;
 		}
 

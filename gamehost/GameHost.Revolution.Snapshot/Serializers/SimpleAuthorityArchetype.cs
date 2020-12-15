@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using GameHost.Simulation.TabEcs;
 
 namespace GameHost.Revolution.Snapshot.Serializers
@@ -23,7 +24,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var components = GameWorld.Boards.Archetype.GetComponentTypes(archetype.Id);
 			foreach (var comp in components)
 				if (comp == RemoteAuthority.Id)
+				{
 					return true;
+				}
 
 			return false;
 		}
@@ -35,7 +38,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				case true:
 					if (!GameWorld.HasComponent(entity.Handle, LocalAuthority))
 						GameWorld.AddComponent(entity.Handle, LocalAuthority);
-
+					
 					kept.Add(LocalAuthority);
 					break;
 				case false:

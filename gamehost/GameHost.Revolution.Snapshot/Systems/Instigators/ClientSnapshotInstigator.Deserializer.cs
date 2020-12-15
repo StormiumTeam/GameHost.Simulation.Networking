@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
@@ -105,9 +106,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 							keptComponents.Clear();
 							foreach (var sys in ownedSystems)
 							{
+								Console.WriteLine($"SysId={sys}");
 								if (client.Serializers.TryGetValue(sys, out var serializer)
 								    && serializer.AuthorityArchetype is { } authorityArchetype)
 								{
+									Console.WriteLine($"  {serializer.Identifier}");
 									authorityArchetype.TryKeepAuthority(client.gameWorld.Safe(new GameEntityHandle(self)), true, keptComponents);
 								}
 							}
@@ -295,7 +298,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				var prevRemoteVersion = 0u;
 				var prevArchetype     = 0u;
 				var prevInstigator    = 0;
-
+				
 				var count = bitBuffer.ReadUIntD4();
 				for (var i = 0; i < count; i++)
 				{
@@ -308,7 +311,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 					var snapshotLocal = new GameEntity(prevLocalId, prevLocalVersion);
 					var remote        = new SnapshotEntity(new GameEntity(prevRemoteId, prevRemoteVersion), prevInstigator, client.Storage);
-					
+
 					var self = readState.GetSelfEntity(snapshotLocal);
 					if (self.Id <= 0 || snapshotLocal.Version != readState.snapshot[self.Id].Version)
 					{

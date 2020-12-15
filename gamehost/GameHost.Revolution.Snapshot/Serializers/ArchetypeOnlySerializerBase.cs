@@ -14,7 +14,7 @@ using JetBrains.Annotations;
 namespace GameHost.Revolution.Snapshot.Serializers
 {
 	public abstract class ArchetypeOnlySerializerBase<TComponent> : SerializerBase
-		where TComponent : struct, IComponentData
+		where TComponent : struct, IEntityComponent
 	{
 		public ArchetypeOnlySerializerBase(ISnapshotInstigator instigator, Context ctx) : base(instigator, ctx)
 		{

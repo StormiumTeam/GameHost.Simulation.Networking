@@ -196,7 +196,17 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				
 				//Console.WriteLine($"READ {string.Join(',', data.ToArray())}");
 
-				OnDeserialize(deserializeBitBuffer, parameters, refData);
+				try
+				{
+					OnDeserialize(deserializeBitBuffer, parameters, refData);
+				}
+				catch (Exception ex)
+				{
+					throw new InvalidOperationException($"{(this as ISerializer).Identifier} had an exception", ex);
+				}
+
+				if (deserializeBitBuffer.readPosition > deserializeBitBuffer.nextPosition)
+					throw new InvalidOperationException($"{(this as ISerializer).Identifier} has read too much data! ({deserializeBitBuffer.readPosition}b read, {deserializeBitBuffer.nextPosition}b written)");
 			}
 		}
 

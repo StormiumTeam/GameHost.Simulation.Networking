@@ -52,8 +52,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				if (Array.IndexOf(entityComponentBackend, new ComponentType(componentTypes[i])) >= 0)
 					match++;
 			}
-
-			Console.WriteLine($"{match} == {ownLength}");
+			
 			return match == ownLength;
 		}
 

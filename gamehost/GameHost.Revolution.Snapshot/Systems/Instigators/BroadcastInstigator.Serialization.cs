@@ -254,7 +254,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var prevRemoteVersion = 0u;
 					var prevArchetype     = 0u;
 					var prevInstigator    = 0;
-
+					
 					bitBuffer.AddUIntD4((uint) entities.Length);
 					foreach (var ent in entities)
 					{
@@ -272,6 +272,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						prevRemoteVersion = networked.Source.Version;
 						prevArchetype     = archetype;
 						prevInstigator    = networked.Instigator;
+
+						Console.WriteLine($"Write ({prevLocalId}, {prevLocalVersion})");
 					}
 				}
 
