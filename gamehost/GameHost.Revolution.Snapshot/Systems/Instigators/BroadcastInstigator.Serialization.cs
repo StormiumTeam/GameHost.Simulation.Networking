@@ -272,8 +272,6 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						prevRemoteVersion = networked.Source.Version;
 						prevArchetype     = archetype;
 						prevInstigator    = networked.Instigator;
-
-						Console.WriteLine($"Write ({prevLocalId}, {prevLocalVersion})");
 					}
 				}
 

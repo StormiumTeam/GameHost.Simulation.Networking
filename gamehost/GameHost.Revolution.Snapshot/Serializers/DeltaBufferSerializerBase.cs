@@ -210,7 +210,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				ref var baseline = ref baselineArray[ent];
 
 				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
-				Console.WriteLine($"Length={newLength}");
 				if (newLength > baseline.Count)
 				{
 					baseline.AddSpan(newLength - baseline.Count)
