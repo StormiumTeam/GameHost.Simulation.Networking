@@ -44,6 +44,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		void Serialize(in   BitBuffer buffer, in T baseline, in TSetup setup);
 		void Deserialize(in BitBuffer buffer, in T baseline, in TSetup setup);
 	}
+	
+	public interface IReadWriteComponentData<T, TSetup> : IComponentData
+		where T : IComponentData
+		where TSetup : struct, ISnapshotSetupData
+	{
+		void Serialize(in   BitBuffer buffer, in T baseline, in TSetup setup);
+		void Deserialize(in BitBuffer buffer, in T baseline, in TSetup setup);
+	}
 
 	public interface ISnapshotSyncWithComponent<TComponent> : ISnapshotSyncWithComponent<TComponent, EmptySnapshotSetup>
 	{

@@ -9,7 +9,7 @@ using GameHost.Simulation.TabEcs.HLAPI;
 
 namespace GameHost.Revolution.NetCode
 {
-	public struct Ghost
+	public struct Ghost : IEquatable<Ghost>
 	{
 		public bool       FromLocal;
 		public GameEntity Source;
@@ -17,6 +17,31 @@ namespace GameHost.Revolution.NetCode
 		public override string ToString()
 		{
 			return $"Ghost(Local={FromLocal}, {Source})";
+		}
+
+		public bool Equals(Ghost other)
+		{
+			return FromLocal == other.FromLocal && Source.Equals(other.Source);
+		}
+
+		public override bool Equals(object? obj)
+		{
+			return obj is Ghost other && Equals(other);
+		}
+
+		public override int GetHashCode()
+		{
+			return HashCode.Combine(FromLocal, Source);
+		}
+
+		public static bool operator ==(Ghost left, Ghost right)
+		{
+			return left.Equals(right);
+		}
+
+		public static bool operator !=(Ghost left, Ghost right)
+		{
+			return !left.Equals(right);
 		}
 	}
 

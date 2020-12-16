@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Threading;
-using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Core.Ecs;
 using GameHost.Injection;
@@ -15,23 +13,39 @@ using JetBrains.Annotations;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
-	public abstract class DeltaBufferSerializerBase<TSnapshot, TComponent> : DeltaBufferSerializerBase<TSnapshot, TComponent, EmptySnapshotSetup>
+	public abstract class DeltaSnapshotSerializerBase<TSnapshot, TComponent> : DeltaSnapshotSerializerBase<TSnapshot, TComponent, EmptySnapshotSetup>
 		where TSnapshot : struct, ISnapshotData, IReadWriteSnapshotData<TSnapshot>, ISnapshotSyncWithComponent<TComponent>
-		where TComponent : struct, IComponentBuffer
+		where TComponent : struct, IComponentData
 	{
-		protected DeltaBufferSerializerBase([NotNull] ISnapshotInstigator instigator, [NotNull] Context ctx) : base(instigator, ctx)
+		protected DeltaSnapshotSerializerBase([NotNull] ISnapshotInstigator instigator, [NotNull] Context ctx) : base(instigator, ctx)
 		{
 		}
 	}
 		
-	public abstract class DeltaBufferSerializerBase<TSnapshot, TComponent, TSetup> : SerializerBase
+	public abstract class DeltaSnapshotSerializerBase<TSnapshot, TComponent, TSetup> : SerializerBase
 		where TSnapshot : struct, ISnapshotData, IReadWriteSnapshotData<TSnapshot, TSetup>, ISnapshotSyncWithComponent<TComponent, TSetup>
-		where TComponent : struct, IComponentBuffer
+		where TComponent : struct, IComponentData
 		where TSetup : struct, ISnapshotSetupData
 	{
 		private static readonly Action<Entity> setComponent = c => c.Set<InitialData>();
 
 		#region Settings
+
+		/// <summary>
+		///     Whether or not the component should be directly updated instead of using the snapshot buffer.
+		/// </summary>
+		/// <remarks>
+		///	Default True
+		/// </remarks>
+		public bool DirectComponentSettings;
+
+		/// <summary>
+		/// Whether or not we should add the deserialized snapshot into the snapshot buffer
+		/// </summary>
+		/// <remarks>
+		///	Default True
+		/// </remarks>
+		public bool AddToBufferSettings;
 
 		/// <summary>
 		/// Whether or not the data should still be written to the buffer (if <see cref="AddToBufferSettings"/> is true) if the entity is ignored (owner reason)
@@ -50,8 +64,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		protected TSetup setup;
 
-		public DeltaBufferSerializerBase(ISnapshotInstigator instigator, Context ctx) : base(instigator, ctx)
+		public DeltaSnapshotSerializerBase(ISnapshotInstigator instigator, Context ctx) : base(instigator, ctx)
 		{
+			// The reason why we both directly set the component and buffer is that the game client (eg: Unity client) will use the buffer for interpolated data when available...
+			// It doesn't really make sense to interpolate data that isn't visible to the end-user.
+			//
+			// If you require interpolation (or something like prediction) on the simulation client, then you should use disable this and run prediction stuff
+			DirectComponentSettings              = true;
+			AddToBufferSettings                  = true;
 			ForceToBufferIfEntityIgnoredSettings = false;
 
 			setup = new TSetup();
@@ -116,142 +136,95 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 			setup.Begin(true);
 
-			var                     hadInitialData = group.Storage.Has<InitialData>();
-			PooledList<TSnapshot>[] writeArray;
+			var         hadInitialData = group.Storage.Has<InitialData>();
+			TSnapshot[] writeArray;
 
-			ref var readArray  = ref instigatorDataMap[Instigator].BaselineArray;
-			var     prevLength = readArray.Length;
+			ref var readArray = ref instigatorDataMap[Instigator].BaselineArray;
 			GetColumn(ref readArray, entities);
-			for (var i = prevLength; i < readArray.Length; i++)
-				readArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
 
 			if (!hadInitialData)
 			{
-/*				writeArray = new PooledList<TSnapshot>[readArray.Length];
-				for (var i = 0; i < writeArray.Length; i++)
-					writeArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
-*/
-writeArray = readArray;
+				writeArray = new TSnapshot[entities.Length];
 				parameters.Post.Schedule(setComponent, group.Storage, default);
 			}
 			else
 				writeArray = readArray;
 
-			using var temporaryBuffer = new PooledList<TSnapshot>(ClearMode.Never);
-
-			var accessor = new ComponentBufferAccessor<TComponent>(GameWorld);
+			var accessor = new ComponentDataAccessor<TComponent>(GameWorld);
 			for (var ent = 0; ent < entities.Length; ent++)
 			{
-				var self   = entities[ent];
-				var buffer = accessor[self];
+				var self     = entities[ent];
+				var snapshot = default(TSnapshot);
+				snapshot.Tick = parameters.Tick;
+				snapshot.FromComponent(accessor[self], setup);
+				snapshot.Serialize(bitBuffer, readArray[ent], setup);
 
-				var prevReadLength = readArray[ent].Count;
-				if (buffer.Count > readArray[ent].Count)
-					readArray[ent].AddSpan(buffer.Count - readArray[ent].Count).Clear();
-				else if (buffer.Count < readArray[ent].Count)
-					readArray[ent].RemoveRange(buffer.Count, readArray[ent].Count - buffer.Count);
-
-				temporaryBuffer.Clear();
-				temporaryBuffer.AddSpan(buffer.Count);
-
-				for (var i = 0; i < buffer.Count; i++)
-				{
-					var elem     = buffer[i];
-					var snapshot = default(TSnapshot);
-					snapshot.FromComponent(elem, setup);
-					temporaryBuffer[i] = snapshot;
-				}
-
-				if (MemoryMarshal.AsBytes(readArray[ent].Span).SequenceEqual(MemoryMarshal.AsBytes(temporaryBuffer.Span)))
-				{
-					bitBuffer.AddBool(false);
-					continue;
-				}
-
-				bitBuffer.AddBool(true);
-				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) prevReadLength);
-				for (var i = 0; i < buffer.Count; i++)
-				{
-					temporaryBuffer[i].Serialize(bitBuffer, readArray[ent][i], setup);
-					writeArray[ent][i] = temporaryBuffer[i];
-				}
+				writeArray[ent] = snapshot;
 			}
 
 			readArray = writeArray;
 		}
-		
+
+		private static void Set(int yes)
+		{
+			
+		}
+
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
 		{
 			setup.Begin(false);
 			
 			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
 
-			var prevLength = baselineArray.Length;
 			GetColumn(ref baselineArray, refData.Self);
-			for (var i = prevLength; i < baselineArray.Length; i++)
-				baselineArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
-			
-			var bufferAccessor = new ComponentBufferAccessor<TComponent>(GameWorld);
+
+			var dataAccessor   = new ComponentDataAccessor<TComponent>(GameWorld);
+			var bufferAccessor = new ComponentBufferAccessor<TSnapshot>(GameWorld);
 
 			// The code is a bit less complex here, since we assume that when we deserialize we do that for one client per instigator...
 			var hadInitialData = Instigator.Storage.Has<InitialData>();
 			if (!hadInitialData)
 			{
-				foreach (var array in baselineArray)
-					array.Clear();
+				Array.Fill(baselineArray, default);
+
 				parameters.Post.Schedule(setComponent, Instigator.Storage, default);
 			}
 
 			for (var ent = 0; ent < refData.Self.Length; ent++)
 			{
 				var self = refData.Self[ent];
-				if (!bitBuffer.ReadBool())
-					continue;
 
 				ref var baseline = ref baselineArray[ent];
 
-				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
-				if (newLength > baseline.Count)
-				{
-					baseline.AddSpan(newLength - baseline.Count)
-					        .Clear(); // make sure that the added span is zeroed
-				}
-				else if (newLength < baseline.Count)
-					baseline.RemoveRange(newLength, baseline.Count - newLength);
-
-				for (var i = 0; i < newLength; i++)
-				{
-					ref var inner = ref baseline.Span[i];
-					inner.Deserialize(bitBuffer, baseline[i], setup);
-				}
+				var snapshot = default(TSnapshot);
+				snapshot.Tick = parameters.Tick;
+				snapshot.Deserialize(bitBuffer, baseline, setup);
+				
+				baseline = snapshot;
 
 				// If we have been requested to add data to ignored entities, and those entities aren't null, do it.
 				// The entity can be null (aka zero) if it doesn't exist. (This can happen if it got destroyed on our side, but not on the sender side)
 				if (self.Id == 0)
 					continue;
 
-				var buffer = bufferAccessor[self];
 				if (refData.IgnoredSet[(int) self.Id])
 				{
-					if (ForceToBufferIfEntityIgnoredSettings)
+					if (ForceToBufferIfEntityIgnoredSettings && AddToBufferSettings)
 					{
-						buffer.Clear();
-						foreach (var data in baseline)
-						{
-							var component = default(TComponent);
-							data.ToComponent(ref component, setup);
-							buffer.Add(component);
-						}
+						bufferAccessor[self].Add(snapshot);
+						if (bufferAccessor[self].Count > 32)
+							bufferAccessor[self].RemoveAt(0);
 					}
 				}
 				else
 				{
-					buffer.Clear();
-					foreach (var data in baseline)
+					if (DirectComponentSettings)
+						snapshot.ToComponent(ref dataAccessor[self], setup);
+					if (AddToBufferSettings)
 					{
-						var component = default(TComponent);
-						data.ToComponent(ref component, setup);
-						buffer.Add(component);
+						bufferAccessor[self].Add(snapshot);
+						if (bufferAccessor[self].Count > 32)
+							bufferAccessor[self].RemoveAt(0);
 					}
 				}
 			}
@@ -265,7 +238,7 @@ writeArray = readArray;
 		/// </remarks>
 		public class InstigatorData
 		{
-			public PooledList<TSnapshot>[] BaselineArray = Array.Empty<PooledList<TSnapshot>>();
+			public TSnapshot[] BaselineArray = Array.Empty<TSnapshot>();
 		}
 
 		public struct InitialData
