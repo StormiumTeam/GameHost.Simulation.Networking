@@ -90,10 +90,12 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						buffer.WriteInt(clientData.Length);
 
 						clientData.readPosition = 0;
+
+						var length = clientData.Length;
 						clientData.ToSpan(pooledArray);
 						
-						buffer.WriteSpan(pooledArray.AsSpan(0, clientData.Length));
-
+						buffer.WriteSpan(pooledArray.AsSpan(0, length));
+						
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
 				}

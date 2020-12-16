@@ -186,7 +186,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					{
 					}
 				}
-
+				
 				foreach (var serializer in broadcast.serializers)
 				{
 					var groupCollection = groupsPerSystem[serializer.System];

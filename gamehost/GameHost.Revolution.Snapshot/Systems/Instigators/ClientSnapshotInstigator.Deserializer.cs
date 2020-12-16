@@ -97,21 +97,38 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						readState.owned[self]     = true;
 						if (readState.ownedArch[self] != prevCdArch)
 						{
+							// Remove previous authorities
+							var prevArch = readState.ownedArch[self];
+							
 							readState.ownedArch[self] = prevCdArch;
 							ownedUpdateList.Add(client.gameWorld.Safe(new GameEntityHandle(self)));
 
-							var ownedArchetype = readState.ownedArch[self];
-							var ownedSystems   = readState.archetypeToSystems[ownedArchetype];
+							var ownedArchetype       = readState.ownedArch[self];
+							var ownedSystems         = readState.archetypeToSystems[ownedArchetype];
+							var previousOwnedSystems = readState.archetypeToSystems[prevArch];
 							
 							keptComponents.Clear();
+							Console.WriteLine("Add");
 							foreach (var sys in ownedSystems)
 							{
-								Console.WriteLine($"SysId={sys}");
+								Console.WriteLine($"  SysId={sys}");
 								if (client.Serializers.TryGetValue(sys, out var serializer)
 								    && serializer.AuthorityArchetype is { } authorityArchetype)
 								{
-									Console.WriteLine($"  {serializer.Identifier}");
+									Console.WriteLine($"    {serializer.Identifier}");
 									authorityArchetype.TryKeepAuthority(client.gameWorld.Safe(new GameEntityHandle(self)), true, keptComponents);
+								}
+							}
+
+							Console.WriteLine("Remove");
+							foreach (var sys in previousOwnedSystems)
+							{
+								Console.WriteLine($"  SysId={sys}");
+								if (client.Serializers.TryGetValue(sys, out var serializer)
+								    && serializer.AuthorityArchetype is { } authorityArchetype)
+								{
+									Console.WriteLine($"    {serializer.Identifier}");
+									authorityArchetype.TryKeepAuthority(client.gameWorld.Safe(new GameEntityHandle(self)), false, keptComponents);
 								}
 							}
 						}

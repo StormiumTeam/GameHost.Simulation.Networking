@@ -39,11 +39,15 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					if (!GameWorld.HasComponent(entity.Handle, LocalAuthority))
 						GameWorld.AddComponent(entity.Handle, LocalAuthority);
 					
+					Console.WriteLine($"    Add {GameWorld.Boards.ComponentType.NameColumns[(int) LocalAuthority.Id]}");
+					
 					kept.Add(LocalAuthority);
 					break;
 				case false:
 					if (kept.Contains(LocalAuthority))
 						return;
+					
+					Console.WriteLine($"    Remove {GameWorld.Boards.ComponentType.NameColumns[(int) LocalAuthority.Id]}");
 					
 					GameWorld.RemoveComponent(entity.Handle, LocalAuthority);
 					break;
