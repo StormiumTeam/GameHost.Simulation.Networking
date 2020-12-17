@@ -12,6 +12,7 @@ using GameHost.Simulation.TabEcs;
 using GameHost.Simulation.Utility.EntityQuery;
 using GameHost.Simulation.Utility.Time;
 using GameHost.Worlds.Components;
+using K4os.Compression.LZ4;
 using RevolutionSnapshot.Core.Buffers;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
@@ -68,7 +69,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			{
 				feature.Driver.GetConnections(connections);
 			}
-			
+
 			foreach (var connection in connections)
 			{
 				ClientSnapshotInstigator? client = null;
@@ -79,23 +80,34 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				if (client == null)
 					throw new InvalidOperationException("what?");
 
-				var clientData  = client.GetClientData();
-				var pooledArray = ArrayPool<byte>.Shared.Rent(clientData.Length);
+				var clientData = client.GetClientData();
+
+				var compressedSize = LZ4Codec.MaximumOutputSize(clientData.Length);
+				var pooledArray    = ArrayPool<byte>.Shared.Rent(clientData.Length);
 				{
 					var buffer = new DataBufferWriter(0);
 					using (buffer)
 					{
 						buffer.WriteValue(NetCodeMessageType.Snapshot);
 						buffer.WriteValue(gameTime);
+
+						var compressedMarker = buffer.WriteInt(compressedSize);
 						buffer.WriteInt(clientData.Length);
 
 						clientData.readPosition = 0;
 
 						var length = clientData.Length;
 						clientData.ToSpan(pooledArray);
+
+						buffer.Capacity += compressedSize;
+
+						const LZ4Level encoder = LZ4Level.L04_HC;
+
+						var size = LZ4Codec.Encode(pooledArray.AsSpan(0, length), buffer.CapacitySpan.Slice(buffer.Length, compressedSize), encoder);
+						buffer.WriteInt(size, compressedMarker);
 						
-						buffer.WriteSpan(pooledArray.AsSpan(0, length));
-						
+						buffer.Length += compressedSize;
+
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
 				}

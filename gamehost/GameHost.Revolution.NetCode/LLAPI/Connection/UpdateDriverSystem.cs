@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using BidirectionalMap;
+using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Applications;
 using GameHost.Core.Ecs;
@@ -11,6 +13,7 @@ using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using GameHost.Simulation.Application;
 using GameHost.Simulation.Utility.Time;
+using K4os.Compression.LZ4;
 using Microsoft.Extensions.Logging;
 using RevolutionSnapshot.Core.Buffers;
 using ZLogger;
@@ -27,11 +30,15 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 		private  int              serverCountNextId = 1;
 		internal BiMap<uint, int> conClientIdMap    = new();
 
+		private PooledList<byte> bytesList = new();
+
 		public UpdateDriverSystem(WorldCollection collection) : base(collection)
 		{
 			DependencyResolver.Add(() => ref serializerCollection);
 			DependencyResolver.Add(() => ref sendSystems);
 			DependencyResolver.Add(() => ref logger);
+			
+			AddDisposable(bytesList);
 		}
 
 		protected override void OnUpdate()
@@ -135,7 +142,18 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				case NetCodeMessageType.Snapshot:
 				{
 					var gameTime     = reader.ReadValue<GameTime>();
-					var snapshotSpan = reader.ReadSpanDirect<byte>();
+
+					var compressedSize   = reader.ReadValue<int>();
+					var uncompressedSize = reader.ReadValue<int>();
+
+					bytesList.Clear();
+					var uncompressed = bytesList.AddSpan(uncompressedSize);
+					
+					unsafe
+					{
+						var compressed = new Span<byte>(reader.DataPtr + reader.GetReadIndexAndSetNew(default, compressedSize * sizeof(byte)), compressedSize);
+						LZ4Codec.Decode(compressed, uncompressed);
+					}
 
 					if (!entity.TryGet(out BroadcastInstigator broadcaster))
 					{
@@ -157,7 +175,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					if (client == null)
 						throw new InvalidOperationException("??");
 
-					client.Deserialize(snapshotSpan);
+					client.Deserialize(uncompressed);
 					if (!client.Storage.TryGet(out List<GameTime> times))
 						client.Storage.Set(times = new List<GameTime>());
 
