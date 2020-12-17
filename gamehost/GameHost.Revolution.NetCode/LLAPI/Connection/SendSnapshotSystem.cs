@@ -21,6 +21,12 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 	[UpdateAfter(typeof(UpdateDriverSystem))]
 	public class SendSnapshotSystem : AppSystemWithFeature<MultiplayerFeature>
 	{
+		public struct PreSendEvent
+		{
+			public MultiplayerFeature  Feature;
+			public BroadcastInstigator Instigator;
+		}
+		
 		private GameWorld          gameWorld;
 		private UpdateDriverSystem driverSystem;
 
@@ -57,11 +63,16 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				Serialize(feature, instigator);
 			}
 		}
+		
+		// tbh, I don't know I could force systems to be serializer RIGHT before this system (SendSnapshotSystem) is called
+		public Bindable<(MultiplayerFeature feature, BroadcastInstigator instigator)> beforeNewFeatureSerialization = new(); 
 
 		private void Serialize(MultiplayerFeature feature, BroadcastInstigator instigator)
 		{
 			if (instigator.DependencyResolver.Dependencies.Count != 0)
 				return;
+
+			World.Mgr.Publish(new PreSendEvent {Feature = feature, Instigator = instigator});
 			
 			instigator.Serialize((uint) gameTime.Frame);
 
@@ -105,7 +116,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 						var size = LZ4Codec.Encode(pooledArray.AsSpan(0, length), buffer.CapacitySpan.Slice(buffer.Length, compressedSize), encoder);
 						buffer.WriteInt(size, compressedMarker);
-						
+
 						buffer.Length += compressedSize;
 
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);

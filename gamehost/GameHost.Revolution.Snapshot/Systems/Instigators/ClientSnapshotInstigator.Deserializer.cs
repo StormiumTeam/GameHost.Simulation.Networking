@@ -267,6 +267,10 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					while (!awaiter.IsCompleted)
 					{
 					}
+					/*var o = task.AsTask();
+					while (o == UniTaskStatus.Pending)
+					{
+					}*/
 				}
 
 				post.Run();

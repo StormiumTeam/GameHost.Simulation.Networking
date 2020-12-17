@@ -225,7 +225,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 							}
 
 							broadcaster.SetSerializer(systemId, output.create(broadcaster));
-							Console.WriteLine($"Add {systemName} as {systemId}");
+							//Console.WriteLine($"Add {systemName} as {systemId}");
 
 							hadReplacement = true;
 						}

@@ -168,7 +168,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				var bitBuffer = dataPerGroup[group];
 				bitBuffer.Clear();
 
-				OnSerialize(bitBuffer, parameters, group, entities);
+				try
+				{
+					OnSerialize(bitBuffer, parameters, group, entities);
+				}
+				catch (Exception ex)
+				{
+					throw new InvalidOperationException($"(Serializing) {(this as ISerializer).Identifier} had an exception", ex);
+				}
 			}
 		}
 
@@ -202,7 +209,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				catch (Exception ex)
 				{
-					throw new InvalidOperationException($"{(this as ISerializer).Identifier} had an exception", ex);
+					throw new InvalidOperationException($"(Deserializing) {(this as ISerializer).Identifier} had an exception", ex);
 				}
 
 				if (deserializeBitBuffer.readPosition > deserializeBitBuffer.nextPosition)

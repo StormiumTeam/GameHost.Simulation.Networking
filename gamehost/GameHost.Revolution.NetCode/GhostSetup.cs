@@ -93,9 +93,15 @@ namespace GameHost.Revolution.NetCode
 			var self = snapshotState.LocalToSelf(local);
 			// Perhaps this is an entity from the broadcaster and we didn't networked it.
 			// This method is only used in serialization
-			if (local != default && self == default
-			                     && gameWorld.HasComponent<SnapshotEntity>(local.Handle))
+			if (local != default && self == default)
 			{
+				// this local handle isn't serialized, just return default
+				if (!gameWorld.HasComponent<SnapshotEntity>(local.Handle))
+				{
+					//Console.WriteLine($"nothing for {local.Handle} on {(serializer as ISerializer).Identifier}");
+					return default;
+				}
+
 				// Ok, so, this is an entity that we didn't networked to the broadcaster, but that the broadcaster sent to us.
 				// Just get its ID then
 				return new Ghost {FromLocal = true, Source = gameWorld.GetComponentData<SnapshotEntity>(local.Handle).Source};
@@ -109,9 +115,17 @@ namespace GameHost.Revolution.NetCode
 			if (isSerialization)
 				throw new InvalidOperationException("can't be called while serializing");
 
-			return ghost.FromLocal
+			if (ghost.Source == default)
+				return default;
+
+			var r = ghost.FromLocal
 				? ghost.Source
 				: snapshotState.LocalToSelf(ghost.Source);
+
+			if (r == default)
+				throw new InvalidOperationException($"{nameof(GhostSetup)}.FromGhost() {ghost.Source} to {r}");
+
+			return r;
 		}
 
 		public void Clean()

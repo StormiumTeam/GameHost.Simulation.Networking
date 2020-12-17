@@ -10,25 +10,33 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		
 		public readonly ComponentType RemoteAuthority;
 		public readonly ComponentType LocalAuthority;
+		public readonly ComponentType None;
 
-		public SimpleAuthorityArchetype(GameWorld gameWorld, ComponentType remoteAuthority, ComponentType localAuthority)
+		public SimpleAuthorityArchetype(GameWorld gameWorld, ComponentType remoteAuthority, ComponentType localAuthority, ComponentType none)
 		{
 			GameWorld = gameWorld;
 
 			RemoteAuthority = remoteAuthority;
 			LocalAuthority  = localAuthority;
+			None            = none;
 		}
 
 		public bool IsArchetypeValid(in EntityArchetype archetype)
 		{
 			var components = GameWorld.Boards.Archetype.GetComponentTypes(archetype.Id);
+			var contains   = false;
 			foreach (var comp in components)
+			{
 				if (comp == RemoteAuthority.Id)
+					contains = true;
+				else if (comp == None.Id)
 				{
-					return true;
+					Console.WriteLine("nope!");
+					return false;
 				}
+			}
 
-			return false;
+			return contains;
 		}
 
 		public void TryKeepAuthority(GameEntity entity, bool enable, HashSet<ComponentType> kept)
