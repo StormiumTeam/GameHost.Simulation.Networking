@@ -109,13 +109,13 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 						buffer.Capacity += compressedSize;
 
-						const LZ4Level encoder = LZ4Level.L04_HC;
+						const LZ4Level encoder = LZ4Level.L08_HC;
 
 						var size = LZ4Codec.Encode(pooledArray.AsSpan(0, length), buffer.CapacitySpan.Slice(buffer.Length, compressedSize), encoder);
 						buffer.WriteInt(size, compressedMarker);
 
 						buffer.Length += compressedSize;
-
+						
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
 				}

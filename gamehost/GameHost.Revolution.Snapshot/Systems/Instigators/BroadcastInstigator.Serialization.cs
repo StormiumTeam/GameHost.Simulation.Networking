@@ -193,7 +193,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					foreach (var group in groupCollection)
 					{
 						var data = serializer.FinalizeSerialize(group);
-						
+						if (data.IsEmpty)
+						{
+							continue;
+						}
+
 						foreach (var client in group.ClientSpan)
 						{
 							var clientData = client.Get<ClientData>();
