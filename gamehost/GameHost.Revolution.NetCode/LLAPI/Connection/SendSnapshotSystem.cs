@@ -64,9 +64,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			}
 		}
 		
-		// tbh, I don't know I could force systems to be serializer RIGHT before this system (SendSnapshotSystem) is called
-		public Bindable<(MultiplayerFeature feature, BroadcastInstigator instigator)> beforeNewFeatureSerialization = new(); 
-
 		private void Serialize(MultiplayerFeature feature, BroadcastInstigator instigator)
 		{
 			if (instigator.DependencyResolver.Dependencies.Count != 0)

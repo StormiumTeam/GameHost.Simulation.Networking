@@ -11,7 +11,12 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		private readonly Dictionary<Entity, MergeGroup> entityToGroup = new();
 		private readonly List<MergeGroup>               groups        = new();
 
-		public IEnumerator<MergeGroup> GetEnumerator()
+		public List<MergeGroup>.Enumerator GetEnumerator()
+		{
+			return groups.GetEnumerator();
+		}
+
+		IEnumerator<MergeGroup> IEnumerable<MergeGroup>.GetEnumerator()
 		{
 			return groups.GetEnumerator();
 		}
