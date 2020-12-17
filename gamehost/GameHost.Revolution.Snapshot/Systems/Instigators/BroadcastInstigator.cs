@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Core.Ecs;
@@ -104,11 +105,24 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public void RemoveClient(int clientId)
 		{
+			foreach (var instigator in clients.Where(c => c.InstigatorId == clientId))
+			{
+				// Make sure that this client also get removed from MergeGroups
+				foreach (var (_, collection) in serialization.groupsPerSystem)
+				{
+					collection.SetToGroup(instigator.Storage, null);
+				}
+				
+				instigator.Serializers = null;
+				instigator.Storage.Dispose();
+				instigator.OwnedEntities.Dispose();
+			}
+
 			var count = clients.RemoveAll(c => c.InstigatorId == clientId);
 			if (count == 0)
 				return;
-			
-			// todo: logging
+
+			Console.WriteLine("Removed client #" + clientId);
 		}
 
 		public void SetSerializer(uint id, ISerializer serializer, bool disposeOnThisDispose = true)

@@ -122,8 +122,10 @@ namespace GameHost.Revolution.NetCode
 				? ghost.Source
 				: snapshotState.LocalToSelf(ghost.Source);
 
-			if (r == default)
-				throw new InvalidOperationException($"{nameof(GhostSetup)}.FromGhost() {ghost.Source} to {r}");
+			// TODO: Should we throw an exception?
+			
+			/*if (r == default)
+				throw new InvalidOperationException($"{nameof(GhostSetup)}.FromGhost() {ghost.Source} to {r}");*/
 
 			return r;
 		}

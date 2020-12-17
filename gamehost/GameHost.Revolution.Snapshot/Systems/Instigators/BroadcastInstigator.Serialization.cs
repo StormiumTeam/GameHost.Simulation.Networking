@@ -27,7 +27,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			private readonly PooledList<GameEntity>                                     entityList       = new();
 			private readonly PooledList<GameEntity>                                     entityRemoveList = new();
 			private readonly PooledList<GameEntity>                                     entityUpdateList = new();
-			private readonly Dictionary<SnapshotSerializerSystem, MergeGroupCollection> groupsPerSystem  = new();
+			internal readonly Dictionary<SnapshotSerializerSystem, MergeGroupCollection> groupsPerSystem  = new();
 			private readonly IScheduler                                                 scheduler        = new Scheduler();
 			private readonly PooledList<UniTask>                                        tasks            = new();
 
