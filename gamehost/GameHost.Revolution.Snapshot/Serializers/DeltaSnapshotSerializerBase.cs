@@ -164,12 +164,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			readArray = writeArray;
 		}
-
-		private static void Set(int yes)
-		{
-			
-		}
-
+		
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
 		{
 			setup.Begin(false);

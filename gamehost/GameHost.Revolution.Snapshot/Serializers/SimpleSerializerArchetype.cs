@@ -87,34 +87,38 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 
 				// If we have a model, or if the parent instigator has an authority, continue...
-				if (hasModel || authority[(int) entities[ent].Id])
+				if (hasModel)
 					continue;
 				if (!gameWorld.HasComponent(entities[ent].Handle, CoreComponentBackend))
 					continue;
 
 				// If the entity had the snapshot (so the model) before, but now it don't have it anymore, remove the snapshot and components
-				using var componentsToRemove = new PooledList<ComponentType>(EntityComponents.Length);
-				componentsToRemove.AddRange(EntityComponents);
-				foreach (var model in models)
+				if (!authority[(int) entities[ent].Id])
 				{
-					var otherSerializer = Serializer.Instigator.Serializers[model];
-					if (otherSerializer.SerializerArchetype == null)
-						continue;
-
-					var otherComponents = otherSerializer.SerializerArchetype.EntityComponents;
-					for (var i = 0; i < componentsToRemove.Count; i++)
+					using var componentsToRemove = new PooledList<ComponentType>(EntityComponents.Length);
+					componentsToRemove.AddRange(EntityComponents);
+					foreach (var model in models)
 					{
-						if (!otherComponents.Contains(componentsToRemove[i]))
+						var otherSerializer = Serializer.Instigator.Serializers[model];
+						if (otherSerializer.SerializerArchetype == null)
 							continue;
 
-						// If that system got the same component as us, remove if from the remove list.
-						componentsToRemove.RemoveAt(i--);
+						var otherComponents = otherSerializer.SerializerArchetype.EntityComponents;
+						for (var i = 0; i < componentsToRemove.Count; i++)
+						{
+							if (!otherComponents.Contains(componentsToRemove[i]))
+								continue;
+
+							// If that system got the same component as us, remove if from the remove list.
+							componentsToRemove.RemoveAt(i--);
+						}
 					}
+
+					for (var i = 0; i < componentsToRemove.Count; i++)
+						gameWorld.RemoveComponent(entities[ent].Handle, componentsToRemove[i]);
 				}
 
-				for (var i = 0; i < componentsToRemove.Count; i++)
-					gameWorld.RemoveComponent(entities[ent].Handle, componentsToRemove[i]);
-
+				Console.WriteLine($"{gameWorld.Boards.ComponentType.NameColumns[(int) CoreComponentBackend.Id]} has been removed from {entities[ent]}");
 				gameWorld.RemoveComponent(entities[ent].Handle, CoreComponentBackend);
 			}
 		}

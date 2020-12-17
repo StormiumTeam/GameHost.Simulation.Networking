@@ -127,11 +127,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			if (!hadInitialData)
 			{
-/*				writeArray = new PooledList<TSnapshot>[readArray.Length];
-				for (var i = 0; i < writeArray.Length; i++)
-					writeArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
-*/
-writeArray = readArray;
+				/*				writeArray = new PooledList<TSnapshot>[readArray.Length];
+								for (var i = 0; i < writeArray.Length; i++)
+									writeArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
+				*/
+				writeArray = readArray;
 				parameters.Post.Schedule(setComponent, group.Storage, default);
 			}
 			else
@@ -162,7 +162,8 @@ writeArray = readArray;
 					temporaryBuffer[i] = snapshot;
 				}
 
-				if (MemoryMarshal.AsBytes(readArray[ent].Span).SequenceEqual(MemoryMarshal.AsBytes(temporaryBuffer.Span)))
+				if (MemoryMarshal.AsBytes(readArray[ent].Span).SequenceEqual(MemoryMarshal.AsBytes(temporaryBuffer.Span))
+				    && prevReadLength == buffer.Count)
 				{
 					bitBuffer.AddBool(false);
 					continue;
@@ -172,8 +173,9 @@ writeArray = readArray;
 				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) prevReadLength);
 				for (var i = 0; i < buffer.Count; i++)
 				{
-					temporaryBuffer[i].Serialize(bitBuffer, readArray[ent][i], setup);
-					writeArray[ent][i] = temporaryBuffer[i];
+					var data = temporaryBuffer[i];
+					data.Serialize(bitBuffer, readArray[ent][i], setup);
+					writeArray[ent][i] = data;
 				}
 			}
 
@@ -221,9 +223,12 @@ writeArray = readArray;
 
 				for (var i = 0; i < newLength; i++)
 				{
-					ref var inner = ref baseline.Span[i];
+					var inner = baseline.Span[i];
 					inner.Deserialize(bitBuffer, baseline[i], setup);
+					baseline[i] = inner;
 				}
+				
+				Console.WriteLine($"Length={newLength} ({baseline.Count})");
 
 				// If we have been requested to add data to ignored entities, and those entities aren't null, do it.
 				// The entity can be null (aka zero) if it doesn't exist. (This can happen if it got destroyed on our side, but not on the sender side)

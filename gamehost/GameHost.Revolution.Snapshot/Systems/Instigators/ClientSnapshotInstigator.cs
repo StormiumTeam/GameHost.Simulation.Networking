@@ -265,13 +265,17 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public void RemoveEntity(GameEntity self)
 		{
+			Console.WriteLine($"{self} has been removed (local={snapshot[self.Id].Handle}, remote={remote[self.Id].Source})");
 			snapshotToSelf.Remove(snapshot[self.Id]);
 
+			parentOwned[self.Id] = false;
 			created[self.Id]     = false;
 			owned[self.Id]       = false;
+			ownedArch[self.Id]   = default;
 			snapshot[self.Id]    = default;
 			remote[self.Id]      = default;
 			dataIgnored[self.Id] = false;
+			archetype[self.Id]   = default;
 		}
 
 		/// <summary>

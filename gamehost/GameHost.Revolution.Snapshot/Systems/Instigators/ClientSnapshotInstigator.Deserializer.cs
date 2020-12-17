@@ -138,7 +138,17 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				}
 
 				readState.FinalizeEntities();
-
+				// Last foreach on all entities to check whether or not it contains an entity that was destroyed in the past
+				foreach (var entity in readState.entities)
+				{
+					if (!client.gameWorld.Contains(new GameEntityHandle(entity)))
+					{
+						// set ignored
+						Console.WriteLine($"ignore entity #{entity}");
+						readState.dataIgnored[entity] = true;
+					}
+				}
+				
 				foreach (var (systemId, serializer) in client.Serializers)
 				{
 					PooledList<bool> ignoredList;
@@ -277,11 +287,16 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 				foreach (var ent in toDestroy)
 				{
+					// perhaps it was a past destroyed entity?
+					if (!client.gameWorld.Contains(ent.Handle))
+						continue;
+					
 					// Ignore, it seems that a new entity has been created with the same ID as the one that should have been destroyed.
 					if (client.gameWorld.Safe(ent.Handle).Version != ent.Version)
 						continue;
 
 					client.gameWorld.RemoveEntity(ent.Handle);
+					Console.WriteLine($"destroyed {ent}");
 				}
 			}
 

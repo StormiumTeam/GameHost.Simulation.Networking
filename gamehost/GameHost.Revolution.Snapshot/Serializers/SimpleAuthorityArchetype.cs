@@ -30,10 +30,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				if (comp == RemoteAuthority.Id)
 					contains = true;
 				else if (comp == None.Id)
-				{
-					Console.WriteLine("nope!");
 					return false;
-				}
 			}
 
 			return contains;

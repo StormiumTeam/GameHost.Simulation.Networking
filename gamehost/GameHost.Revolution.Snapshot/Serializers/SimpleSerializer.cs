@@ -174,7 +174,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				catch (Exception ex)
 				{
-					throw new InvalidOperationException($"(Serializing) {(this as ISerializer).Identifier} had an exception", ex);
+					throw new InvalidOperationException($"(Serializing) <{Thread.CurrentThread.Name}> {(this as ISerializer).Identifier} had an exception", ex);
 				}
 			}
 		}
@@ -209,7 +209,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				catch (Exception ex)
 				{
-					throw new InvalidOperationException($"(Deserializing) {(this as ISerializer).Identifier} had an exception", ex);
+					throw new InvalidOperationException($"(Deserializing) <{Thread.CurrentThread.Name}> {(this as ISerializer).Identifier} had an exception", ex);
 				}
 
 				if (deserializeBitBuffer.readPosition > deserializeBitBuffer.nextPosition)
