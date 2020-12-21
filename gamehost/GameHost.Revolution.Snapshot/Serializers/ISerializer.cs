@@ -132,5 +132,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </summary>
 		/// <returns>Return a task that can be done in parallel and must be terminated later.</returns>
 		UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, RefData entities);
+
+		void OnReset(ISnapshotInstigator instigator);
 	}
 }

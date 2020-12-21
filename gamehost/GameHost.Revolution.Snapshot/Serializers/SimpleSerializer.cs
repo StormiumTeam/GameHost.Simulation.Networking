@@ -155,6 +155,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return UniTask.Run(__deserialize);
 		}
 
+		public abstract void OnReset(ISnapshotInstigator instigator);
+
 		private void __serialize(object? state)
 		{
 			var (parameters, group, handles) = dict[(MergeGroup) state!];

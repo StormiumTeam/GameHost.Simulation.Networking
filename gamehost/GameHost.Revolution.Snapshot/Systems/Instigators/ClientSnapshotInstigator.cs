@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Revolution.Snapshot.Serializers;
@@ -308,9 +309,20 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public void FinalizeEntities()
 		{
-			for (var i = 1u; i < previousEntityCount; i++)
+			// todo: optimize without gc
+			// We need to sort based on Snapshot order, not our order
+			var sortedSnapshot = snapshot.OrderBy(s => s.Id);
+			foreach (var snapshotEntity in sortedSnapshot)
+			{
+				if (snapshotEntity == default)
+					continue;
+				entities.Add(snapshotToSelf[snapshotEntity].Id);
+			}
+			
+			// hall of shame
+			/*for (var i = 1u; i < previousEntityCount; i++)
 				if (snapshot[i] != default)
-					entities.Add(i);
+					entities.Add(i);*/
 		}
 
 		public void SetArchetypeSystems(uint snapshotArchetype, ReadOnlySpan<uint> systemIds)

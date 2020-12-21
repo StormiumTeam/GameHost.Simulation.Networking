@@ -37,6 +37,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			private ClientSnapshotInstigator client;
 			private ClientSnapshotState      readState;
 
+			private IScheduler post = new Scheduler();
+
 			public void Deserialize(ClientSnapshotInstigator c, Span<byte> data)
 			{
 				client    = c;
@@ -56,6 +58,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				ownedUpdateList.Clear();
 				
 				readState.Tick = bitBuffer.ReadUInt();
+
+				var guard = bitBuffer.ReadLong();
+				if (guard != 69420)
+				{
+					throw new InvalidOperationException("Invalid Guard! " + guard);
+				}
 				
 				var isRemake = bitBuffer.ReadBool();
 				if (isRemake)
@@ -246,10 +254,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						}
 					}
 				}
-
-				var post       = new Scheduler();
+				
 				var parameters = new DeserializationParameters(readState.Tick, post);
-
 				while (!bitBuffer.IsFinished)
 				{
 					var systemId = bitBuffer.ReadUIntD4();
@@ -261,6 +267,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 					if (client.Serializers.TryGetValue(systemId, out var serializer))
 					{
+						serializer.Instigator = client;
 						var task = serializer.PrepareDeserializeTask(parameters, span, new ISerializer.RefData
 						{
 							Snapshot = systemToEntities[systemId].snapshot.Span,
@@ -347,6 +354,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 					var snapshotLocal = new GameEntity(prevLocalId, prevLocalVersion);
 					var remote        = new SnapshotEntity(new GameEntity(prevRemoteId, prevRemoteVersion), prevInstigator, client.Storage);
+
+					Console.WriteLine($"{Thread.CurrentThread.Name} - Reading Update/Add - {snapshotLocal} {remote} - arch={prevArchetype}");
 
 					var self = readState.GetSelfEntity(snapshotLocal);
 					if (self.Id <= 0 || snapshotLocal.Version != readState.snapshot[self.Id].Version)

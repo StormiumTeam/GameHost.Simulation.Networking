@@ -40,5 +40,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
 		{
 		}
+
+		public override void OnReset(ISnapshotInstigator instigator)
+		{
+		}
 	}
 }

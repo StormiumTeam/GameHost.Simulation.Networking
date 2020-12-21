@@ -110,6 +110,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					if (!gameWorld.HasComponent<SnapshotEntity>(handle))
 					{
 						gameWorld.AddComponent(handle, new SnapshotEntity(new GameEntity(handle.Id, entity.Version), broadcast.InstigatorId, broadcast.Storage));
+						gameWorld.AddComponent(handle, new SnapshotEntity.CreatedByThisWorld());
 					}
 				}
 
@@ -281,16 +282,18 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 				bitBuffer.Clear();
 
-				var wantedGlobalData = broadcast.clients.Count;
+				var wantedDeltaData = broadcast.clients.Count;
 				foreach (var client in broadcast.clients)
 				{
 					var data = client.GetClientData();
 					data.Clear();
+					
 					data.AddUInt(WriterState.Tick);
+					data.AddLong(69420); // guard
 
 					if (client.GetClientState(out _).Operation == ClientState.EOperation.RecreateFull)
 					{
-						wantedGlobalData--;
+						wantedDeltaData--;
 
 						bitBuffer.Clear();
 
@@ -308,11 +311,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 				}
 
-				// If atleast one user can have access to global data, create it
-				if (wantedGlobalData != 0)
+				// If atleast one user can have access to delta data, create it
+				if (wantedDeltaData != 0)
 				{
 					bitBuffer.Clear();
-
+					
 					// The bool here indicate whether or not the client need to know that it's a remake of the list
 					// In this case, it's not
 					bitBuffer.AddBool(false);
@@ -347,7 +350,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 				}
 
-				return wantedGlobalData != 0;
+				return wantedDeltaData != 0;
 			}
 
 			private void PrepareSerializers(BroadcastInstigator broadcast)

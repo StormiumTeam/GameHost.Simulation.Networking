@@ -10,8 +10,11 @@ using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
 using GameHost.Revolution.Snapshot.Systems;
+using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using GameHost.Simulation.Application;
+using GameHost.Simulation.TabEcs;
+using GameHost.Simulation.Utility.EntityQuery;
 using GameHost.Simulation.Utility.Time;
 using K4os.Compression.LZ4;
 using Microsoft.Extensions.Logging;
@@ -23,6 +26,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 	[RestrictToApplication(typeof(SimulationApplication))]
 	public class UpdateDriverSystem : AppSystemWithFeature<MultiplayerFeature>
 	{
+		private GameWorld            gameWorld;
 		private SerializerCollection serializerCollection;
 		private SendSystems          sendSystems;
 		private ILogger              logger;
@@ -34,11 +38,36 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 		public UpdateDriverSystem(WorldCollection collection) : base(collection)
 		{
+			DependencyResolver.Add(() => ref gameWorld);
 			DependencyResolver.Add(() => ref serializerCollection);
 			DependencyResolver.Add(() => ref sendSystems);
 			DependencyResolver.Add(() => ref logger);
 			
 			AddDisposable(bytesList);
+		}
+
+		private EntityQuery snapshotQuery;
+		public override bool CanUpdate()
+		{
+			if (Features.Count == 0)
+			{
+				// TODO: use own created BiMap
+				if (conClientIdMap.Count() > 0)
+					conClientIdMap = new BiMap<uint, int>();
+
+				if (snapshotQuery == null)
+					snapshotQuery = new EntityQuery(gameWorld, new[]
+					{
+						gameWorld.AsComponentType<SnapshotEntity>()
+					}, new []
+					{
+						gameWorld.AsComponentType<SnapshotEntity.CreatedByThisWorld>()
+					});
+				
+				snapshotQuery.RemoveAllEntities();
+			}
+			
+			return base.CanUpdate();
 		}
 
 		protected override void OnUpdate()
@@ -82,6 +111,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 								feature.Driver.Send(feature.ReliableChannel, ev.Connection, writer.Span);
 
+								conClientIdMap.Remove(ev.Connection.Id);
 								conClientIdMap.Add(ev.Connection.Id, serverCountNextId);
 								Console.WriteLine($"Register Client {ev.Connection} --> {serverCountNextId}");
 								serverCountNextId++;

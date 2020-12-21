@@ -97,6 +97,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			{
 				Serializers = Serializers
 			};
+
 			client.GetClientState(out _).Operation = ClientState.EOperation.RecreateFull;
 
 			clients.Add(client);
@@ -112,6 +113,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				{
 					collection.SetToGroup(instigator.Storage, null);
 				}
+				
+				foreach (var serializer in instigator.Serializers)
+					serializer.Value.OnReset(instigator);
 				
 				instigator.Serializers = null;
 				instigator.Storage.Dispose();

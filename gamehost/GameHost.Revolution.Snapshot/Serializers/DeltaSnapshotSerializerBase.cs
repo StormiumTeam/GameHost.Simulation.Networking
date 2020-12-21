@@ -93,6 +93,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var snapshot  = GameWorld.AsComponentType<TSnapshot>();
 			return new SimpleSerializerArchetype(this, GameWorld, snapshot, new[] {component}, Array.Empty<ComponentType>());
 		}
+		
+		public override void OnReset(ISnapshotInstigator instigator)
+		{
+			if (instigatorDataMap.TryGetValue(instigator, out var baseline))
+				baseline.BaselineArray.AsSpan().Clear();
+		}
 
 		public override void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection)
 		{
@@ -111,8 +117,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			// The serializer only call based on groups, so if this client isn't attached to any, it will never get called for it.
 			foreach (var client in clients)
 			{
-				var thisHasData = client.Has<InitialData>();
-
+				var thisHasData                                           = client.Has<InitialData>();
+				
 				if (!collection.TryGetGroup(client, out var group)) group = collection.CreateGroup();
 				foreach (var other in clients)
 				{
@@ -139,12 +145,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var         hadInitialData = group.Storage.Has<InitialData>();
 			TSnapshot[] writeArray;
 
-			ref var readArray = ref instigatorDataMap[Instigator].BaselineArray;
-			GetColumn(ref readArray, entities);
+			ref var __readArray = ref instigatorDataMap[Instigator].BaselineArray;
+			GetColumn(ref __readArray, entities);
+
+			var readArray = __readArray;
 
 			if (!hadInitialData)
 			{
-				writeArray = new TSnapshot[entities.Length];
+				writeArray = readArray = new TSnapshot[entities.Length];
 				parameters.Post.Schedule(setComponent, group.Storage, default);
 			}
 			else
@@ -162,7 +170,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				writeArray[ent] = snapshot;
 			}
 
-			readArray = writeArray;
+			__readArray = writeArray;
 		}
 		
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)

@@ -74,6 +74,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return new SimpleSerializerArchetype(this, GameWorld, snapshot, new[] {component}, Array.Empty<ComponentType>());
 		}
 
+		public override void OnReset(ISnapshotInstigator instigator)
+		{
+			if (instigatorDataMap.TryGetValue(instigator, out var baseline))
+				baseline.BaselineArray.AsSpan().Clear();
+		}
+
 		public override void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection)
 		{
 			// The goal is to merge clients into two groups:
@@ -92,6 +98,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			foreach (var client in clients)
 			{
 				var thisHasData = client.Has<InitialData>();
+				
+				/*if (!collection.TryGetGroup(client, out var group))
+				{
+					group = collection.CreateGroup();
+					collection.SetToGroup(client, group);
+				}*/
 
 				if (!collection.TryGetGroup(client, out var group)) group = collection.CreateGroup();
 				foreach (var other in clients)
@@ -145,7 +157,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				var self   = entities[ent];
 				var buffer = accessor[self];
 
-				var prevReadLength = readArray[ent].Count;
+				/*var prevReadLength = readArray[ent].Count;
 				if (buffer.Count > readArray[ent].Count)
 					readArray[ent].AddSpan(buffer.Count - readArray[ent].Count).Clear();
 				else if (buffer.Count < readArray[ent].Count)
@@ -167,15 +179,18 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				{
 					bitBuffer.AddBool(false);
 					continue;
-				}
+				}*/
 
 				bitBuffer.AddBool(true);
-				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) prevReadLength);
+				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) default);
 				for (var i = 0; i < buffer.Count; i++)
 				{
-					var data = temporaryBuffer[i];
-					data.Serialize(bitBuffer, readArray[ent][i], setup);
-					writeArray[ent][i] = data;
+					//var data = temporaryBuffer[i];
+					//data.Serialize(bitBuffer, readArray[ent][i], setup);
+					var snapshot = new TSnapshot();
+					snapshot.FromComponent(buffer[i], setup);
+					snapshot.Serialize(bitBuffer, default, setup);
+					//writeArray[ent][i] = data;
 				}
 			}
 
@@ -212,24 +227,27 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				ref var baseline = ref baselineArray[ent];
 
-				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
-				if (newLength > baseline.Count)
+				//var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
+				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) default);
+				/*if (newLength > baseline.Count)
 				{
 					baseline.AddSpan(newLength - baseline.Count)
 					        .Clear(); // make sure that the added span is zeroed
 				}
 				else if (newLength < baseline.Count)
-					baseline.RemoveRange(newLength, baseline.Count - newLength);
+					baseline.RemoveRange(newLength, baseline.Count - newLength);*/
+				
+				baseline.Clear();
+				baseline.AddSpan(newLength);
 
 				for (var i = 0; i < newLength; i++)
 				{
 					var inner = baseline.Span[i];
-					inner.Deserialize(bitBuffer, baseline[i], setup);
+					//inner.Deserialize(bitBuffer, baseline[i], setup);
+					inner.Deserialize(bitBuffer, default, setup);
 					baseline[i] = inner;
 				}
 				
-				Console.WriteLine($"Length={newLength} ({baseline.Count})");
-
 				// If we have been requested to add data to ignored entities, and those entities aren't null, do it.
 				// The entity can be null (aka zero) if it doesn't exist. (This can happen if it got destroyed on our side, but not on the sender side)
 				if (self.Id == 0)

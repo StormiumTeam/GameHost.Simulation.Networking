@@ -6,6 +6,10 @@ namespace GameHost.Revolution.Snapshot.Systems.Components
 {
 	public readonly struct SnapshotEntity : IComponentData
 	{
+		public struct CreatedByThisWorld : IComponentData
+		{
+		}
+
 		public readonly GameEntity Source;
 		public readonly int        Instigator;
 		public readonly Entity     Storage;
