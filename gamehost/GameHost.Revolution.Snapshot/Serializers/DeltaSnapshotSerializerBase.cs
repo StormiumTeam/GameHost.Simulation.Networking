@@ -59,8 +59,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		private readonly Dictionary<ISnapshotInstigator, InstigatorData> instigatorDataMap = new();
 
-		public override bool SynchronousSerialize   => true;
-		public override bool SynchronousDeserialize => true;
+		/*public override bool SynchronousSerialize   => true;
+		public override bool SynchronousDeserialize => true;*/
 
 		protected TSetup setup;
 
@@ -165,7 +165,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
 				snapshot.FromComponent(accessor[self], setup);
-				snapshot.Serialize(bitBuffer, readArray[ent], setup);
+				//snapshot.Serialize(bitBuffer, readArray[ent], setup);
+				snapshot.Serialize(bitBuffer, default, setup);
 
 				writeArray[ent] = snapshot;
 			}
@@ -201,7 +202,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
-				snapshot.Deserialize(bitBuffer, baseline, setup);
+				//snapshot.Deserialize(bitBuffer, baseline, setup);
+				snapshot.Deserialize(bitBuffer, default, setup);
 				
 				baseline = snapshot;
 
@@ -210,7 +212,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				if (self.Id == 0)
 					continue;
 
-				if (refData.IgnoredSet[(int) self.Id])
+				if (refData.IgnoredSet[(int) refData.Snapshot[ent].Id])
 				{
 					if (ForceToBufferIfEntityIgnoredSettings && AddToBufferSettings)
 					{

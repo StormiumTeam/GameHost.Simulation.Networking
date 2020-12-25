@@ -43,8 +43,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			{
 				client    = c;
 				readState = (ClientSnapshotState) client.State;
-				readState.Prepare();
-
+				
 				var parentState = (BroadcastInstigator.SnapshotState) client.parent.State;
 
 				bitBuffer.readPosition = 0;
@@ -56,15 +55,24 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				entityUpdateList.Clear();
 				archetypeUpdateList.Clear();
 				ownedUpdateList.Clear();
-				
-				readState.Tick = bitBuffer.ReadUInt();
 
+				var prevTick = readState.Tick;
+				readState.Tick = bitBuffer.ReadUInt();
+				if (readState.Tick != prevTick + 1 && readState.Tick > 0 && prevTick > 0)
+				{
+					throw new InvalidOperationException($"NOT WHAT WE EXPECTED (prev={prevTick} next={readState.Tick} exp={prevTick + 1})");
+					Console.WriteLine();
+				}
+				
 				var guard = bitBuffer.ReadLong();
 				if (guard != 69420)
 				{
 					throw new InvalidOperationException("Invalid Guard! " + guard);
 				}
 				
+				var maxId = bitBuffer.ReadUInt();
+				readState.Prepare(maxId + 1);
+
 				var isRemake = bitBuffer.ReadBool();
 				if (isRemake)
 				{
@@ -93,26 +101,25 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						prevCdArch   = bitBuffer.ReadUIntD4Delta(prevCdArch);
 						prevPerm     = bitBuffer.ReadUIntD4Delta(prevPerm);
 
-						var self = readState.GetSelfEntity(new GameEntity(prevLocalId, prevLocalVer)).Id;
-						if (self == 0)
+						ref var ghost = ref readState.GetRefGhost(prevLocalId);
+						if (ghost.Local.Version != prevLocalVer)
 							continue;
 
-						if (readState.parentOwned[self])
+						if (ghost.ParentOwned)
 						{
 							throw new InvalidOperationException($"Ownership: Applying one an entity that the parent has created.\nThis is not acceptable.");
 						}
 
-						readState.owned[self]     = true;
-						if (readState.ownedArch[self] != prevCdArch)
+						ghost.Owned     = true;
+						if (ghost.OwnedArchetype != prevCdArch)
 						{
 							// Remove previous authorities
-							var prevArch = readState.ownedArch[self];
-							
-							readState.ownedArch[self] = prevCdArch;
-							ownedUpdateList.Add(client.gameWorld.Safe(new GameEntityHandle(self)));
+							var prevArch = ghost.OwnedArchetype;
 
-							var ownedArchetype       = readState.ownedArch[self];
-							var ownedSystems         = readState.archetypeToSystems[ownedArchetype];
+							ghost.OwnedArchetype = prevCdArch;
+							ownedUpdateList.Add(ghost.Self);
+
+							var ownedSystems         = readState.archetypeToSystems[ghost.OwnedArchetype];
 							var previousOwnedSystems = readState.archetypeToSystems[prevArch];
 							
 							keptComponents.Clear();
@@ -124,7 +131,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 								    && serializer.AuthorityArchetype is { } authorityArchetype)
 								{
 									//Console.WriteLine($"    {serializer.Identifier}");
-									authorityArchetype.TryKeepAuthority(client.gameWorld.Safe(new GameEntityHandle(self)), true, keptComponents);
+									authorityArchetype.TryKeepAuthority(ghost.Self, true, keptComponents);
 								}
 							}
 
@@ -136,27 +143,40 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 								    && serializer.AuthorityArchetype is { } authorityArchetype)
 								{
 									//Console.WriteLine($"    {serializer.Identifier}");
-									authorityArchetype.TryKeepAuthority(client.gameWorld.Safe(new GameEntityHandle(self)), false, keptComponents);
+									authorityArchetype.TryKeepAuthority(ghost.Self, false, keptComponents);
 								}
 							}
 						}
 
-						client.gameWorld.UpdateOwnedComponent(new GameEntityHandle(self), new SnapshotOwnedWriteArchetype(prevCdArch));
+						client.gameWorld.UpdateOwnedComponent(ghost.Self.Handle, new SnapshotOwnedWriteArchetype(prevCdArch));
 					}
 				}
 
 				readState.FinalizeEntities();
-				// Last foreach on all entities to check whether or not it contains an entity that was destroyed in the past
-				foreach (var entity in readState.entities)
-				{
-					if (!client.gameWorld.Contains(new GameEntityHandle(entity)))
-					{
-						// set ignored
-						Console.WriteLine($"ignore entity #{entity}");
-						readState.dataIgnored[entity] = true;
-					}
-				}
 				
+				var msg = "";
+				foreach (var ghost in readState.ghosts)
+				{
+					if (!ghost.IsInitialized)
+						continue;
+					
+					msg += $"({ghost.Local}, {ghost.Self}) -> {ghost.Archetype}\n";
+				}
+
+				if (client.ParentInstigatorId != 0)
+					msg = msg;
+				
+				// Last foreach on all entities to check whether or not it contains an entity that was destroyed in the past
+				foreach (ref var ghost in readState.ghosts.AsSpan())
+				{
+					if (client.gameWorld.Exists(ghost.Self))
+						continue;
+
+					/*if (ghost.Self != default)
+						Console.WriteLine($"ignore snapshot #{ghost.Local}");*/
+					ghost.IsDataIgnored = true;
+				}
+
 				foreach (var (systemId, serializer) in client.Serializers)
 				{
 					PooledList<bool> ignoredList;
@@ -173,33 +193,41 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					entityList.self.Clear();
 					entityList.snapshot.Clear();
 					ignoredList.Clear();
-					ignoredList.AddRange(readState.dataIgnored);
+					
+					foreach (var ghost in readState.ghosts)
+						ignoredList.Add(ghost.IsDataIgnored || ghost.IsInitialized == false);
 
 					serializer.Instigator = c;
 
 					if (serializer.SerializerArchetype is { } serializerArchetype)
 					{
-						if (entityUpdateList.Count > 0)
-							serializerArchetype.OnDeserializerArchetypeUpdate(entityUpdateList.Span, archetypeUpdateList.Span, readState.archetypeToSystems, readState.parentOwned);
+						for (var ent = 0; ent < entityUpdateList.Count; ent++)
+						{
+							var entity = entityUpdateList[ent];
+							serializerArchetype.OnDeserializerArchetypeUpdate(entity, archetypeUpdateList[ent], readState.archetypeToSystems, readState.ghosts[readState.selfToSnapshot[entity].Id].ParentOwned);
+						}
 					}
 				}
 
-				foreach (var entity in client.State.GetAllEntities())
+				foreach (var ghost in readState.ghosts)
 				{
-					var archetypeSystems = readState.archetypeToSystems[readState.archetype[entity]];
+					if (!ghost.IsInitialized)
+						continue;
+					
+					var archetypeSystems = readState.archetypeToSystems[ghost.Archetype];
 					//Console.WriteLine($"Entity {entity} (Remote={readState.remote[entity]}) - {Thread.CurrentThread.Name}");
 					//Console.WriteLine($"\tArchetype {readState.archetype[entity]}; {archetypeSystems.Length}");
 
 					// We've already set the ignored data in top
-					if (readState.dataIgnored[entity])
+					if (ghost.IsDataIgnored)
 					{
 						foreach (var sys in archetypeSystems)
 						{
 							if (systemToEntities.TryGetValue(sys, out var list))
 							{
 								// If the parent is destroyed, set the ID to 0.
-								list.self.Add(new GameEntityHandle(readState.parentDestroyed[entity] ? 0 : entity));
-								list.snapshot.Add(readState.snapshot[entity].Handle);
+								list.self.Add(new GameEntityHandle(ghost.ParentDestroyed ? 0 : ghost.Self.Id));
+								list.snapshot.Add(ghost.Local.Handle);
 							}
 						}
 
@@ -211,21 +239,22 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						//Console.WriteLine($"\t\tsys -> {sys}");
 						if (systemToEntities.TryGetValue(sys, out var list))
 						{
-							systemToIgnored[sys][(int) entity] = false;
-							list.self.Add(new GameEntityHandle(entity));
-							list.snapshot.Add(readState.snapshot[entity].Handle);
+							systemToIgnored[sys][(int) ghost.Local.Id] = false;
+							list.self.Add(ghost.Self.Handle);
+							list.snapshot.Add(ghost.Local.Handle);
 						}
 					}
 					
-					if (readState.parentOwned[entity])
+					if (ghost.ParentOwned)
 					{
 						//Console.WriteLine($"\tAuthority {readState.ownedArch[entity]};");
-						var ownedSystems  = parentState.GetArchetypeSystems(readState.ownedArch[entity]);
-						var parentSystems = parentState.GetArchetypeSystems(parentState.GetArchetypeOfEntity(entity));
+						var ownedSystems  = parentState.GetArchetypeSystems(ghost.OwnedArchetype);
+						// snapshot to self !!!
+						var parentSystems = parentState.GetArchetypeSystems(parentState.GetArchetypeOfEntity(ghost.Self.Id));
 						foreach (var sys in parentSystems)
 						{
 							if (systemToIgnored.TryGetValue(sys, out var list))
-								list[(int) entity] = true;
+								list[(int) ghost.Local.Id] = true;
 						}
 
 						foreach (var sys in ownedSystems)
@@ -233,22 +262,22 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 							//Console.WriteLine($"\t\tsys -> {sys}");
 							if (systemToIgnored.TryGetValue(sys, out var list))
 							{
-								list[(int) entity] = false;
+								list[(int) ghost.Local.Id] = false;
 								//Console.WriteLine($"\t\t\twill not ignore {entity}");
 							}
 						}
 					}
-					else if (readState.owned[entity])
+					else if (ghost.Owned)
 					{
 						//Console.WriteLine($"\tOwned {readState.ownedArch[entity]};");
-						var ownedSystems = readState.archetypeToSystems[readState.ownedArch[entity]];
+						var ownedSystems = readState.archetypeToSystems[ghost.OwnedArchetype];
 						
 						foreach (var sys in ownedSystems)
 						{
 							//Console.WriteLine($"\t\tsys -> {sys}");
 							if (systemToIgnored.TryGetValue(sys, out var list))
 							{
-								list[(int) entity] = true;
+								list[(int) ghost.Local.Id] = true;
 								//Console.WriteLine($"\t\t\twill ignore {entity}");
 							}
 						}
@@ -284,10 +313,6 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					while (!awaiter.IsCompleted)
 					{
 					}
-					/*var o = task.AsTask();
-					while (o == UniTaskStatus.Pending)
-					{
-					}*/
 				}
 
 				post.Run();
@@ -355,42 +380,61 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var snapshotLocal = new GameEntity(prevLocalId, prevLocalVersion);
 					var remote        = new SnapshotEntity(new GameEntity(prevRemoteId, prevRemoteVersion), prevInstigator, client.Storage);
 
-					Console.WriteLine($"{Thread.CurrentThread.Name} - Reading Update/Add - {snapshotLocal} {remote} - arch={prevArchetype}");
-
-					var self = readState.GetSelfEntity(snapshotLocal);
-					if (self.Id <= 0 || snapshotLocal.Version != readState.snapshot[self.Id].Version)
+					//Console.WriteLine($"{Thread.CurrentThread.Name} - Reading Update/Add - {snapshotLocal} {remote} - arch={prevArchetype}");
+					ref var ghost = ref readState.GetRefGhost(snapshotLocal.Id);
+					if (!ghost.IsInitialized 
+					    || !client.gameWorld.Exists(ghost.Self) 
+					    || ghost.Local.Version != snapshotLocal.Version)
 					{
-						if (self.Id > 0)
+						GameEntity self;
+						bool       parentOwned;
+						bool       owned;
+						bool       parentDestroyed;
+
+						var selfExist = prevInstigator == client.ParentInstigatorId && client.gameWorld.Exists(remote.Source);
+						if (ghost.Local.Version != snapshotLocal.Version)
 						{
-							readState.RemoveEntity(self);
-							toDestroy.Add(self);
+							if (!selfExist && client.gameWorld.Exists(ghost.Self))
+							{
+								toDestroy.Add(remote.Source);
+							}
+							
+							readState.RemoveGhost(snapshotLocal.Id);
 						}
 
-						if (prevInstigator == client.ParentInstigatorId && client.gameWorld.Exists(new GameEntity(prevRemoteId, prevRemoteVersion)))
+						if (selfExist)
 						{
-							self = new GameEntity(prevRemoteId, prevRemoteVersion);
-							readState.AddEntity(self, snapshotLocal, remote, true, true, false);
+							self            = remote.Source;
+							parentOwned     = owned = true;
+							parentDestroyed = false;
 						}
 						else
 						{
-							self = client.gameWorld.Safe(client.gameWorld.CreateEntity());
-							readState.AddEntity(self, snapshotLocal, remote, prevInstigator == client.ParentInstigatorId, false, prevInstigator == client.ParentInstigatorId);
+							self        = client.gameWorld.Safe(client.gameWorld.CreateEntity());
+							parentOwned = parentDestroyed = prevInstigator == client.ParentInstigatorId;
+							owned       = false;
+						}
 
-							if (prevInstigator == client.ParentInstigatorId)
-								readState.dataIgnored[self.Id] = true;
+						if (client.ParentInstigatorId == 0)
+							Console.WriteLine($"Add/Update Local={snapshotLocal}, Self={self}, Remote={remote}");
+
+						readState.AddEntity(self, snapshotLocal, remote, parentOwned, owned, parentDestroyed);
+						if (parentDestroyed)
+						{
+							ghost.IsDataIgnored = true;
 						}
 					}
 
 					// If the archetype changed and that it wasn't an entity created by us, add it to the update events.
-					if (readState.archetype[self.Id] != prevArchetype)
+					if (ghost.Archetype != prevArchetype)
 					{
-						readState.AssignArchetype(self.Id, prevArchetype);
-						entityUpdateList.Add(self);
+						readState.AssignArchetype(snapshotLocal.Id, prevArchetype);
+						entityUpdateList.Add(ghost.Self);
 						archetypeUpdateList.Add(new SnapshotEntityArchetype(prevArchetype));
 					}
 
-					if (!client.gameWorld.HasComponent<SnapshotEntity>(self.Handle))
-						client.gameWorld.AddComponent(self.Handle, remote);
+					if (!client.gameWorld.HasComponent<SnapshotEntity>(ghost.Self.Handle))
+						client.gameWorld.AddComponent(ghost.Self.Handle, remote);
 				}
 			}
 
@@ -407,11 +451,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					prevLocalId      = bitBuffer.ReadUIntD4Delta(prevLocalId);
 					prevLocalVersion = bitBuffer.ReadUIntD4Delta(prevLocalVersion);
 
-					var self = readState.GetSelfEntity(new GameEntity(prevLocalId, prevLocalVersion));
-					if (self.Id > 0)
+					ref var ghost = ref readState.GetRefGhost(prevLocalId);
+					if (ghost.Local.Version == prevLocalVersion)
 					{
-						readState.RemoveEntity(self);
-						toDestroy.Add(self);
+						if (ghost.Self.Id > 0)
+							toDestroy.Add(ghost.Self);
+						readState.RemoveGhost(ghost.Local.Id);
 					}
 				}
 			}

@@ -115,7 +115,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			if (isPreparing)
 				throw new InvalidOperationException();
 
-			isPreparing = true;
+			isPreparing           = true;
+			//clientState.Operation = ClientState.EOperation.RecreateFull;
 		}
 
 		public ClientState GetClientState(out bool isPreparing)
@@ -161,29 +162,35 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 	public class ClientSnapshotState : ISnapshotState
 	{
+		public struct GhostInformation
+		{
+			public uint Archetype;
+			public bool ParentOwned;
+			public bool ParentDestroyed;
+			public bool Owned;
+			public uint OwnedArchetype;
+			public bool IsDataIgnored;
+
+			public GameEntity     Local;
+			public GameEntity     Self;
+			public SnapshotEntity Remote;
+			
+			public bool           IsInitialized => Local.Id > 0;
+		}
+
 		public readonly int              InstigatorId;
-		public          uint[]           archetype;
-		public          PooledList<uint> archetypes = new();
-
+		
+		public PooledList<uint>         archetypes         = new();
 		public Dictionary<uint, uint[]> archetypeToSystems = new();
-		public bool[]                   created;
-
+		
 		public PooledList<uint> createdEntities = new();
 		public PooledList<uint> entities        = new();
-		public bool[]           parentOwned;
-		public bool[]           parentDestroyed;
-		public bool[]           owned;
-		public uint[]           ownedArch;
-		public bool[]           dataIgnored;
-
-		public PooledList<uint> ownedEntities = new();
+		public PooledList<uint> ownedEntities   = new();
 
 		private int              previousEntityCount;
-		public  SnapshotEntity[] remote;
 
-		public GameEntity[] snapshot;
-
-		public Dictionary<GameEntity, GameEntity> snapshotToSelf = new();
+		public GhostInformation[]                 ghosts;
+		public Dictionary<GameEntity, GameEntity> selfToSnapshot = new();
 
 		public ClientSnapshotState(int instigatorId)
 		{
@@ -196,7 +203,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public uint GetArchetypeOfEntity(uint entity)
 		{
-			return archetype[entity];
+			return ghosts[entity].Archetype;
 		}
 
 		public Span<uint> GetArchetypeSystems(uint snapshotArchetype)
@@ -226,18 +233,18 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public GameEntity LocalToSelf(GameEntity local)
 		{
-			snapshotToSelf.TryGetValue(local, out var self);
-			return self;
+			return ghosts[local.Id].Self;
 		}
 
 		public bool Own(GameEntity local, SnapshotEntity remote)
 		{
-			return owned[local.Id] || remote.Instigator == InstigatorId;
+			return ghosts[local.Id].Owned || remote.Instigator == InstigatorId;
 		}
 
-		public void Prepare()
+		public void Prepare(uint maxId)
 		{
 			entities.Clear();
+			IncreaseCapacity((int) maxId);
 		}
 
 		public void IncreaseCapacity(int entityCount)
@@ -246,37 +253,19 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			{
 				previousEntityCount = entityCount;
 
-				Array.Resize(ref snapshot, entityCount);
-				Array.Resize(ref remote, entityCount);
-				Array.Resize(ref created, entityCount);
-				Array.Resize(ref parentOwned, entityCount);
-				Array.Resize(ref parentDestroyed, entityCount);
-				Array.Resize(ref owned, entityCount);
-				Array.Resize(ref ownedArch, entityCount);
-				Array.Resize(ref archetype, entityCount);
-				Array.Resize(ref dataIgnored, entityCount);
+				Array.Resize(ref ghosts, entityCount);
 			}
 		}
 
-		public GameEntity GetSelfEntity(GameEntity snapshotLocal)
+		public ref GhostInformation GetRefGhost(uint id)
 		{
-			snapshotToSelf.TryGetValue(snapshotLocal, out var self);
-			return self;
+			return ref ghosts[id];
 		}
 
-		public void RemoveEntity(GameEntity self)
+		public void RemoveGhost(uint id)
 		{
-			Console.WriteLine($"{self} has been removed (local={snapshot[self.Id].Handle}, remote={remote[self.Id].Source})");
-			snapshotToSelf.Remove(snapshot[self.Id]);
-
-			parentOwned[self.Id] = false;
-			created[self.Id]     = false;
-			owned[self.Id]       = false;
-			ownedArch[self.Id]   = default;
-			snapshot[self.Id]    = default;
-			remote[self.Id]      = default;
-			dataIgnored[self.Id] = false;
-			archetype[self.Id]   = default;
+			selfToSnapshot.Remove(ghosts[id].Self);
+			ghosts[id] = default;
 		}
 
 		/// <summary>
@@ -290,39 +279,39 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		/// <param name="isParentDestroyed">Is this entity destroyed on the parent?</param>
 		public void AddEntity(GameEntity self, GameEntity snapshotLocal, SnapshotEntity snapshotRemote, bool isParentOwned, bool isOwned, bool isParentDestroyed)
 		{
-			IncreaseCapacity((int) self.Id + 1);
+			GhostInformation ghost;
+			ghost.OwnedArchetype = default;
 
 			if (snapshotRemote.Instigator == InstigatorId)
 			{
-				created[self.Id] = true;
-				owned[self.Id]   = true;
+				ghost.Owned = true;
 			}
+			else
+				ghost.Owned = isOwned;
 
-			parentOwned[self.Id]          = isParentOwned;
-			owned[self.Id]                = isOwned;
-			snapshot[self.Id]             = snapshotLocal;
-			remote[self.Id]               = snapshotRemote;
-			snapshotToSelf[snapshotLocal] = self;
-			parentDestroyed[self.Id]      = isParentDestroyed;
-			dataIgnored[self.Id]          = false;
+			ghost.Archetype = 0;
+
+			ghost.ParentOwned     = isParentOwned;
+			ghost.ParentDestroyed = isParentDestroyed;
+
+			ghost.Local         = snapshotLocal;
+			ghost.Self          = self;
+			ghost.Remote        = snapshotRemote;
+			ghost.IsDataIgnored = false;
+
+			ghosts[snapshotLocal.Id] = ghost;
+			selfToSnapshot[self]     = snapshotLocal;
 		}
 
 		public void FinalizeEntities()
 		{
-			// todo: optimize without gc
-			// We need to sort based on Snapshot order, not our order
-			var sortedSnapshot = snapshot.OrderBy(s => s.Id);
-			foreach (var snapshotEntity in sortedSnapshot)
+			foreach (var ghost in ghosts)
 			{
-				if (snapshotEntity == default)
+				if (!ghost.IsInitialized)
 					continue;
-				entities.Add(snapshotToSelf[snapshotEntity].Id);
+
+				entities.Add(ghost.Self.Id);
 			}
-			
-			// hall of shame
-			/*for (var i = 1u; i < previousEntityCount; i++)
-				if (snapshot[i] != default)
-					entities.Add(i);*/
 		}
 
 		public void SetArchetypeSystems(uint snapshotArchetype, ReadOnlySpan<uint> systemIds)
@@ -334,7 +323,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public void AssignArchetype(uint entity, uint snapshotArchetype)
 		{
-			archetype[entity] = snapshotArchetype;
+			GetRefGhost(entity).Archetype = snapshotArchetype;
 		}
 	}
 }

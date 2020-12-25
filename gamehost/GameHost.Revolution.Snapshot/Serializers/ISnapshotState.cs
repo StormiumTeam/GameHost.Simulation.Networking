@@ -222,6 +222,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				if (!serialized[i] && registered[i])
 				{
 					entity.removed.Add(new GameEntity(i, versions[i]));
+					registered[i] = false;
 				}
 				// This entity is gonna be serialized, so finalize registering
 				else if (serialized[i])

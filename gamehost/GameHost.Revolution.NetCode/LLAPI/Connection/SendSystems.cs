@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
@@ -11,6 +12,7 @@ using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using GameHost.Simulation.Application;
 using GameHost.Worlds.Components;
+using K4os.Compression.LZ4;
 using RevolutionSnapshot.Core.Buffers;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
@@ -86,9 +88,11 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			// (right now it's not really possible to remove a serializer in SerializerCollection, so it's not really yet necessary)
 		}
 
+		private PooledList<TransportConnection> tempConnectionList = new();
 		private void doFeature(Entity featureEnt, ServerFeature feature)
 		{
-			Span<TransportConnection> connections = stackalloc TransportConnection[feature.Driver.GetConnectionCount()];
+			tempConnectionList.Clear();
+			Span<TransportConnection> connections = tempConnectionList.AddSpan(feature.Driver.GetConnectionCount());
 			feature.Driver.GetConnections(connections);
 
 			foreach (var con in connections)
@@ -104,12 +108,16 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 			using var dataBuffer = new DataBufferWriter(0);
 			dataBuffer.WriteValue(NetCodeMessageType.SendSnapshotSystems);
-			dataBuffer.WriteInt(broadcaster.Serializers.Count);
+
+			using var compressBuffer = new DataBufferWriter(0);
+			compressBuffer.WriteInt(broadcaster.Serializers.Count);
 			foreach (var (id, serializer) in broadcaster.Serializers)
 			{
-				dataBuffer.WriteValue(id);
-				dataBuffer.WriteStaticString(serializer.Identifier);
+				compressBuffer.WriteValue(id);
+				compressBuffer.WriteStaticString(serializer.Identifier);
 			}
+			
+			dataBuffer.WriteCompressed(compressBuffer.Span, LZ4Level.L12_MAX);
 
 			feature.Driver.Send(feature.ReliableChannel, connection, dataBuffer.Span);
 		}

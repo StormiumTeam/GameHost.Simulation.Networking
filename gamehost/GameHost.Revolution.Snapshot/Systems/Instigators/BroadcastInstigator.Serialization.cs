@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
@@ -96,6 +97,15 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				archetypeAddedList.Clear();
 				WriterState.FinalizeRegister((entityList, entityUpdateList, entityRemoveList), (archetypeList, archetypeAddedList));
 
+				var msg = "";
+				for (var i = 1u; i < entityList.Count; i++)
+				{
+					msg += $"{i} -> {WriterState.GetArchetypeOfEntity(i)}\n";
+				}
+
+				if (broadcast.InstigatorId == 0)
+					msg = msg;
+
 				broadcast.QueuedEntities.FullClear();
 
 				// Entities must be in order for:
@@ -170,8 +180,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						prevCdArch   = componentDataArchetype;
 						prevPerm     = (uint) data.Permission;
 
-						if (clientState.ownedArch.Length > prevLocalId)
-							clientState.ownedArch[prevLocalId] = prevCdArch;
+						if (clientState.selfToSnapshot.TryGetValue(data.Entity, out var ghost))
+						{
+							ref var ghostRef = ref clientState.GetRefGhost(ghost.Id);
+							ghostRef.OwnedArchetype = prevCdArch;
+						}
 					}
 
 					owned.Clear();
@@ -290,6 +303,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					
 					data.AddUInt(WriterState.Tick);
 					data.AddLong(69420); // guard
+					data.AddUInt(entityList.LastOrDefault().Id);
 
 					if (client.GetClientState(out _).Operation == ClientState.EOperation.RecreateFull)
 					{
@@ -353,9 +367,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				return wantedDeltaData != 0;
 			}
 
+			private PooledList<Entity> tempClientList = new();
 			private void PrepareSerializers(BroadcastInstigator broadcast)
 			{
-				Span<Entity> clients = stackalloc Entity[broadcast.clients.Count];
+				tempClientList.Clear();
+				var clients = tempClientList.AddSpan(broadcast.clients.Count);
 				for (var i = 0; i != clients.Length; i++)
 					clients[i] = broadcast.clients[i].Storage;
 

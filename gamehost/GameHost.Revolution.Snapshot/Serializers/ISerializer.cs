@@ -64,7 +64,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		///		So you must index it via the entity Id:
 		///			parentAuthority[entity.Id]
 		/// </remarks>
-		void OnDeserializerArchetypeUpdate(Span<GameEntity> entities, Span<SnapshotEntityArchetype> archetypes, Dictionary<uint, uint[]> archetypeToSystems, Span<bool> parentAuthority);
+		void OnDeserializerArchetypeUpdate(GameEntity self, SnapshotEntityArchetype requestedArchetype, Dictionary<uint, uint[]> archetypeToSystems, bool hasParentAuthority);
 	}
 
 	public interface IAuthorityArchetype

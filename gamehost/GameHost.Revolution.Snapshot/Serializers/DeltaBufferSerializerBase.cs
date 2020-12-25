@@ -45,8 +45,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		private readonly Dictionary<ISnapshotInstigator, InstigatorData> instigatorDataMap = new();
 
-		public override bool SynchronousSerialize   => true;
-		public override bool SynchronousDeserialize => true;
+		/*public override bool SynchronousSerialize   => true;
+		public override bool SynchronousDeserialize => true;*/
 
 		protected TSetup setup;
 
@@ -99,12 +99,6 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			{
 				var thisHasData = client.Has<InitialData>();
 				
-				/*if (!collection.TryGetGroup(client, out var group))
-				{
-					group = collection.CreateGroup();
-					collection.SetToGroup(client, group);
-				}*/
-
 				if (!collection.TryGetGroup(client, out var group)) group = collection.CreateGroup();
 				foreach (var other in clients)
 				{
@@ -129,25 +123,27 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			setup.Begin(true);
 
 			var                     hadInitialData = group.Storage.Has<InitialData>();
-			PooledList<TSnapshot>[] writeArray;
+			PooledList<TSnapshot>[] writeArray, readArray;
 
-			ref var readArray  = ref instigatorDataMap[Instigator].BaselineArray;
-			var     prevLength = readArray.Length;
-			GetColumn(ref readArray, entities);
-			for (var i = prevLength; i < readArray.Length; i++)
-				readArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
+			ref var __readArray = ref instigatorDataMap[Instigator].BaselineArray;
+			var     prevLength  = __readArray.Length;
+			GetColumn(ref __readArray, entities);
+			for (var i = prevLength; i < __readArray.Length; i++)
+				__readArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
 
 			if (!hadInitialData)
 			{
-				/*				writeArray = new PooledList<TSnapshot>[readArray.Length];
-								for (var i = 0; i < writeArray.Length; i++)
-									writeArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
-				*/
-				writeArray = readArray;
+				writeArray = new PooledList<TSnapshot>[__readArray.Length];
+				for (var i = 0; i < writeArray.Length; i++)
+					writeArray[i] = new PooledList<TSnapshot>(ClearMode.Never);
+
+				readArray = writeArray;
 				parameters.Post.Schedule(setComponent, group.Storage, default);
 			}
 			else
-				writeArray = readArray;
+			{
+				writeArray = readArray = __readArray;
+			}
 
 			using var temporaryBuffer = new PooledList<TSnapshot>(ClearMode.Never);
 
@@ -194,9 +190,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 			}
 
-			readArray = writeArray;
+			__readArray = writeArray;
 		}
-		
+
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
 		{
 			setup.Begin(false);
@@ -254,7 +250,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					continue;
 
 				var buffer = bufferAccessor[self];
-				if (refData.IgnoredSet[(int) self.Id])
+				if (refData.IgnoredSet[(int) refData.Snapshot[ent].Id])
 				{
 					if (ForceToBufferIfEntityIgnoredSettings)
 					{

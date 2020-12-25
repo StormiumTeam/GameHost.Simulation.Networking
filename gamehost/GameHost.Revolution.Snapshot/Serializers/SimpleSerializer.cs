@@ -46,12 +46,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// <summary>
 		///     Serialize immediately without doing it on another thread.
 		/// </summary>
-		public virtual bool SynchronousSerialize => false;
+		public virtual bool SynchronousSerialize => true; // temporary
 
 		/// <summary>
 		///     Deserialize immediately without doing it on another thread.
 		/// </summary>
-		public virtual bool SynchronousDeserialize => false;
+		public virtual bool SynchronousDeserialize => true; // temporary
 
 
 		public ISnapshotInstigator Instigator { get; set; }

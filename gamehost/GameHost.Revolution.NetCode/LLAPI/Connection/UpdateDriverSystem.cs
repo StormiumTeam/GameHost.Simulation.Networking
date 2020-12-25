@@ -125,7 +125,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 						case TransportEvent.EType.Data:
 							var reader = new DataBufferReader(ev.Data);
-							ReadNetCodeMessage((entity, feature), ev, reader);
+							ReadNetCodeMessage((entity, feature), ev, ref reader);
 							break;
 
 						case TransportEvent.EType.Disconnect:
@@ -149,10 +149,16 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			}
 		}
 
-		private void ReadNetCodeMessage((Entity, MultiplayerFeature) featureArgs, TransportEvent ev, DataBufferReader reader)
+		private void ReadNetCodeMessage((Entity, MultiplayerFeature) featureArgs, TransportEvent ev, ref DataBufferReader reader)
 		{
 			var (entity, feature) = featureArgs;
 			var messageType = reader.ReadValue<NetCodeMessageType>();
+			if (reader.CurrReadIndex != 1)
+				throw new InvalidOperationException("invalid readIndex (perhaps weird processor?)");
+
+			/*if (featureArgs.Item2 is ClientFeature)
+				Console.WriteLine($"client read {reader.Length}B for {messageType}");*/
+			
 			switch (messageType)
 			{
 				case NetCodeMessageType.ClientConnection:
@@ -173,28 +179,19 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				{
 					var gameTime     = reader.ReadValue<GameTime>();
 
-					var compressedSize   = reader.ReadValue<int>();
-					var uncompressedSize = reader.ReadValue<int>();
-
 					bytesList.Clear();
-					var uncompressed = bytesList.AddSpan(uncompressedSize);
-					
-					unsafe
-					{
-						var compressed = new Span<byte>(reader.DataPtr + reader.GetReadIndexAndSetNew(default, compressedSize * sizeof(byte)), compressedSize);
-						LZ4Codec.Decode(compressed, uncompressed);
-					}
+					var uncompressed = reader.ReadDecompressed(bytesList);
 
 					if (!entity.TryGet(out BroadcastInstigator broadcaster))
 					{
-						throw new InvalidOperationException("where banana");
+						throw new InvalidOperationException("where banana7");
 					}
 
 					ClientSnapshotInstigator client;
 					if (feature is ClientFeature)
 					{
 						if (!broadcaster.TryGetClient(0, out client))
-							throw new InvalidOperationException("wtf banana");
+							throw new InvalidOperationException("wtf banana8");
 					}
 					else
 					{
@@ -224,18 +221,26 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					// At this point we should have been assigned with a broadcaster...
 					if (!entity.TryGet(out BroadcastInstigator broadcaster))
 					{
-						throw new InvalidOperationException("where banana");
+						throw new InvalidOperationException("where banana9");
 					}
 
 					Console.WriteLine("Received server systems!");
 					var serializers = broadcaster.Serializers;
+					
+					bytesList.Clear();
+					var uncompressed = reader.ReadDecompressed(bytesList);
+					reader = new DataBufferReader(uncompressed);
 
 					var count          = reader.ReadValue<int>();
 					var hadReplacement = false;
+
+					var print = "";
 					while (count-- > 0)
 					{
 						var systemId   = reader.ReadValue<uint>();
 						var systemName = reader.ReadString();
+						
+						print += $"{systemId} - {systemName}\n";
 
 						var replace = true;
 						if (serializers.TryGetValue(systemId, out var existing))
@@ -260,6 +265,8 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 							hadReplacement = true;
 						}
 					}
+
+					Console.WriteLine(print);
 
 					// If a system has been added/replaced, we need to remove prior archetypes from entities
 					if (hadReplacement)

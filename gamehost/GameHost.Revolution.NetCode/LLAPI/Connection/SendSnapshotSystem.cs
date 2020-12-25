@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Threading;
+using Collections.Pooled;
 using GameHost.Applications;
 using GameHost.Core;
 using GameHost.Core.Ecs;
@@ -64,6 +65,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			}
 		}
 		
+		private PooledList<TransportConnection> tempConnectionList = new();
 		private void Serialize(MultiplayerFeature feature, BroadcastInstigator instigator)
 		{
 			if (instigator.DependencyResolver.Dependencies.Count != 0)
@@ -73,7 +75,8 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			
 			instigator.Serialize((uint) gameTime.Frame);
 
-			Span<TransportConnection> connections = stackalloc TransportConnection[feature.Driver.GetConnectionCount()];
+			tempConnectionList.Clear();
+			Span<TransportConnection> connections = tempConnectionList.AddSpan(feature.Driver.GetConnectionCount());
 			{
 				feature.Driver.GetConnections(connections);
 			}
@@ -99,22 +102,21 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						buffer.WriteValue(NetCodeMessageType.Snapshot);
 						buffer.WriteValue(gameTime);
 
-						var compressedMarker = buffer.WriteInt(compressedSize);
-						buffer.WriteInt(clientData.Length);
-
 						clientData.readPosition = 0;
 
 						var length = clientData.Length;
 						clientData.ToSpan(pooledArray);
+						
+						buffer.WriteCompressed(pooledArray.AsSpan(0, length));
 
-						buffer.Capacity += compressedSize;
+						/*buffer.Capacity += compressedSize;
 
 						const LZ4Level encoder = LZ4Level.L08_HC;
 
 						var size = LZ4Codec.Encode(pooledArray.AsSpan(0, length), buffer.CapacitySpan.Slice(buffer.Length, compressedSize), encoder);
 						buffer.WriteInt(size, compressedMarker);
 
-						buffer.Length += compressedSize;
+						buffer.Length += compressedSize;*/
 						
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
