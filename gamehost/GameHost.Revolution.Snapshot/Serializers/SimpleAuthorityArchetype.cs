@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using GameHost.Simulation.TabEcs;
 
 namespace GameHost.Revolution.Snapshot.Serializers

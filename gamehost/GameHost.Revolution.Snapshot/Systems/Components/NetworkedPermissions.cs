@@ -1,5 +1,4 @@
-﻿using DefaultEcs;
-using GameHost.Simulation.TabEcs.Interfaces;
+﻿using GameHost.Simulation.TabEcs.Interfaces;
 
 namespace GameHost.Revolution.Snapshot.Systems.Components
 {

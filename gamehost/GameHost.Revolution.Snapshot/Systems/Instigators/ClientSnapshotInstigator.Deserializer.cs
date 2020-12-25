@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading;
 using Collections.Pooled;
 using Cysharp.Threading.Tasks;
 using GameHost.Core.Threading;
@@ -328,7 +326,6 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						continue;
 
 					client.gameWorld.RemoveEntity(ent.Handle);
-					Console.WriteLine($"destroyed {ent}");
 				}
 			}
 
@@ -414,10 +411,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 							parentOwned = parentDestroyed = prevInstigator == client.ParentInstigatorId;
 							owned       = false;
 						}
-
-						if (client.ParentInstigatorId == 0)
-							Console.WriteLine($"Add/Update Local={snapshotLocal}, Self={self}, Remote={remote}");
-
+						
 						readState.AddEntity(self, snapshotLocal, remote, parentOwned, owned, parentDestroyed);
 						if (parentDestroyed)
 						{

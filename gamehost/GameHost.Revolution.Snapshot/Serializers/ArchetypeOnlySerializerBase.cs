@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Threading;
 using DefaultEcs;
-using GameHost.Core.Ecs;
 using GameHost.Injection;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.TabEcs;
-using GameHost.Simulation.TabEcs.HLAPI;
 using GameHost.Simulation.TabEcs.Interfaces;
-using JetBrains.Annotations;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {

@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
 using Collections.Pooled;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Simulation.TabEcs;
-using StormiumTeam.GameBase.Utility.Misc;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -47,10 +45,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			for (var i = 0; i < componentTypes.Length && ownLength > match; i++)
 			{
 				// If the chunk excluded us, there is no reason to continue...
-				if (Array.IndexOf(excludedComponentBackend, componentTypes[i]) >= 0)
+				if (ExcludedComponents.IndexOf(new ComponentType(componentTypes[i])) >= 0)
 					return false;
 
-				if (Array.IndexOf(entityComponentBackend, new ComponentType(componentTypes[i])) >= 0)
+				if (EntityComponents.IndexOf(new ComponentType(componentTypes[i])) >= 0)
 					match++;
 			}
 
@@ -61,30 +59,23 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		                                          Dictionary<uint, uint[]> archetypeToSystems,
 		                                          bool                     hasParentAuthority)
 		{
-			var models   = archetypeToSystems[requestedArchetype.Id];
+			var models   = archetypeToSystems[requestedArchetype.Id].AsSpan();
 			var hasModel = false;
 
 			// Search if this entity has our system from the model list
-			foreach (var model in models)
+			if (models.Contains(System.Id))
 			{
-				// Bingo! This entity got our system
-				if (model == System.Id)
+				if (!gameWorld.HasComponent(self.Handle, CoreComponentBackend))
 				{
-					// If this entity don't have the snapshot buffer yet, add it.
-					if (!gameWorld.HasComponent(self.Handle, CoreComponentBackend))
+					gameWorld.AddComponent(self.Handle, CoreComponentBackend);
+					// Don't add components if we don't have the authority to do so.
+					if (!hasParentAuthority)
 					{
-						gameWorld.AddComponent(self.Handle, CoreComponentBackend);
-						// Don't add components if we don't have the authority to do so.
-						if (!hasParentAuthority)
-						{
-							gameWorld.AddMultipleComponent(self.Handle, EntityComponents);
-							//Console.WriteLine($"{Thread.CurrentThread.Name} - Add {gameWorld.Boards.ComponentType.NameColumns[(int) EntityComponents[0].Id]} to {self}");
-						}
+						gameWorld.AddMultipleComponent(self.Handle, EntityComponents);
 					}
-
-					hasModel = true;
-					break;
 				}
+
+				hasModel = true;
 			}
 
 			// If we have a model, or if the parent instigator has an authority, continue...
@@ -101,10 +92,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				foreach (var model in models)
 				{
 					var otherSerializer = Serializer.Instigator.Serializers[model];
-					if (otherSerializer.SerializerArchetype == null)
+					if (otherSerializer.SerializerArchetype is not {} otherSerializerArchetype)
 						continue;
 
-					var otherComponents = otherSerializer.SerializerArchetype.EntityComponents;
+					var otherComponents = otherSerializerArchetype.EntityComponents;
 					for (var i = 0; i < componentsToRemove.Count; i++)
 					{
 						if (!otherComponents.Contains(componentsToRemove[i]))
@@ -115,11 +106,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					}
 				}
 
-				for (var i = 0; i < componentsToRemove.Count; i++)
-					gameWorld.RemoveComponent(self.Handle, componentsToRemove[i]);
+				foreach (var componentType in componentsToRemove)
+					gameWorld.RemoveComponent(self.Handle, componentType);
 			}
-
-			Console.WriteLine($"{gameWorld.Boards.ComponentType.NameColumns[(int) CoreComponentBackend.Id]} has been removed from {self}");
+			
 			gameWorld.RemoveComponent(self.Handle, CoreComponentBackend);
 		}
 	}
