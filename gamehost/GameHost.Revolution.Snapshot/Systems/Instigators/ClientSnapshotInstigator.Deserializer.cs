@@ -393,7 +393,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						{
 							if (!selfExist && client.gameWorld.Exists(ghost.Self))
 							{
-								toDestroy.Add(remote.Source);
+								toDestroy.Add(ghost.Self);
 							}
 							
 							readState.RemoveGhost(snapshotLocal.Id);

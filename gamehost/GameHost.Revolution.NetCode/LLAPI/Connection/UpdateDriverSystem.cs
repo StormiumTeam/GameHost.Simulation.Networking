@@ -23,6 +23,11 @@ using ZLogger;
 
 namespace GameHost.Revolution.NetCode.LLAPI.Systems
 {
+	public struct OnSnapshotReceivedMessage
+	{
+		public Entity FeatureEntity;
+	}
+
 	[RestrictToApplication(typeof(SimulationApplication))]
 	public class UpdateDriverSystem : AppSystemWithFeature<MultiplayerFeature>
 	{
@@ -210,6 +215,9 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						times.RemoveAt(0);
 					times.Add(gameTime);
 					client.Storage.Set(gameTime);
+					
+					World.Mgr.Publish(new OnSnapshotReceivedMessage {FeatureEntity = entity});
+					
 					break;
 				}
 				case NetCodeMessageType.SendSnapshotSystems:

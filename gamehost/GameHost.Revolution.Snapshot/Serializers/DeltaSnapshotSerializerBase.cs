@@ -25,7 +25,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISnapshotSetupData
 	{
-		private static readonly Action<Entity> setComponent = c => c.Set<InitialData>();
+		private static readonly Action<Entity> setSerialize   = c => c.Set<SerializeInitialData>();
+		private static readonly Action<Entity> setDeserialize = c => c.Set<DeserializeInitialData>();
 
 		#region Settings
 
@@ -115,12 +116,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			// The serializer only call based on groups, so if this client isn't attached to any, it will never get called for it.
 			foreach (var client in clients)
 			{
-				var thisHasData                                           = client.Has<InitialData>();
+				var thisHasData                                           = client.Has<SerializeInitialData>();
 				
 				if (!collection.TryGetGroup(client, out var group)) group = collection.CreateGroup();
 				foreach (var other in clients)
 				{
-					if (other.Has<InitialData>() != thisHasData)
+					if (other.Has<SerializeInitialData>() != thisHasData)
 						continue;
 
 					collection.SetToGroup(other, group);
@@ -140,7 +141,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 			setup.Begin(true);
 
-			var         hadInitialData = group.Storage.Has<InitialData>();
+			var         hadInitialData = group.Storage.Has<SerializeInitialData>();
 			TSnapshot[] writeArray;
 
 			ref var __readArray = ref instigatorDataMap[Instigator].BaselineArray;
@@ -151,7 +152,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			if (!hadInitialData)
 			{
 				writeArray = readArray = new TSnapshot[entities.Length];
-				parameters.Post.Schedule(setComponent, group.Storage, default);
+				parameters.Post.Schedule(setSerialize, group.Storage, default);
+				foreach (var client in group.Entities)
+					parameters.Post.Schedule(setSerialize, client, default);
 			}
 			else
 				writeArray = readArray;
@@ -163,8 +166,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
 				snapshot.FromComponent(accessor[self], setup);
-				//snapshot.Serialize(bitBuffer, readArray[ent], setup);
-				snapshot.Serialize(bitBuffer, default, setup);
+				snapshot.Serialize(bitBuffer, readArray[ent], setup);
+				//snapshot.Serialize(bitBuffer, default, setup);
 
 				writeArray[ent] = snapshot;
 			}
@@ -184,12 +187,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var bufferAccessor = new ComponentBufferAccessor<TSnapshot>(GameWorld);
 
 			// The code is a bit less complex here, since we assume that when we deserialize we do that for one client per instigator...
-			var hadInitialData = Instigator.Storage.Has<InitialData>();
+			var hadInitialData = Instigator.Storage.Has<DeserializeInitialData>();
 			if (!hadInitialData)
 			{
 				Array.Fill(baselineArray, default);
 
-				parameters.Post.Schedule(setComponent, Instigator.Storage, default);
+				parameters.Post.Schedule(setDeserialize, Instigator.Storage, default);
 			}
 
 			for (var ent = 0; ent < refData.Self.Length; ent++)
@@ -200,8 +203,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				var snapshot = default(TSnapshot);
 				snapshot.Tick = parameters.Tick;
-				//snapshot.Deserialize(bitBuffer, baseline, setup);
-				snapshot.Deserialize(bitBuffer, default, setup);
+				snapshot.Deserialize(bitBuffer, baseline, setup);
+				//snapshot.Deserialize(bitBuffer, default, setup);
 				
 				baseline = snapshot;
 
@@ -244,7 +247,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			public TSnapshot[] BaselineArray = Array.Empty<TSnapshot>();
 		}
 
-		public struct InitialData
+		public struct SerializeInitialData
+		{
+		}
+		
+		public struct DeserializeInitialData
 		{
 		}
 	}
