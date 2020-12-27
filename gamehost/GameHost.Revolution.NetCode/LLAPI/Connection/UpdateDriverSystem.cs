@@ -9,6 +9,7 @@ using GameHost.Applications;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
+using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
@@ -113,6 +114,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 								var client = entity.Get<BroadcastInstigator>().AddClient(serverCountNextId);
 								client.Storage.Set(ev.Connection);
+								client.Storage.Set(new NetCodeRpcBroadcaster(Context, client));
 
 								feature.Driver.Send(feature.ReliableChannel, ev.Connection, writer.Span);
 
@@ -173,11 +175,44 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 					var instigatorId = reader.ReadValue<int>();
 					var broadcaster  = new BroadcastInstigator(entity, instigatorId, Context);
+					var rpc          = new NetCodeRpcBroadcaster(Context, broadcaster);
 					var serverClient = broadcaster.AddClient(0);
 					entity.Set(broadcaster);
+					entity.Set(rpc);
 					entity.Set(serverClient);
 					Console.WriteLine($"Assigning Client data... InstigatorId={instigatorId}");
 
+					break;
+				}
+				case NetCodeMessageType.Rpc:
+				{
+					bytesList.Clear();
+					var uncompressed = reader.ReadDecompressed(bytesList);
+
+					if (!entity.TryGet(out BroadcastInstigator broadcaster))
+					{
+						throw new InvalidOperationException("where banana7");
+					}
+
+					ClientSnapshotInstigator client;
+					if (feature is ClientFeature)
+					{
+						if (!broadcaster.TryGetClient(0, out client))
+							throw new InvalidOperationException("wtf banana8");
+					}
+					else
+					{
+						if (!broadcaster.TryGetClient(conClientIdMap.Forward[ev.Connection.Id], out client))
+							throw new InvalidOperationException($"No client found with Id={ev.Connection.Id}");
+					}
+
+					if (client == null)
+						throw new InvalidOperationException("??");
+
+					if (!client.Storage.TryGet(out NetCodeRpcBroadcaster rpcBroadcaster))
+						throw new InvalidOperationException("No RpcBroadcaster found on client");
+
+					rpcBroadcaster.Receive(uncompressed);
 					break;
 				}
 				case NetCodeMessageType.Snapshot:

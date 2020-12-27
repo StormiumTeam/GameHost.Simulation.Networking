@@ -31,6 +31,6 @@ namespace GameHost.Revolution.Snapshot.Systems
 		/// <summary>
 		///     Mapped serializers to ids.
 		/// </summary>
-		public PooledDictionary<uint, ISerializer> Serializers { get; }
+		public PooledDictionary<uint, IInstigatorSystem> Serializers { get; }
 	}
 }

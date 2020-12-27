@@ -7,6 +7,7 @@ using GameHost.Core;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
+using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using GameHost.Simulation.Application;
 using GameHost.Simulation.TabEcs;
@@ -61,12 +62,38 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 				if (!entity.TryGet(out BroadcastInstigator instigator))
 					continue;
 
-				Serialize(feature, instigator);
+				if (entity.TryGet(out NetCodeRpcBroadcaster rpcBroadcaster))
+					SendRpc(feature, rpcBroadcaster);
+				SendSnapshot(feature, instigator);
 			}
 		}
-		
+
+		private PooledList<byte> bytes = new();
+
+		private void SendRpc(MultiplayerFeature feature, NetCodeRpcBroadcaster broadcaster)
+		{
+			if (broadcaster.DependencyResolver.Dependencies.Count != 0)
+				return;
+
+			bytes.Clear();
+			var dataLength = broadcaster.GetData(bytes);
+			if (bytes.Count == 0 || dataLength == 0)
+				return;
+
+			var buffer = new DataBufferWriter(dataLength);
+			using (buffer)
+			{
+				buffer.WriteValue(NetCodeMessageType.Rpc);
+				buffer.WriteCompressed(bytes.Span.Slice(0, dataLength));
+
+				feature.Driver.Broadcast(feature.ReliableChannel, buffer.Span);
+			}
+
+			broadcaster.Clear();
+		}
+
 		private PooledList<TransportConnection> tempConnectionList = new();
-		private void Serialize(MultiplayerFeature feature, BroadcastInstigator instigator)
+		private void SendSnapshot(MultiplayerFeature feature, BroadcastInstigator instigator)
 		{
 			if (instigator.DependencyResolver.Dependencies.Count != 0)
 				return;
@@ -109,15 +136,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						
 						buffer.WriteCompressed(pooledArray.AsSpan(0, length));
 
-						/*buffer.Capacity += compressedSize;
-
-						const LZ4Level encoder = LZ4Level.L08_HC;
-
-						var size = LZ4Codec.Encode(pooledArray.AsSpan(0, length), buffer.CapacitySpan.Slice(buffer.Length, compressedSize), encoder);
-						buffer.WriteInt(size, compressedMarker);
-
-						buffer.Length += compressedSize;*/
-						
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
 				}

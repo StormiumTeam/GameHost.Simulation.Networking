@@ -32,7 +32,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 		}
 
-		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
+		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISnapshotSerializerSystem.RefData refData)
 		{
 		}
 

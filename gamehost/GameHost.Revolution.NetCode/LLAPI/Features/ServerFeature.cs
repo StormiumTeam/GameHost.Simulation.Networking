@@ -4,6 +4,7 @@ using GameHost.Applications;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
+using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using JetBrains.Annotations;
 
@@ -25,12 +26,15 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 		protected override void OnFeatureAdded(Entity entity, ServerFeature obj)
 		{
 			entity.Set(new BroadcastInstigator(entity, 0, Context));
+			entity.Set(new NetCodeRpcBroadcaster(Context, entity.Get<BroadcastInstigator>()));
 		}
 
 		protected override void OnFeatureRemoved(Entity entity, ServerFeature obj)
 		{
 			if (entity.TryGet(out BroadcastInstigator broadcastInstigator))
 				broadcastInstigator.Dispose();
+			if (entity.TryGet(out NetCodeRpcBroadcaster rpcBroadcaster))
+				rpcBroadcaster.Dispose();
 		}
 	}
 }

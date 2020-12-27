@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using GameHost.Core.Ecs;
+using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Serializers;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
@@ -66,13 +68,13 @@ namespace GameHost.Revolution.NetCode
 
 	public struct GhostSetup : ISnapshotSetupData
 	{
-		private SerializerBase serializer;
-		private GameWorld      gameWorld;
+		private IInstigatorSystem serializer;
+		private GameWorld        gameWorld;
 
-		public void Create(SerializerBase serializer)
+		public void Create(IInstigatorSystem serializerEmpty)
 		{
-			this.serializer = serializer;
-			this.gameWorld  = (GameWorld) serializer.DependencyResolver.DefaultStrategy.ResolveNow(typeof(GameWorld));
+			serializer = serializerEmpty;
+			gameWorld  = (GameWorld) ((AppObject) serializerEmpty).DependencyResolver.DefaultStrategy.ResolveNow(typeof(GameWorld));
 		}
 
 		public ISnapshotState snapshotState;
@@ -121,11 +123,6 @@ namespace GameHost.Revolution.NetCode
 			var r = ghost.FromLocal
 				? ghost.Source
 				: snapshotState.LocalToSelf(ghost.Source);
-
-			// TODO: Should we throw an exception?
-			
-			/*if (r == default)
-				throw new InvalidOperationException($"{nameof(GhostSetup)}.FromGhost() {ghost.Source} to {r}");*/
 
 			return r;
 		}

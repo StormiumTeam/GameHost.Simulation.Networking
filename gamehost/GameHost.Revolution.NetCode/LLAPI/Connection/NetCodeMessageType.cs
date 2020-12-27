@@ -6,6 +6,11 @@
 		/// Server confirm the connection of a client by sending client instigator id.
 		/// </summary>
 		ClientConnection = 1,
+		
+		/// <summary>
+		/// Client and server send snapshot data to their counterpart.
+		/// </summary>
+		Rpc = 9,
 
 		/// <summary>
 		/// Client and server send snapshot data to their counterpart.

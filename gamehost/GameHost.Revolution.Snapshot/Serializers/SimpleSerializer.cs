@@ -16,7 +16,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 	/// <summary>
 	///     Represent a simple serializer that you can extend.
 	/// </summary>
-	public abstract class SerializerBase : AppObject, ISerializer
+	public abstract class SerializerBase : AppObject, ISnapshotSerializerSystem
 	{
 		private readonly PooledList<byte>                  bytePool;
 		private readonly Dictionary<MergeGroup, BitBuffer> dataPerGroup         = new();
@@ -57,7 +57,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		public ISerializerArchetype     SerializerArchetype { get; private set; }
 		public IAuthorityArchetype?     AuthorityArchetype  { get; private set; }
-		public SnapshotSerializerSystem System              { get; set; }
+		public InstigatorSystem System              { get; set; }
 
 		public abstract void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection);
 		
@@ -127,7 +127,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			return span;
 		}
 
-		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ISerializer.RefData refData)
+		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ISnapshotSerializerSystem.RefData refData)
 		{
 			PrepareGlobal();
 
@@ -175,7 +175,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				catch (Exception ex)
 				{
-					throw new InvalidOperationException($"(Serializing) <{Thread.CurrentThread.Name}> {(this as ISerializer).Identifier} had an exception", ex);
+					throw new InvalidOperationException($"(Serializing) <{Thread.CurrentThread.Name}> {(this as ISnapshotSerializerSystem).Identifier} had an exception", ex);
 				}
 			}
 		}
@@ -187,7 +187,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		private void __deserialize()
 		{
 			// these variables shouldn't be null when this is called
-			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, new ISerializer.RefData
+			Deserialize(deserializeArgs.p, deserializeArgs.data!.Span, new ISnapshotSerializerSystem.RefData
 			{
 				Snapshot   = deserializeArgs.snapshot!.Span,
 				Self       = deserializeArgs.handles!.Span,
@@ -195,7 +195,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			});
 		}
 
-		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ISerializer.RefData refData) 
+		public void Deserialize(DeserializationParameters parameters, Span<byte> data, ISnapshotSerializerSystem.RefData refData) 
 		{
 			lock (Synchronization)
 			{
@@ -210,11 +210,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				catch (Exception ex)
 				{
-					throw new InvalidOperationException($"(Deserializing) <{Thread.CurrentThread.Name}> {(this as ISerializer).Identifier} had an exception", ex);
+					throw new InvalidOperationException($"(Deserializing) <{Thread.CurrentThread.Name}> {(this as ISnapshotSerializerSystem).Identifier} had an exception", ex);
 				}
 
 				if (deserializeBitBuffer.readPosition > deserializeBitBuffer.nextPosition)
-					throw new InvalidOperationException($"{(this as ISerializer).Identifier} has read too much data! ({deserializeBitBuffer.readPosition}b read, {deserializeBitBuffer.nextPosition}b written)");
+					throw new InvalidOperationException($"{(this as ISnapshotSerializerSystem).Identifier} has read too much data! ({deserializeBitBuffer.readPosition}b read, {deserializeBitBuffer.nextPosition}b written)");
 			}
 		}
 
@@ -238,7 +238,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		}
 
 		protected abstract void OnSerialize(BitBuffer   bitBuffer, SerializationParameters   parameters, MergeGroup          group, ReadOnlySpan<GameEntityHandle> entities);
-		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData);
+		protected abstract void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISnapshotSerializerSystem.RefData refData);
 
 		/// <summary>
 		///     Automatically resize a column based on the maximum entity id.

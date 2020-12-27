@@ -1,4 +1,5 @@
-﻿using GameHost.Revolution.Snapshot.Utilities;
+﻿using GameHost.Core.Ecs;
+using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.TabEcs.Interfaces;
 
 namespace GameHost.Revolution.Snapshot.Serializers
@@ -11,7 +12,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 	public interface ISnapshotSetupData
 	{
-		void Create(SerializerBase serializer);
+		void Create(IInstigatorSystem appObject);
 
 		void Begin(bool isSerialization);
 		void Clean();
@@ -19,7 +20,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 	public struct EmptySnapshotSetup : ISnapshotSetupData
 	{
-		public void Create(SerializerBase serializer)
+		public void Create(IInstigatorSystem appObject)
 		{
 		}
 

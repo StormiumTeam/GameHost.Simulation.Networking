@@ -12,10 +12,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		private readonly ComponentType[] excludedComponentBackend;
 		private readonly GameWorld       gameWorld;
 
-		public readonly ISerializer              Serializer;
-		public readonly SnapshotSerializerSystem System;
+		public readonly ISnapshotSerializerSystem              Serializer;
+		public readonly InstigatorSystem System;
 
-		public SimpleSerializerArchetype(ISerializer   serializer,    GameWorld       gameWorld,
+		public SimpleSerializerArchetype(ISnapshotSerializerSystem   serializer,    GameWorld       gameWorld,
 		                                 ComponentType coreComponent, ComponentType[] entityComponents, ComponentType[] excludedComponents)
 		{
 			this.gameWorld           = gameWorld;
@@ -91,8 +91,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				componentsToRemove.AddRange(EntityComponents);
 				foreach (var model in models)
 				{
-					var otherSerializer = Serializer.Instigator.Serializers[model];
-					if (otherSerializer.SerializerArchetype is not {} otherSerializerArchetype)
+					var obj = Serializer.Instigator.Serializers[model];
+					if (obj is not ISnapshotSerializerSystem {SerializerArchetype: {} otherSerializerArchetype})
 						continue;
 
 					var otherComponents = otherSerializerArchetype.EntityComponents;

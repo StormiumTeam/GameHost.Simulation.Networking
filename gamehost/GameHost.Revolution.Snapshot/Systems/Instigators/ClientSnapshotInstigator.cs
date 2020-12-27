@@ -86,7 +86,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			OwnedEntities  = new PooledList<ClientOwnedEntity>();
 		}
 
-		public PooledDictionary<uint, ISerializer> Serializers   { get; set; }
+		public PooledDictionary<uint, IInstigatorSystem> Serializers   { get; set; }
 		/// <summary>
 		/// A client can possess entities that were not created by itself.
 		/// </summary>

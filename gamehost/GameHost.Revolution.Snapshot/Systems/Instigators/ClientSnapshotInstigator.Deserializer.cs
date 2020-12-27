@@ -125,8 +125,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 							foreach (var sys in ownedSystems)
 							{
 								//Console.WriteLine($"  SysId={sys}");
-								if (client.Serializers.TryGetValue(sys, out var serializer)
-								    && serializer.AuthorityArchetype is { } authorityArchetype)
+								if (client.Serializers.TryGetValue(sys, out var obj)
+								    && obj is ISnapshotSerializerSystem {AuthorityArchetype: { } authorityArchetype})
 								{
 									//Console.WriteLine($"    {serializer.Identifier}");
 									authorityArchetype.TryKeepAuthority(ghost.Self, true, keptComponents);
@@ -137,8 +137,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 							foreach (var sys in previousOwnedSystems)
 							{
 								//Console.WriteLine($"  SysId={sys}");
-								if (client.Serializers.TryGetValue(sys, out var serializer)
-								    && serializer.AuthorityArchetype is { } authorityArchetype)
+								if (client.Serializers.TryGetValue(sys, out var obj)
+								    && obj is ISnapshotSerializerSystem {AuthorityArchetype: { } authorityArchetype})
 								{
 									//Console.WriteLine($"    {serializer.Identifier}");
 									authorityArchetype.TryKeepAuthority(ghost.Self, false, keptComponents);
@@ -151,19 +151,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				}
 
 				readState.FinalizeEntities();
-				
-				var msg = "";
-				foreach (var ghost in readState.ghosts)
-				{
-					if (!ghost.IsInitialized)
-						continue;
-					
-					msg += $"({ghost.Local}, {ghost.Self}) -> {ghost.Archetype}\n";
-				}
 
-				if (client.ParentInstigatorId != 0)
-					msg = msg;
-				
 				// Last foreach on all entities to check whether or not it contains an entity that was destroyed in the past
 				foreach (ref var ghost in readState.ghosts.AsSpan())
 				{
@@ -175,8 +163,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					ghost.IsDataIgnored = true;
 				}
 
-				foreach (var (systemId, serializer) in client.Serializers)
+				foreach (var (systemId, obj) in client.Serializers)
 				{
+					if (obj is not ISnapshotSerializerSystem serializer)
+						continue;
+					
 					PooledList<bool> ignoredList;
 					if (!systemToEntities.TryGetValue(systemId, out var entityList))
 					{
@@ -292,10 +283,16 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					var span = bytePool.AddSpan((int) length);
 					bitBuffer.ReadSpan(span, (int) length);
 
-					if (client.Serializers.TryGetValue(systemId, out var serializer))
+					if (client.Serializers.TryGetValue(systemId, out var obj))
 					{
+						if (obj is not ISnapshotSerializerSystem serializer)
+						{
+							Console.WriteLine($"We've received {obj.GetType().Name} as a serializer, but doesn't implement ISerializer?");
+							continue;
+						}
+
 						serializer.Instigator = client;
-						var task = serializer.PrepareDeserializeTask(parameters, span, new ISerializer.RefData
+						var task = serializer.PrepareDeserializeTask(parameters, span, new ISnapshotSerializerSystem.RefData
 						{
 							Snapshot = systemToEntities[systemId].snapshot.Span,
 							Self = systemToEntities[systemId].self.Span,

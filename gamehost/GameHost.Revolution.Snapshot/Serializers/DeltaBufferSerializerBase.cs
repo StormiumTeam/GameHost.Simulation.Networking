@@ -190,7 +190,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			__readArray = writeArray;
 		}
 
-		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
+		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISnapshotSerializerSystem.RefData refData)
 		{
 			setup.Begin(false);
 			

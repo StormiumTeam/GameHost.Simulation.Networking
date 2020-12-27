@@ -22,12 +22,12 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 			private readonly BitBuffer bitBuffer = new();
 
-			private readonly Dictionary<SnapshotSerializerSystem, PooledList<GameEntityHandle>> entitiesPerSystem = new();
+			private readonly Dictionary<InstigatorSystem, PooledList<GameEntityHandle>> entitiesPerSystem = new();
 
 			private readonly PooledList<GameEntity>                                     entityList       = new();
 			private readonly PooledList<GameEntity>                                     entityRemoveList = new();
 			private readonly PooledList<GameEntity>                                     entityUpdateList = new();
-			internal readonly Dictionary<SnapshotSerializerSystem, MergeGroupCollection> groupsPerSystem  = new();
+			internal readonly Dictionary<InstigatorSystem, MergeGroupCollection> groupsPerSystem  = new();
 			private readonly IScheduler                                                 scheduler        = new Scheduler();
 			private readonly PooledList<UniTask>                                        tasks            = new();
 
@@ -70,8 +70,11 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						{
 							using var systems          = new PooledList<uint>();
 							using var authoritySystems = new PooledList<uint>();
-							foreach (var (id, serializer) in broadcast.Serializers)
+							foreach (var (id, obj) in broadcast.Serializers)
 							{
+								if (obj is not ISnapshotSerializerSystem serializer)
+									continue;
+								
 								if (serializer.SerializerArchetype?.IsArchetypeValid(localArchetype) == true)
 									systems.Add(id);
 								if (serializer.AuthorityArchetype?.IsArchetypeValid(localArchetype) == true)
@@ -95,16 +98,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				archetypeList.Clear();
 				archetypeAddedList.Clear();
 				WriterState.FinalizeRegister((entityList, entityUpdateList, entityRemoveList), (archetypeList, archetypeAddedList));
-
-				var msg = "";
-				for (var i = 1u; i < entityList.Count; i++)
-				{
-					msg += $"{i} -> {WriterState.GetArchetypeOfEntity(i)}\n";
-				}
-
-				if (broadcast.InstigatorId == 0)
-					msg = msg;
-
+				
 				broadcast.QueuedEntities.FullClear();
 
 				// Entities must be in order for:
@@ -123,9 +117,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 				}
 
-				foreach (var serializer in broadcast.serializers)
+				foreach (var serializer in broadcast.snapshotSerializers)
 				{
-					var state = new SnapshotSerializerSystem(serializer.System.Id);
+					var state = new InstigatorSystem(serializer.System.Id);
 
 					if (!entitiesPerSystem.TryGetValue(state, out var list))
 					{
@@ -142,7 +136,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					WriterState.TryGetArchetypeFromEntity(entity, out netArchetype);
 
 					var systems = WriterState.GetArchetypeSystems(netArchetype);
-					foreach (var sys in systems) entitiesPerSystem[new SnapshotSerializerSystem(sys)].Add(entity.Handle);
+					foreach (var sys in systems) entitiesPerSystem[new InstigatorSystem(sys)].Add(entity.Handle);
 				}
 
 				// ---- ENTITY
@@ -200,7 +194,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 				}
 				
-				foreach (var serializer in broadcast.serializers)
+				foreach (var serializer in broadcast.snapshotSerializers)
 				{
 					var groupCollection = groupsPerSystem[serializer.System];
 					foreach (var group in groupCollection)
@@ -375,7 +369,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					clients[i] = broadcast.clients[i].Storage;
 
 				var parameters = new SerializationParameters(0, scheduler);
-				foreach (var serializer in broadcast.serializers)
+				foreach (var serializer in broadcast.snapshotSerializers)
 				{
 					var groups = groupsPerSystem[serializer.System];
 

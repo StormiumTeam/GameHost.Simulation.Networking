@@ -19,9 +19,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 	{
 		public readonly PooledList<ClientSnapshotInstigator> clients;
 
-		private readonly Serialization           serialization = new();
-		private readonly PooledList<ISerializer> serializers;
-		private          GameWorld               gameWorld;
+		private readonly Serialization                         serialization = new();
+		private readonly PooledList<ISnapshotSerializerSystem> snapshotSerializers;
+		private          GameWorld                             gameWorld;
 
 		/// <summary>
 		///     Constructor
@@ -35,8 +35,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		public BroadcastInstigator(Entity? storage, int groupId, Context context) : base(context)
 		{
 			AddDisposable(clients     = new PooledList<ClientSnapshotInstigator>());
-			AddDisposable(serializers = new PooledList<ISerializer>());
-			AddDisposable(Serializers = new PooledDictionary<uint, ISerializer>());
+			AddDisposable(snapshotSerializers = new PooledList<ISnapshotSerializerSystem>());
+			AddDisposable(Serializers = new PooledDictionary<uint, IInstigatorSystem>());
 
 			State = new SnapshotState(groupId);
 
@@ -65,7 +65,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public EntityGroup QueuedEntities { get; }
 
-		public PooledDictionary<uint, ISerializer> Serializers { get; }
+		public PooledDictionary<uint, IInstigatorSystem> Serializers { get; }
 
 
 		public Entity         Storage { get; }
@@ -113,10 +113,13 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				{
 					collection.SetToGroup(instigator.Storage, null);
 				}
-				
-				foreach (var serializer in instigator.Serializers)
-					serializer.Value.OnReset(instigator);
-				
+
+				foreach (var (id, obj) in instigator.Serializers)
+				{
+					if (obj is ISnapshotSerializerSystem serializer)
+						serializer.OnReset(instigator);
+				}
+
 				instigator.Serializers = null;
 				instigator.Storage.Dispose();
 				instigator.OwnedEntities.Dispose();
@@ -129,26 +132,28 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			Console.WriteLine("Removed client #" + clientId);
 		}
 
-		public void SetSerializer(uint id, ISerializer serializer, bool disposeOnThisDispose = true)
+		private uint serializerId = 1;
+		public void SetSerializer(uint id, IInstigatorSystem instigatorSystem, bool disposeOnThisDispose = true)
 		{
-			serializers.Add(serializer);
+			if (instigatorSystem is ISnapshotSerializerSystem { } serializer)
+				snapshotSerializers.Add(serializer);
 
-			serializer.System                 = new SnapshotSerializerSystem(id);
-			Serializers[serializer.System.Id] = serializer;
+			instigatorSystem.System                 = new InstigatorSystem(id);
+			Serializers[instigatorSystem.System.Id] = instigatorSystem;
 
-			if (serializer is AppObject appObject)
+			if (instigatorSystem is AppObject appObject)
 				appObject.DependencyResolver.TryComplete();
 		}
 
-		public void AddSerializer(ISerializer serializer, bool disposeOnThisDispose = true)
+		public void AddSerializer(IInstigatorSystem serializer, bool disposeOnThisDispose = true)
 		{
-			SetSerializer((uint) serializers.Count + 1, serializer, disposeOnThisDispose);
+			SetSerializer(serializerId++, serializer, disposeOnThisDispose);
 		}
 
 		public void Serialize(uint tick)
 		{
 #if DEBUG
-			foreach (var serializer in serializers)
+			foreach (var serializer in snapshotSerializers)
 			{
 				if (serializer is AppObject appObject && appObject.DependencyResolver.Dependencies.Count > 0)
 				{

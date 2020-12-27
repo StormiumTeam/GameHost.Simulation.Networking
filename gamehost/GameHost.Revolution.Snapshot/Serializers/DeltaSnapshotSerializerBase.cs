@@ -8,6 +8,7 @@ using GameHost.Simulation.TabEcs;
 using GameHost.Simulation.TabEcs.HLAPI;
 using GameHost.Simulation.TabEcs.Interfaces;
 using JetBrains.Annotations;
+using RevolutionSnapshot.Core.Buffers;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -54,6 +55,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </remarks>
 		public bool ForceToBufferIfEntityIgnoredSettings;
 
+		public bool CheckDifferenceSettings;
+
 		#endregion
 
 		private readonly Dictionary<ISnapshotInstigator, InstigatorData> instigatorDataMap = new();
@@ -72,6 +75,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			DirectComponentSettings              = true;
 			AddToBufferSettings                  = true;
 			ForceToBufferIfEntityIgnoredSettings = false;
+			CheckDifferenceSettings              = false;
 
 			setup = new TSetup();
 		}
@@ -160,25 +164,46 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				writeArray = readArray;
 
 			var accessor = new ComponentDataAccessor<TComponent>(GameWorld);
-			for (var ent = 0; ent < entities.Length; ent++)
+			switch (CheckDifferenceSettings)
 			{
-				var self     = entities[ent];
-				var snapshot = default(TSnapshot);
-				snapshot.Tick = parameters.Tick;
-				snapshot.FromComponent(accessor[self], setup);
-				snapshot.Serialize(bitBuffer, readArray[ent], setup);
-				//snapshot.Serialize(bitBuffer, default, setup);
+				case true:
+					for (var ent = 0; ent < entities.Length; ent++)
+					{
+						var snapshot = default(TSnapshot);
+						snapshot.Tick = parameters.Tick;
+						snapshot.FromComponent(accessor[entities[ent]], setup);
+						if (UnsafeUtility.SameData(snapshot, readArray[ent]))
+						{
+							bitBuffer.AddBool(true);
+							continue;
+						}
 
-				writeArray[ent] = snapshot;
+						bitBuffer.AddBool(false);
+						snapshot.Serialize(bitBuffer, readArray[ent], setup);
+						writeArray[ent] = snapshot;
+					}
+
+					break;
+				case false:
+					for (var ent = 0; ent < entities.Length; ent++)
+					{
+						var snapshot = default(TSnapshot);
+						snapshot.Tick = parameters.Tick;
+						snapshot.FromComponent(accessor[entities[ent]], setup);
+						snapshot.Serialize(bitBuffer, readArray[ent], setup);
+						writeArray[ent] = snapshot;
+					}
+
+					break;
 			}
 
 			__readArray = writeArray;
 		}
-		
-		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISerializer.RefData refData)
+
+		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISnapshotSerializerSystem.RefData refData)
 		{
 			setup.Begin(false);
-			
+
 			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
 
 			GetColumn(ref baselineArray, refData.Self);
@@ -195,18 +220,44 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				parameters.Post.Schedule(setDeserialize, Instigator.Storage, default);
 			}
 
+			switch (CheckDifferenceSettings)
+			{
+				case true:
+					for (var ent = 0; ent < refData.Self.Length; ent++)
+					{
+						ref var baseline = ref baselineArray[ent];
+						if (bitBuffer.ReadBool())
+						{
+							// don't touch the baseline (except tick)
+							baseline.Tick = parameters.Tick;
+							continue;
+						}
+
+						var snapshot = default(TSnapshot);
+						snapshot.Tick = parameters.Tick;
+						snapshot.Deserialize(bitBuffer, baseline, setup);
+
+						baseline = snapshot;
+					}
+
+					break;
+				case false:
+					for (var ent = 0; ent < refData.Self.Length; ent++)
+					{
+						ref var baseline = ref baselineArray[ent];
+						var     snapshot = default(TSnapshot);
+						snapshot.Tick = parameters.Tick;
+						snapshot.Deserialize(bitBuffer, baseline, setup);
+
+						baseline = snapshot;
+					}
+
+					break;
+			}
+
 			for (var ent = 0; ent < refData.Self.Length; ent++)
 			{
 				var self = refData.Self[ent];
-
-				ref var baseline = ref baselineArray[ent];
-
-				var snapshot = default(TSnapshot);
-				snapshot.Tick = parameters.Tick;
-				snapshot.Deserialize(bitBuffer, baseline, setup);
-				//snapshot.Deserialize(bitBuffer, default, setup);
-				
-				baseline = snapshot;
 
 				// If we have been requested to add data to ignored entities, and those entities aren't null, do it.
 				// The entity can be null (aka zero) if it doesn't exist. (This can happen if it got destroyed on our side, but not on the sender side)
@@ -217,6 +268,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				{
 					if (ForceToBufferIfEntityIgnoredSettings && AddToBufferSettings)
 					{
+						ref readonly var snapshot = ref baselineArray[ent];
+
 						bufferAccessor[self].Add(snapshot);
 						if (bufferAccessor[self].Count > 32)
 							bufferAccessor[self].RemoveAt(0);
@@ -224,6 +277,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				}
 				else
 				{
+					ref readonly var snapshot = ref baselineArray[ent];
+
 					if (DirectComponentSettings)
 						snapshot.ToComponent(ref dataAccessor[self], setup);
 					if (AddToBufferSettings)

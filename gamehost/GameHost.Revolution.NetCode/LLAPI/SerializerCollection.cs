@@ -12,15 +12,15 @@ namespace GameHost.Revolution.NetCode.LLAPI
 	[RestrictToApplication(typeof(SimulationApplication))]
 	public class SerializerCollection : AppSystem
 	{
-		private Dictionary<string, (Type type, Func<ISnapshotInstigator, ISerializer> createFunc)> map = new();
+		private Dictionary<string, (Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)> map = new();
 
 		public SerializerCollection(WorldCollection collection) : base(collection)
 		{
 		}
 
-		public event Action<IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, ISerializer> createFunc)>> OnCollectionUpdate;
+		public event Action<IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)>> OnCollectionUpdate;
 
-		public void Register(Type type, Func<ISnapshotInstigator, ISerializer> createFunc)
+		public void Register(Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)
 		{
 			map[TypeExt.GetFriendlyName(type)] = (type, createFunc);
 
@@ -28,12 +28,12 @@ namespace GameHost.Revolution.NetCode.LLAPI
 		}
 
 		public void Register<TSerializer>(Func<ISnapshotInstigator, TSerializer> createFunc)
-			where TSerializer : ISerializer
+			where TSerializer : IInstigatorSystem
 		{
 			Register(typeof(TSerializer), instigator => createFunc(instigator));
 		}
 
-		public bool TryGet(string name, out (Type type, Func<ISnapshotInstigator, ISerializer> create) output)
+		public bool TryGet(string name, out (Type type, Func<ISnapshotInstigator, IInstigatorSystem> create) output)
 		{
 			if (map.TryGetValue(name, out var args))
 			{

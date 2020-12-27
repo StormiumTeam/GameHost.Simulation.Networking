@@ -73,10 +73,28 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		void TryKeepAuthority(GameEntity    entity, bool enable, HashSet<ComponentType> kept);
 	}
 
+	public interface IInstigatorSystem
+	{
+		/// <summary>
+		///     Attached Instigator on current operations. This value can change.
+		/// </summary>
+		ISnapshotInstigator Instigator { get; set; }
+		
+		/// <summary>
+		/// The serializer identifier
+		/// </summary>
+		string Identifier => TypeExt.GetFriendlyName(GetType());
+
+		/// <summary>
+		///     The system state of this serializer
+		/// </summary>
+		InstigatorSystem System { get; set; }
+	}
+
 	/// <summary>
 	///     Serializer object
 	/// </summary>
-	public interface ISerializer
+	public interface ISnapshotSerializerSystem : IInstigatorSystem
 	{
 		public ref struct RefData
 		{
@@ -86,26 +104,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		}
 
 		/// <summary>
-		///     Attached Instigator on current operations. This value can change.
-		/// </summary>
-		ISnapshotInstigator Instigator { get; set; }
-
-		/// <summary>
 		///     The archetype manager.
 		/// </summary>
 		ISerializerArchetype? SerializerArchetype { get; }
 
 		IAuthorityArchetype? AuthorityArchetype { get; }
-
-		/// <summary>
-		/// The serializer identifier
-		/// </summary>
-		string Identifier => TypeExt.GetFriendlyName(GetType());
-
-		/// <summary>
-		///     The system state of this serializer
-		/// </summary>
-		SnapshotSerializerSystem System { get; set; }
 
 		/// <summary>
 		///     Update the groups of the clients, and maximize performance by having the least of groups.

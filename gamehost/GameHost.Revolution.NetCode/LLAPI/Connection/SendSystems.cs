@@ -34,14 +34,14 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			serializerCollection.OnCollectionUpdate += onCollectionUpdate;
 		}
 
-		private void onCollectionUpdate(IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, ISerializer> createFunc)> obj)
+		private void onCollectionUpdate(IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)> obj)
 		{
 			requireUpdate = true;
 			dictionary    = obj;
 		}
 
-		private bool                                                                                         requireUpdate = false;
-		private IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, ISerializer> createFunc)>? dictionary;
+		private bool                                                                                               requireUpdate = false;
+		private IReadOnlyDictionary<string, (Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)>? dictionary;
 
 		private struct HasInitialData
 		{
