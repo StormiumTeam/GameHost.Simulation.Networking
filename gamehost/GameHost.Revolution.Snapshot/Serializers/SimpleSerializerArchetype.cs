@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Collections.Pooled;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Simulation.TabEcs;
@@ -61,7 +62,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 			var models   = archetypeToSystems[requestedArchetype.Id].AsSpan();
 			var hasModel = false;
-
+			
 			// Search if this entity has our system from the model list
 			if (models.Contains(System.Id))
 			{

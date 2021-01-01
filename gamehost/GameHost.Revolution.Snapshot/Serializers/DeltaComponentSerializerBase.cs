@@ -59,7 +59,13 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				throw new InvalidOperationException("This serializer should have been set with a system.");
 
 			var component = GameWorld.AsComponentType<TComponent>();
-			return new SimpleSerializerArchetype(this, GameWorld, component, new[] {component}, Array.Empty<ComponentType>());
+
+			var coreName = GameWorld.Boards.ComponentType.NameColumns[(int) component.Id] + "^Core";
+			var core = GameWorld.HasComponentType(coreName)
+				? GameWorld.GetComponentType(coreName)
+				: GameWorld.RegisterComponent(coreName, new TagComponentBoard(0));
+
+			return new SimpleSerializerArchetype(this, GameWorld, core, new[] {component}, Array.Empty<ComponentType>());
 		}
 
 		public override void OnReset(ISnapshotInstigator instigator)
@@ -131,8 +137,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			{
 				var self     = entities[ent];
 				var snapshot = accessor[self];
-				//snapshot.Serialize(bitBuffer, readArray[ent], setup);
-				snapshot.Serialize(bitBuffer, default, setup);
+				snapshot.Serialize(bitBuffer, readArray[ent], setup);
+				//snapshot.Serialize(bitBuffer, default, setup);
 
 				writeArray[ent] = snapshot;
 			}
@@ -166,8 +172,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				ref var baseline = ref baselineArray[ent];
 
 				var snapshot = dataAccessor[self];
-				//snapshot.Deserialize(bitBuffer, baseline, setup);
-				snapshot.Deserialize(bitBuffer, default, setup);
+				snapshot.Deserialize(bitBuffer, baseline, setup);
+				//snapshot.Deserialize(bitBuffer, default, setup);
 				
 				baseline = snapshot;
 

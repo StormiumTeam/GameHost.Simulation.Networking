@@ -24,6 +24,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			private readonly PooledDictionary<uint, (PooledList<GameEntityHandle> snapshot, PooledList<GameEntityHandle> self)> systemToEntities = new();
 			private readonly PooledDictionary<uint, PooledList<bool>>                                      systemToIgnored  = new();
 
+			private          uint                         previousSystemId;
+			private readonly PooledDictionary<uint, uint> systemSizes = new();
+
 			private readonly PooledList<UniTask> tasks = new();
 
 			private readonly PooledList<uint> tempSystems = new();
@@ -274,10 +277,21 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				}
 				
 				var parameters = new DeserializationParameters(readState.Tick, post);
+
+				previousSystemId = 0;
+				if (isRemake)
+					systemSizes.Clear();
+				
 				while (!bitBuffer.IsFinished)
 				{
-					var systemId = bitBuffer.ReadUIntD4();
-					var length   = bitBuffer.ReadUIntD4();
+					var systemId = bitBuffer.ReadUIntD4Delta(previousSystemId);
+					if (!systemSizes.TryGetValue(systemId, out var previousSize))
+						systemSizes[systemId] = 0;
+					
+					var length   = bitBuffer.ReadUIntD4Delta(previousSize);
+
+					previousSystemId      = systemId;
+					systemSizes[systemId] = length;
 
 					bytePool.Clear();
 					var span = bytePool.AddSpan((int) length);
@@ -417,7 +431,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 
 					// If the archetype changed and that it wasn't an entity created by us, add it to the update events.
-					if (ghost.Archetype != prevArchetype)
+					if (ghost.Archetype != prevArchetype || !ghost.ArchetypeAssigned)
 					{
 						readState.AssignArchetype(snapshotLocal.Id, prevArchetype);
 						entityUpdateList.Add(ghost.Self);
@@ -425,7 +439,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 
 					if (!client.gameWorld.HasComponent<SnapshotEntity>(ghost.Self.Handle))
+					{
 						client.gameWorld.AddComponent(ghost.Self.Handle, remote);
+					}
 				}
 			}
 

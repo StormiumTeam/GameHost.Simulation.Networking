@@ -81,7 +81,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			}
 			
 			// Clear all archetypes
-			Console.WriteLine($"    CLEAR! ! ! ! ! !");
 			(broadcast.State as BroadcastInstigator.SnapshotState).ClearAllAssignedArchetype();
 
 			// TODO: Check for removed serializers
@@ -113,11 +112,12 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 			compressBuffer.WriteInt(broadcaster.Serializers.Count);
 			foreach (var (id, serializer) in broadcaster.Serializers)
 			{
-				compressBuffer.WriteValue(id);
+				compressBuffer.WriteValue((ushort) id);
 				compressBuffer.WriteStaticString(serializer.Identifier);
 			}
 			
-			dataBuffer.WriteCompressed(compressBuffer.Span, LZ4Level.L12_MAX);
+			var size = dataBuffer.WriteCompressed(compressBuffer.Span, LZ4Level.L12_MAX);
+			Console.WriteLine($"SystemSize={size} (Original={compressBuffer.Length})");
 
 			feature.Driver.Send(feature.ReliableChannel, connection, dataBuffer.Span);
 		}

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Collections.Pooled;
 using DefaultEcs;
 using GameHost.Injection;
@@ -144,13 +145,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 			using var temporaryBuffer = new PooledList<TSnapshot>(ClearMode.Never);
 
-			var accessor = new ComponentBufferAccessor<TComponent>(GameWorld);
+			var differentCount = 0;
+			var accessor       = new ComponentBufferAccessor<TComponent>(GameWorld);
 			for (var ent = 0; ent < entities.Length; ent++)
 			{
 				var self   = entities[ent];
 				var buffer = accessor[self];
 
-				/*var prevReadLength = readArray[ent].Count;
+				var prevReadLength = readArray[ent].Count;
 				if (buffer.Count > readArray[ent].Count)
 					readArray[ent].AddSpan(buffer.Count - readArray[ent].Count).Clear();
 				else if (buffer.Count < readArray[ent].Count)
@@ -172,19 +174,26 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				{
 					bitBuffer.AddBool(false);
 					continue;
-				}*/
+				}
 
+				differentCount++;
+					
 				bitBuffer.AddBool(true);
-				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) default);
+				bitBuffer.AddUIntD4Delta((uint) buffer.Count, (uint) prevReadLength);
 				for (var i = 0; i < buffer.Count; i++)
 				{
-					//var data = temporaryBuffer[i];
-					//data.Serialize(bitBuffer, readArray[ent][i], setup);
-					var snapshot = new TSnapshot();
-					snapshot.FromComponent(buffer[i], setup);
-					snapshot.Serialize(bitBuffer, default, setup);
-					//writeArray[ent][i] = data;
+					var data = temporaryBuffer[i];
+					data.Serialize(bitBuffer, readArray[ent][i], setup);
+					//var snapshot = new TSnapshot();
+					//snapshot.FromComponent(buffer[i], setup);
+					//snapshot.Serialize(bitBuffer, default, setup);
+					writeArray[ent][i] = data;
 				}
+			}
+			
+			if (differentCount == 0 && !parameters.HadEntityUpdate)
+			{
+				bitBuffer.Clear();
 			}
 
 			__readArray = writeArray;
@@ -220,15 +229,15 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 				ref var baseline = ref baselineArray[ent];
 
-				//var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
-				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) default);
-				/*if (newLength > baseline.Count)
+				var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) baseline.Count);
+				//var newLength = (int) bitBuffer.ReadUIntD4Delta((uint) default);
+				if (newLength > baseline.Count)
 				{
 					baseline.AddSpan(newLength - baseline.Count)
 					        .Clear(); // make sure that the added span is zeroed
 				}
 				else if (newLength < baseline.Count)
-					baseline.RemoveRange(newLength, baseline.Count - newLength);*/
+					baseline.RemoveRange(newLength, baseline.Count - newLength);
 				
 				baseline.Clear();
 				baseline.AddSpan(newLength);
@@ -236,8 +245,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 				for (var i = 0; i < newLength; i++)
 				{
 					var inner = baseline.Span[i];
-					//inner.Deserialize(bitBuffer, baseline[i], setup);
-					inner.Deserialize(bitBuffer, default, setup);
+					inner.Deserialize(bitBuffer, baseline[i], setup);
+					//inner.Deserialize(bitBuffer, default, setup);
 					baseline[i] = inner;
 				}
 				

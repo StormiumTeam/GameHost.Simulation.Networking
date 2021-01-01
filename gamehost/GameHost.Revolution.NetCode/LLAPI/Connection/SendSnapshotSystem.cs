@@ -134,7 +134,9 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						var length = clientData.Length;
 						clientData.ToSpan(pooledArray);
 						
-						buffer.WriteCompressed(pooledArray.AsSpan(0, length));
+						var size = buffer.WriteCompressed(pooledArray.AsSpan(0, length), LZ4Level.L12_MAX);
+						if (instigator.InstigatorId == 0)
+							Console.WriteLine($"Size={size}");
 
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}

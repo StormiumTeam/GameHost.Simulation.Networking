@@ -248,8 +248,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			if (entities.Length == 0)
 				return;
 
-			if (array.Length <= entities[^1].Id)
-				Array.Resize(ref array, (int) entities[^1].Id * 2 + 1);
+			var maxLength = Math.Max(entities[^1].Id + 1, entities.Length + 1);
+			if (array.Length <= maxLength)
+				Array.Resize(ref array, (int) maxLength * 2 + 1);
 		}
 	}
 }

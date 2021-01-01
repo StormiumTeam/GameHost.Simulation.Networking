@@ -521,6 +521,12 @@ namespace GameHost.Revolution.Snapshot.Utilities
 		}
 		
 		[MethodImpl(256)]
+		public BitBuffer AddUIntDelta(uint value, uint baseline)
+		{
+			return AddUInt(value - baseline);
+		}
+		
+		[MethodImpl(256)]
 		public BitBuffer AddUIntD4(uint value)
 		{
 			var buffer = 0x0u;
@@ -562,6 +568,13 @@ namespace GameHost.Revolution.Snapshot.Utilities
 
 			return value;
 		}
+		
+		[MethodImpl(256)]
+		public uint ReadUIntDelta(uint baseline)
+		{
+			return baseline + ReadUInt();
+		}
+
 		
 		[MethodImpl(256)]
 		public uint ReadUIntD4()

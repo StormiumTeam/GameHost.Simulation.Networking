@@ -22,7 +22,7 @@ namespace GameHost.Revolution.NetCode.LLAPI
 
 		public void Register(Type type, Func<ISnapshotInstigator, IInstigatorSystem> createFunc)
 		{
-			map[TypeExt.GetFriendlyName(type)] = (type, createFunc);
+			map[IInstigatorSystem.GetIdentifier(type)] = (type, createFunc);
 
 			OnCollectionUpdate?.Invoke(map);
 		}

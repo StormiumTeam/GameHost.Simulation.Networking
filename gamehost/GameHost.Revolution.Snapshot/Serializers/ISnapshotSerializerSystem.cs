@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using DefaultEcs;
 using GameHost.Core.Threading;
+using GameHost.Native.Char;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Utilities;
@@ -14,12 +15,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 	public readonly struct SerializationParameters
 	{
 		public readonly uint       Tick;
+		public readonly bool       HadEntityUpdate;
 		public readonly IScheduler Post;
 
-		public SerializationParameters(uint tick, IScheduler post)
+		public SerializationParameters(uint tick, bool hadEntityUpdate, IScheduler post)
 		{
-			Tick = tick;
-			Post = post;
+			Tick            = tick;
+			HadEntityUpdate = hadEntityUpdate;
+			Post            = post;
 		}
 	}
 
@@ -83,7 +86,15 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// <summary>
 		/// The serializer identifier
 		/// </summary>
-		string Identifier => TypeExt.GetFriendlyName(GetType());
+		string Identifier => GetIdentifier(GetType());
+
+		public static string GetIdentifier(Type type)
+		{
+			var friendly = TypeExt.GetFriendlyName(type);
+			
+			//return $"{(char)CharBufferUtility.ComputeHashCode(type.Namespace)}{(char)CharBufferUtility.ComputeHashCode(friendly)}";
+			return friendly;
+		}
 
 		/// <summary>
 		///     The system state of this serializer

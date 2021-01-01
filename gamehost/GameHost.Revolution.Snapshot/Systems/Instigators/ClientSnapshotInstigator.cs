@@ -113,7 +113,14 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			if (isPreparing)
 				throw new InvalidOperationException();
 
-			isPreparing           = true;
+			isPreparing = true;
+
+			GetClientData().LastSystemId = 0;
+			if (clientState.Operation == ClientState.EOperation.RecreateFull)
+			{
+				GetClientData().PreviousSizePerSystem.Clear();
+			}
+
 			//clientState.Operation = ClientState.EOperation.RecreateFull;
 		}
 
@@ -138,6 +145,9 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 	public sealed class ClientData : BitBuffer
 	{
+		public uint LastSystemId;
+
+		public Dictionary<uint, uint> PreviousSizePerSystem = new();
 	}
 
 	public class ClientState
@@ -163,6 +173,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 		public struct GhostInformation
 		{
 			public uint Archetype;
+			public bool ArchetypeAssigned;
+			
 			public bool ParentOwned;
 			public bool ParentDestroyed;
 			public bool Owned;
@@ -288,6 +300,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				ghost.Owned = isOwned;
 
 			ghost.Archetype = 0;
+			ghost.ArchetypeAssigned = false;
 
 			ghost.ParentOwned     = isParentOwned;
 			ghost.ParentDestroyed = isParentDestroyed;
@@ -321,7 +334,8 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 
 		public void AssignArchetype(uint entity, uint snapshotArchetype)
 		{
-			GetRefGhost(entity).Archetype = snapshotArchetype;
+			GetRefGhost(entity).Archetype         = snapshotArchetype;
+			GetRefGhost(entity).ArchetypeAssigned = true;
 		}
 	}
 }

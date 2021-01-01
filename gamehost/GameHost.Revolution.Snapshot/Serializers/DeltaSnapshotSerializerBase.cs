@@ -55,7 +55,22 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </remarks>
 		public bool ForceToBufferIfEntityIgnoredSettings;
 
+		/// <summary>
+		/// Check for difference between current and previous component data. If false, it will not write the component data
+		/// </summary>
 		public bool CheckDifferenceSettings;
+		/// <summary>
+		/// Check for the difference between previous and current data of this system. If false, nothing will be written.
+		/// </summary>
+		public EqualsWholeSnapshot CheckEqualsWholeSnapshotSettings;
+
+		public enum EqualsWholeSnapshot
+		{
+			None,
+			// The fastest if we're already checking difference with CheckDifferenceSettings (if this enum is selected, CheckDifferenceSettings will be forced to true)
+			CheckWithComponentDifference,
+			CheckWithLatestData
+		}
 
 		#endregion
 
@@ -75,7 +90,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			DirectComponentSettings              = true;
 			AddToBufferSettings                  = true;
 			ForceToBufferIfEntityIgnoredSettings = false;
-			CheckDifferenceSettings              = false;
+			CheckDifferenceSettings              = true;
+			CheckEqualsWholeSnapshotSettings     = EqualsWholeSnapshot.CheckWithComponentDifference;
 
 			setup = new TSetup();
 		}
@@ -96,11 +112,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var snapshot  = GameWorld.AsComponentType<TSnapshot>();
 			return new SimpleSerializerArchetype(this, GameWorld, snapshot, new[] {component}, Array.Empty<ComponentType>());
 		}
-		
+
 		public override void OnReset(ISnapshotInstigator instigator)
 		{
 			if (instigatorDataMap.TryGetValue(instigator, out var baseline))
-				baseline.BaselineArray.AsSpan().Clear();
+			{
+				baseline.Serialize.AsSpan().Clear();
+				baseline.Deserialize.AsSpan().Clear();
+			}
 		}
 
 		public override void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection)
@@ -148,7 +167,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			var         hadInitialData = group.Storage.Has<SerializeInitialData>();
 			TSnapshot[] writeArray;
 
-			ref var __readArray = ref instigatorDataMap[Instigator].BaselineArray;
+			ref var __readArray = ref instigatorDataMap[Instigator].Serialize;
 			GetColumn(ref __readArray, entities);
 
 			var readArray = __readArray;
@@ -162,8 +181,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			}
 			else
 				writeArray = readArray;
-
-			var accessor = new ComponentDataAccessor<TComponent>(GameWorld);
+			
+			var differentCount = 0;
+			var accessor       = new ComponentDataAccessor<TComponent>(GameWorld);
 			switch (CheckDifferenceSettings)
 			{
 				case true:
@@ -178,6 +198,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 							continue;
 						}
 
+						differentCount++;
+
 						bitBuffer.AddBool(false);
 						snapshot.Serialize(bitBuffer, readArray[ent], setup);
 						writeArray[ent] = snapshot;
@@ -190,11 +212,24 @@ namespace GameHost.Revolution.Snapshot.Serializers
 						var snapshot = default(TSnapshot);
 						snapshot.Tick = parameters.Tick;
 						snapshot.FromComponent(accessor[entities[ent]], setup);
+						if (CheckEqualsWholeSnapshotSettings == EqualsWholeSnapshot.CheckWithComponentDifference)
+						{
+							if (!UnsafeUtility.SameData(snapshot, readArray[ent]))
+								differentCount++;
+						}
+
 						snapshot.Serialize(bitBuffer, readArray[ent], setup);
 						writeArray[ent] = snapshot;
 					}
 
 					break;
+			}
+
+			if (differentCount == 0 
+			    && CheckEqualsWholeSnapshotSettings == EqualsWholeSnapshot.CheckWithComponentDifference
+			    && !parameters.HadEntityUpdate)
+			{
+				bitBuffer.Clear();
 			}
 
 			__readArray = writeArray;
@@ -204,7 +239,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 			setup.Begin(false);
 
-			ref var baselineArray = ref instigatorDataMap[Instigator].BaselineArray;
+			ref var baselineArray = ref instigatorDataMap[Instigator].Deserialize;
 
 			GetColumn(ref baselineArray, refData.Self);
 
@@ -299,7 +334,8 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </remarks>
 		public class InstigatorData
 		{
-			public TSnapshot[] BaselineArray = Array.Empty<TSnapshot>();
+			public TSnapshot[] Serialize   = Array.Empty<TSnapshot>();
+			public TSnapshot[] Deserialize = Array.Empty<TSnapshot>();
 		}
 
 		public struct SerializeInitialData

@@ -112,7 +112,23 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					// If nobody assigned the SnapshotEntity component, this mean we created it (or that we can take possession of it)
 					if (!gameWorld.HasComponent<SnapshotEntity>(handle))
 					{
-						gameWorld.AddComponent(handle, new SnapshotEntity(new GameEntity(handle.Id, entity.Version), broadcast.InstigatorId, broadcast.Storage));
+						if (gameWorld.HasComponent<SnapshotEntity.ForcedInstigatorId>(handle))
+						{
+							gameWorld.AddComponent(handle, new SnapshotEntity(
+								new GameEntity(handle.Id, entity.Version),
+								gameWorld.GetComponentData<SnapshotEntity.ForcedInstigatorId>(handle).Value,
+								broadcast.Storage
+							));
+						}
+						else
+						{
+							gameWorld.AddComponent(handle, new SnapshotEntity(
+								new GameEntity(handle.Id, entity.Version),
+								broadcast.InstigatorId,
+								broadcast.Storage
+							));
+						}
+
 						gameWorld.AddComponent(handle, new SnapshotEntity.CreatedByThisWorld());
 					}
 				}
@@ -193,7 +209,10 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					{
 					}
 				}
-				
+
+				var orderSize = new List<(int size, string name)>();
+				var totalSize = 0;
+				var lastReportSize = 0;
 				foreach (var serializer in broadcast.snapshotSerializers)
 				{
 					var groupCollection = groupsPerSystem[serializer.System];
@@ -208,11 +227,27 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 						foreach (var client in group.ClientSpan)
 						{
 							var clientData = client.Get<ClientData>();
-							clientData.AddUIntD4(serializer.System.Id)
-							          .AddUIntD4((uint) data.Length);
+							if (!clientData.PreviousSizePerSystem.TryGetValue(serializer.System.Id, out var previousSize))
+								clientData.PreviousSizePerSystem[serializer.System.Id] = 0;
+							
+							clientData.AddUIntD4Delta(serializer.System.Id, clientData.LastSystemId)
+							          .AddUIntD4Delta((uint) data.Length, previousSize);
 							clientData.AddSpan(data);
+
+							clientData.LastSystemId                                = serializer.System.Id;
+							clientData.PreviousSizePerSystem[serializer.System.Id] = (uint) data.Length;
+							
+							orderSize.Add((data.Length, serializer.GetType().FullName));
+							totalSize      += data.Length;
+							lastReportSize =  clientData.Length;
 						}
 					}
+				}
+
+				if (broadcast.InstigatorId == 0)
+				{
+					Console.WriteLine($"Ordered Size average={{{totalSize}}} lastReport={{{lastReportSize}}}");
+					Console.WriteLine($"{string.Join('\n', orderSize.OrderByDescending(t => t.size).Select(t => $"\t{t.size}B - {t.name}"))}");
 				}
 
 				scheduler.Run();
@@ -368,7 +403,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				for (var i = 0; i != clients.Length; i++)
 					clients[i] = broadcast.clients[i].Storage;
 
-				var parameters = new SerializationParameters(0, scheduler);
+				var parameters = new SerializationParameters(0, entityUpdateList.Count > 0, scheduler);
 				foreach (var serializer in broadcast.snapshotSerializers)
 				{
 					var groups = groupsPerSystem[serializer.System];

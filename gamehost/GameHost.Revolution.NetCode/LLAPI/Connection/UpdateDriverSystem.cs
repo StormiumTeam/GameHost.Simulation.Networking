@@ -9,6 +9,7 @@ using GameHost.Applications;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
+using GameHost.Revolution.NetCode.Components;
 using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
@@ -120,7 +121,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 
 								conClientIdMap.Remove(ev.Connection.Id);
 								conClientIdMap.Add(ev.Connection.Id, serverCountNextId);
-								Console.WriteLine($"Register Client {ev.Connection} --> {serverCountNextId}");
 								serverCountNextId++;
 
 								// Send snapshot systems to this client
@@ -180,7 +180,11 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					entity.Set(broadcaster);
 					entity.Set(rpc);
 					entity.Set(serverClient);
-					Console.WriteLine($"Assigning Client data... InstigatorId={instigatorId}");
+
+					if (!gameWorld.TryGetSingleton<LocalInstigatorId>(out GameEntityHandle entityHandle))
+						gameWorld.AddComponent(gameWorld.CreateEntity(), new LocalInstigatorId(instigatorId));
+					else
+						gameWorld.GetComponentData<LocalInstigatorId>(entityHandle) = new LocalInstigatorId(instigatorId);
 
 					break;
 				}
@@ -280,7 +284,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					var print = "";
 					while (count-- > 0)
 					{
-						var systemId   = reader.ReadValue<uint>();
+						var systemId   = reader.ReadValue<ushort>();
 						var systemName = reader.ReadString();
 						
 						print += $"{systemId} - {systemName}\n";
