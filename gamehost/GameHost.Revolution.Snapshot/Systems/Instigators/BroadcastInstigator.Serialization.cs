@@ -80,7 +80,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 								if (serializer.AuthorityArchetype?.IsArchetypeValid(localArchetype) == true)
 									authoritySystems.Add(id);
 							}
-
+	
 							if (!WriterState.TryGetArchetypeWithSystems(systems.Span, out archetype))
 								archetype = WriterState.CreateArchetype(systems.Span);
 							if (!WriterState.TryGetArchetypeWithSystems(authoritySystems.Span, out var authorityArchetype))

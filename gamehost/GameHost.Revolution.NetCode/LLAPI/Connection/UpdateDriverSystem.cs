@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using BidirectionalMap;
@@ -14,6 +15,7 @@ using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
+using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.Application;
 using GameHost.Simulation.TabEcs;
 using GameHost.Simulation.Utility.EntityQuery;
@@ -116,7 +118,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 								var client = entity.Get<BroadcastInstigator>().AddClient(serverCountNextId);
 								client.Storage.Set(ev.Connection);
 								client.Storage.Set(new NetCodeRpcBroadcaster(Context, client));
-
+								
 								feature.Driver.Send(feature.ReliableChannel, ev.Connection, writer.Span);
 
 								conClientIdMap.Remove(ev.Connection.Id);

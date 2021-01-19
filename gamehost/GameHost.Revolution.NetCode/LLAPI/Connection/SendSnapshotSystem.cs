@@ -7,6 +7,7 @@ using GameHost.Core;
 using GameHost.Core.Ecs;
 using GameHost.Core.Features.Systems;
 using GameHost.Core.IO;
+using GameHost.IO;
 using GameHost.Revolution.NetCode.Rpc;
 using GameHost.Revolution.Snapshot.Systems.Instigators;
 using GameHost.Simulation.Application;
@@ -119,9 +120,7 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 					throw new InvalidOperationException("what?");
 
 				var clientData = client.GetClientData();
-
-				var compressedSize = LZ4Codec.MaximumOutputSize(clientData.Length);
-				var pooledArray    = ArrayPool<byte>.Shared.Rent(clientData.Length);
+				using (DisposableArray.Rent(clientData.Length, out var pooledArray))
 				{
 					var buffer = new DataBufferWriter(0);
 					using (buffer)
@@ -141,7 +140,6 @@ namespace GameHost.Revolution.NetCode.LLAPI.Systems
 						feature.Driver.Send(feature.ReliableChannel, connection, buffer.Span);
 					}
 				}
-				ArrayPool<byte>.Shared.Return(pooledArray);
 			}
 		}
 	}
