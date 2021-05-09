@@ -104,9 +104,9 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			}
 		}
 
-		protected override void PrepareGlobal()
+		protected override void PrepareGlobal(uint tick, uint baseline, int entityCount)
 		{
-			base.PrepareGlobal();
+			base.PrepareGlobal(tick, baseline, entityCount);
 
 			if (!instigatorDataMap.TryGetValue(Instigator, out var data))
 				instigatorDataMap[Instigator] = data = new InstigatorData();

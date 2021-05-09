@@ -36,7 +36,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			/// </summary>
 			public SnapshotState WriterState;
 
-			public void Execute(uint tick, BroadcastInstigator broadcast)
+			public void Execute(uint tick, uint baseline, BroadcastInstigator broadcast)
 			{
 				var gameWorld   = broadcast.gameWorld;
 				var entityBoard = gameWorld.Boards.Entity;
@@ -200,7 +200,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				}
 
 				// ---- SYSTEMS
-				PrepareSerializers(broadcast);
+				PrepareSerializers(broadcast, baseline);
 
 				foreach (var task in tasks)
 				{
@@ -396,14 +396,14 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			}
 
 			private PooledList<Entity> tempClientList = new();
-			private void PrepareSerializers(BroadcastInstigator broadcast)
+			private void PrepareSerializers(BroadcastInstigator broadcast, uint baseline)
 			{
 				tempClientList.Clear();
 				var clients = tempClientList.AddSpan(broadcast.clients.Count);
 				for (var i = 0; i != clients.Length; i++)
 					clients[i] = broadcast.clients[i].Storage;
 
-				var parameters = new SerializationParameters(0, entityUpdateList.Count > 0, scheduler);
+				var parameters = new SerializationParameters(broadcast.State.Tick, baseline, entityUpdateList.Count > 0, scheduler);
 				foreach (var serializer in broadcast.snapshotSerializers)
 				{
 					var groups = groupsPerSystem[serializer.System];

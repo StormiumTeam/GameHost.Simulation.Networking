@@ -276,7 +276,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 					}
 				}
 				
-				var parameters = new DeserializationParameters(readState.Tick, post);
+				var parameters = new DeserializationParameters(readState.Tick, 0, post);
 
 				previousSystemId = 0;
 				if (isRemake)

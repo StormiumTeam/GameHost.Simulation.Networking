@@ -10,6 +10,7 @@ using GameHost.Revolution.Snapshot.Systems;
 using GameHost.Revolution.Snapshot.Systems.Components;
 using GameHost.Revolution.Snapshot.Utilities;
 using GameHost.Simulation.TabEcs;
+using Microsoft.Extensions.Logging;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -33,9 +34,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </summary>
 		protected GameWorld GameWorld;
 
+		protected ILogger Logger;
+
 		public SerializerBase(ISnapshotInstigator instigator, Context context) : base(context)
 		{
 			DependencyResolver.Add(() => ref GameWorld);
+			DependencyResolver.Add(() => ref Logger);
 			DependencyResolver.OnComplete(OnDependenciesResolved);
 
 			Instigator = instigator;
@@ -63,7 +67,11 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		
 		public virtual Span<UniTask> PrepareSerializeTask(SerializationParameters parameters, MergeGroupCollection groupCollection, ReadOnlySpan<GameEntityHandle> entities)
 		{
-			PrepareGlobal();
+			var entityLength = 0;
+			if (entities.Length > 0)
+				entityLength = (int) Math.Max(entities[^1].Id + 1, entities.Length + 1);
+			PrepareGlobal(parameters.Tick, parameters.Baseline, entityLength);
+			
 			if (SynchronousSerialize)
 			{
 				foreach (var group in groupCollection)
@@ -129,7 +137,10 @@ namespace GameHost.Revolution.Snapshot.Serializers
 
 		public virtual UniTask PrepareDeserializeTask(DeserializationParameters parameters, Span<byte> data, ISnapshotSerializerSystem.RefData refData)
 		{
-			PrepareGlobal();
+			var entityLength = 0;
+			if (refData.Self.Length > 0)
+				entityLength = (int) Math.Max(refData.Self[^1].Id + 1, refData.Self.Length + 1);
+			PrepareGlobal(parameters.Tick, parameters.Baseline, entityLength);
 
 			deserializeArgs.p        =   parameters;
 			deserializeArgs.data     ??= new PooledList<byte>();
@@ -180,7 +191,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			}
 		}
 
-		protected virtual void PrepareGlobal()
+		protected virtual void PrepareGlobal(uint tick, uint baseline, int entityCount)
 		{
 		}
 

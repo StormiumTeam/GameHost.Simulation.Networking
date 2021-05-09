@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using DefaultEcs;
 using GameHost.Injection;
@@ -9,6 +10,8 @@ using GameHost.Simulation.TabEcs.HLAPI;
 using GameHost.Simulation.TabEcs.Interfaces;
 using JetBrains.Annotations;
 using RevolutionSnapshot.Core.Buffers;
+using StormiumTeam.GameBase.Utility.Misc;
+using ZLogger;
 
 namespace GameHost.Revolution.Snapshot.Serializers
 {
@@ -20,14 +23,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 		}
 	}
-		
+
 	public abstract class DeltaSnapshotSerializerBase<TSnapshot, TComponent, TSetup> : SerializerBase
 		where TSnapshot : struct, ISnapshotData, IReadWriteSnapshotData<TSnapshot, TSetup>, ISnapshotSyncWithComponent<TComponent, TSetup>
 		where TComponent : struct, IComponentData
 		where TSetup : struct, ISnapshotSetupData
 	{
-		private static readonly Action<Entity> setSerialize   = c => c.Set<SerializeInitialData>();
-		private static readonly Action<Entity> setDeserialize = c => c.Set<DeserializeInitialData>();
+		private static readonly Action<(Entity e, uint baseline)> setSerialize   = c => c.e.Set(new SerializeCurrentBaseline {Value   = c.baseline});
+		private static readonly Action<(Entity e, uint baseline)> setDeserialize = c => c.e.Set(new DeserializeCurrentBaseline {Value = c.baseline});
 
 		#region Settings
 
@@ -59,6 +62,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// Check for difference between current and previous component data. If false, it will not write the component data
 		/// </summary>
 		public bool CheckDifferenceSettings;
+
 		/// <summary>
 		/// Check for the difference between previous and current data of this system. If false, nothing will be written.
 		/// </summary>
@@ -67,6 +71,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		public enum EqualsWholeSnapshot
 		{
 			None,
+
 			// The fastest if we're already checking difference with CheckDifferenceSettings (if this enum is selected, CheckDifferenceSettings will be forced to true)
 			CheckWithComponentDifference,
 			CheckWithLatestData
@@ -99,7 +104,7 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		protected override void OnDependenciesResolved(IEnumerable<object> deps)
 		{
 			base.OnDependenciesResolved(deps);
-			
+
 			setup.Create(this);
 		}
 
@@ -117,13 +122,22 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		{
 			if (instigatorDataMap.TryGetValue(instigator, out var baseline))
 			{
-				baseline.Serialize.AsSpan().Clear();
-				baseline.Deserialize.AsSpan().Clear();
+				foreach (var snapshots in baseline.Serialize.Values)
+					ArrayPool<TSnapshot>.Shared.Return(snapshots);
+				foreach (var snapshots in baseline.Deserialize.Values)
+					ArrayPool<TSnapshot>.Shared.Return(snapshots);
+				
+				baseline.Serialize.Clear();
+				baseline.Deserialize.Clear();
 			}
 		}
 
 		public override void UpdateMergeGroup(ReadOnlySpan<Entity> clients, MergeGroupCollection collection)
 		{
+			foreach (var client in clients)
+				if (!client.Has<SerializeCurrentBaseline>())
+					client.Set(new SerializeCurrentBaseline {Value = 0});
+
 			// The goal is to merge clients into two groups:
 			// - clients that have the initial data
 			// - clients that never had the initial data.
@@ -139,12 +153,12 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			// The serializer only call based on groups, so if this client isn't attached to any, it will never get called for it.
 			foreach (var client in clients)
 			{
-				var thisHasData                                           = client.Has<SerializeInitialData>();
-				
+				var baseline = client.Get<SerializeCurrentBaseline>();
+
 				if (!collection.TryGetGroup(client, out var group)) group = collection.CreateGroup();
 				foreach (var other in clients)
 				{
-					if (other.Has<SerializeInitialData>() != thisHasData)
+					if (other.Get<SerializeCurrentBaseline>().Value != baseline.Value)
 						continue;
 
 					collection.SetToGroup(other, group);
@@ -152,36 +166,45 @@ namespace GameHost.Revolution.Snapshot.Serializers
 			}
 		}
 
-		protected override void PrepareGlobal()
+		protected override void PrepareGlobal(uint tick, uint baseline, int entityCount)
 		{
-			base.PrepareGlobal();
+			base.PrepareGlobal(tick, baseline, entityCount);
 
 			if (!instigatorDataMap.TryGetValue(Instigator, out var data))
 				instigatorDataMap[Instigator] = data = new InstigatorData();
+			
+			if (!data.Serialize.ContainsKey(0))
+				data.Serialize[0] = ArrayPool<TSnapshot>.Shared.Rent(entityCount);
+			if (!data.Deserialize.ContainsKey(0))
+				data.Deserialize[0] = ArrayPool<TSnapshot>.Shared.Rent(entityCount);
+
+			data.Serialize[tick]   = ArrayPool<TSnapshot>.Shared.Rent(entityCount);
+			data.Deserialize[tick] = ArrayPool<TSnapshot>.Shared.Rent(entityCount);
 		}
 
 		protected override void OnSerialize(BitBuffer bitBuffer, SerializationParameters parameters, MergeGroup group, ReadOnlySpan<GameEntityHandle> entities)
 		{
 			setup.Begin(true);
 
-			var         hadInitialData = group.Storage.Has<SerializeInitialData>();
-			TSnapshot[] writeArray;
+			var currentBaseline = group.Storage.Get<SerializeCurrentBaseline>().Value;
 
-			ref var __readArray = ref instigatorDataMap[Instigator].Serialize;
-			GetColumn(ref __readArray, entities);
-
-			var readArray = __readArray;
-
-			if (!hadInitialData)
+			var serializeMap = instigatorDataMap[Instigator].Serialize;
+			if (!serializeMap.TryGetValue(currentBaseline, out var readArray))
 			{
-				writeArray = readArray = new TSnapshot[entities.Length];
-				parameters.Post.Schedule(setSerialize, group.Storage, default);
-				foreach (var client in group.Entities)
-					parameters.Post.Schedule(setSerialize, client, default);
+				Logger.ZLogCritical("(Serialization) No readable baseline {0} found in system {1} !", currentBaseline, TypeExt.GetFriendlyName(GetType()));
+				return;
 			}
-			else
-				writeArray = readArray;
-			
+
+			if (!serializeMap.TryGetValue(parameters.Tick, out var writeArray))
+			{
+				Logger.ZLogCritical("(Serialization) No writable baseline {0} found in system {1} !", currentBaseline, TypeExt.GetFriendlyName(GetType()));
+				return;
+			}
+
+			parameters.Post.Schedule(setSerialize, (group.Storage, parameters.Tick), default);
+			foreach (var client in group.Entities)
+				parameters.Post.Schedule(setSerialize, (client, parameters.Tick), default);
+
 			var differentCount = 0;
 			var accessor       = new ComponentDataAccessor<TComponent>(GameWorld);
 			switch (CheckDifferenceSettings)
@@ -225,35 +248,31 @@ namespace GameHost.Revolution.Snapshot.Serializers
 					break;
 			}
 
-			if (differentCount == 0 
+			if (differentCount == 0
 			    && CheckEqualsWholeSnapshotSettings == EqualsWholeSnapshot.CheckWithComponentDifference
 			    && !parameters.HadEntityUpdate)
 			{
 				bitBuffer.Clear();
 			}
-
-			__readArray = writeArray;
 		}
 
 		protected override void OnDeserialize(BitBuffer bitBuffer, DeserializationParameters parameters, ISnapshotSerializerSystem.RefData refData)
 		{
 			setup.Begin(false);
 
-			ref var baselineArray = ref instigatorDataMap[Instigator].Deserialize;
+			var currentBaseline = Instigator.Storage.Get<DeserializeCurrentBaseline>().Value;
 
-			GetColumn(ref baselineArray, refData.Self);
+			var serializeMap = instigatorDataMap[Instigator].Serialize;
+			if (!serializeMap.TryGetValue(currentBaseline, out var baselineArray))
+			{
+				Logger.ZLogCritical("(Deserialization) No readable baseline {0} found in system {1} !", currentBaseline, TypeExt.GetFriendlyName(GetType()));
+				return;
+			}
 
 			var dataAccessor   = new ComponentDataAccessor<TComponent>(GameWorld);
 			var bufferAccessor = new ComponentBufferAccessor<TSnapshot>(GameWorld);
 
-			// The code is a bit less complex here, since we assume that when we deserialize we do that for one client per instigator...
-			var hadInitialData = Instigator.Storage.Has<DeserializeInitialData>();
-			if (!hadInitialData)
-			{
-				Array.Fill(baselineArray, default);
-
-				parameters.Post.Schedule(setDeserialize, Instigator.Storage, default);
-			}
+			parameters.Post.Schedule(setDeserialize, (Instigator.Storage, parameters.Tick), default);
 
 			switch (CheckDifferenceSettings)
 			{
@@ -334,16 +353,18 @@ namespace GameHost.Revolution.Snapshot.Serializers
 		/// </remarks>
 		public class InstigatorData
 		{
-			public TSnapshot[] Serialize   = Array.Empty<TSnapshot>();
-			public TSnapshot[] Deserialize = Array.Empty<TSnapshot>();
+			public Dictionary<uint, TSnapshot[]> Serialize   = new();
+			public Dictionary<uint, TSnapshot[]> Deserialize = new();
 		}
 
-		public struct SerializeInitialData
+		public struct SerializeCurrentBaseline
 		{
+			public uint Value;
 		}
-		
-		public struct DeserializeInitialData
+
+		public struct DeserializeCurrentBaseline
 		{
+			public uint Value;
 		}
 	}
 }

@@ -15,12 +15,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 	public readonly struct SerializationParameters
 	{
 		public readonly uint       Tick;
+		public readonly uint       Baseline;
 		public readonly bool       HadEntityUpdate;
 		public readonly IScheduler Post;
 
-		public SerializationParameters(uint tick, bool hadEntityUpdate, IScheduler post)
+		public SerializationParameters(uint tick, uint baseline, bool hadEntityUpdate, IScheduler post)
 		{
 			Tick            = tick;
+			Baseline        = baseline;
 			HadEntityUpdate = hadEntityUpdate;
 			Post            = post;
 		}
@@ -29,12 +31,14 @@ namespace GameHost.Revolution.Snapshot.Serializers
 	public struct DeserializationParameters
 	{
 		public readonly uint       Tick;
+		public readonly uint       Baseline;
 		public readonly IScheduler Post;
 
-		public DeserializationParameters(uint tick, IScheduler post)
+		public DeserializationParameters(uint tick, uint baseline, IScheduler post)
 		{
-			Tick = tick;
-			Post = post;
+			Tick     = tick;
+			Baseline = baseline;
+			Post     = post;
 		}
 	}
 

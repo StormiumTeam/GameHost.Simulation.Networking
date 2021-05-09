@@ -57,7 +57,14 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 			InstigatorId   = groupId;
 
 			var queuedEntity = Storage.World.CreateEntity();
-			queuedEntity.SetAsChildOf(Storage);
+			AddDisposable(Storage.World.SubscribeEntityDisposed((in Entity ent) =>
+			{
+				if (ent != Storage)
+					return;
+
+				if (queuedEntity.IsAlive)
+					queuedEntity.Dispose();
+			}));
 
 			DependencyResolver.Add(() => ref gameWorld);
 			DependencyResolver.TryComplete();
@@ -161,7 +168,7 @@ namespace GameHost.Revolution.Snapshot.Systems.Instigators
 				}
 			}
 #endif
-			serialization.Execute(tick, this);
+			serialization.Execute(tick, 0, this);
 		}
 	}
 }
