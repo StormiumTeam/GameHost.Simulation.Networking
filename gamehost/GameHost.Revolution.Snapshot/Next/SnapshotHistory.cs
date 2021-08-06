@@ -6,13 +6,36 @@ namespace GameHost.Revolution.NetCode.Next
 {
 	public class SnapshotHistory : IDisposable
 	{
-		private List<(uint line, Entity)> availableLines;
-		private World                     world;
-		
-		public SnapshotHistory(int historySize = 32, ISnapshot snapshot = null)
+		private struct IsLockedTag
 		{
+		}
+
+		private List<(uint line, Entity entity)> availableLines;
+		private World                            world;
+
+		private readonly int historySize;
+
+		public SnapshotHistory(int historySize = 32)
+		{
+			this.historySize = historySize;
+
 			availableLines = new(historySize);
-			world          = new(historySize * 4);
+			world          = new(historySize * 8);
+		}
+
+		public void TryRecycleUnused()
+		{
+			if (availableLines.Count < historySize)
+				return;
+
+			for (var i = 0; i < availableLines.Count; i++)
+			{
+				var (_, entity) = availableLines[i];
+				if (entity.Has<IsLockedTag>())
+					return;
+
+				availableLines.RemoveAt(i--);
+			}
 		}
 
 		public Entity GetLine(uint line)
@@ -29,6 +52,23 @@ namespace GameHost.Revolution.NetCode.Next
 			}
 
 			return GetOrCreate();
+		}
+
+		/// <summary>
+		/// Remove the possibility for a line to be removed if <see cref="isLocked"/> is true.
+		/// </summary>
+		/// <param name="target">The line</param>
+		/// <param name="isLocked">Whether or not this line should be locked</param>
+		public void SetLocked(uint target, bool isLocked)
+		{
+			foreach (var (line, entity) in availableLines)
+				if (line == target)
+				{
+					if (isLocked)
+						entity.Set<IsLockedTag>();
+					else
+						entity.Remove<IsLockedTag>();
+				}
 		}
 
 		public void Dispose()

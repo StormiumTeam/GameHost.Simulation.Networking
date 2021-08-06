@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>9</LangVersion>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <AssemblyName>GameHost.Revolution.Snapshot</AssemblyName>
+        <RootNamespace>GameHost.Revolution.Snapshot</RootNamespace>
+        <TargetFrameworks>net5.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\FrameWork.GameHost\GameHost.Simulation\GameHost.Simulation.csproj" />
+      <ProjectReference Include="..\..\..\FrameWork.GameHost\GameHost\GameHost.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="UniTask" Version="2.0.37" />
+    </ItemGroup>
+
+</Project>

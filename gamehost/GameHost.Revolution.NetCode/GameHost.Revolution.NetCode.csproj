@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>9</LangVersion>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
+        <TargetFramework>net5.0</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\FrameWork.GameHost\GameHost.Simulation\GameHost.Simulation.csproj" />
+        <ProjectReference Include="..\..\..\FrameWork.GameHost\GameHost\GameHost.csproj" />
+      <ProjectReference Include="..\GameHost.Revolution.Snapshot\GameHost.Revolution.Snapshot.csproj" />
+    </ItemGroup>
+
+</Project>
